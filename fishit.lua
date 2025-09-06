@@ -1,29 +1,105 @@
--- Rayfield UI Library
+-- Fish It Script for Roblox (September 2025)
+-- Created with Rayfield Library + Async System
+-- Supports: Delta, Codex, Hydrogen, Arceus X, Fluxus, Synapse X, Script-Ware, Solara
+
+-- Rayfield Library
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
 
--- Variables
+-- Services
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local CoreGui = game:GetService("CoreGui")
 
--- Game-specific variables
+-- Player
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Game Modules
+local FishItModules = ReplicatedStorage:WaitForChild("Modules")
 local FishItRemotes = ReplicatedStorage:WaitForChild("Remotes")
 local FishItEvents = ReplicatedStorage:WaitForChild("Events")
-local FishItModules = ReplicatedStorage:WaitForChild("Modules")
-local FishItItems = ReplicatedStorage:WaitForChild("Items")
+
+-- Remote Events & Functions
+local CastLineRemote = FishItRemotes:WaitForChild("CastLine")
+local ReelInRemote = FishItRemotes:WaitForChild("ReelIn")
+local SellFishRemote = FishItRemotes:WaitForChild("SellFish")
+local BuyItemRemote = FishItRemotes:WaitForChild("BuyItem")
+local EquipItemRemote = FishItRemotes:WaitForChild("EquipItem")
+local TeleportRemote = FishItRemotes:WaitForChild("Teleport")
+local TradeRemote = FishItRemotes:WaitForChild("Trade")
+local WeatherRemote = FishItRemotes:WaitForChild("Weather")
+
+-- Module Scripts
+local PlayerData = require(FishItModules:WaitForChild("PlayerData"))
+local FishData = require(FishItModules:WaitForChild("FishData"))
+local RodData = require(FishItModules:WaitForChild("RodData"))
+local BaitData = require(FishItModules:WaitForChild("BaitData"))
+local BoatData = require(FishItModules:WaitForChild("BoatData"))
+local MapData = require(FishItModules:WaitForChild("MapData"))
+local RNGSystem = require(FishItModules:WaitForChild("RNGSystem"))
+
+-- Variables
+local autoFishEnabled = false
+local waterFishEnabled = false
+local bypassRadarEnabled = false
+local bypassAirEnabled = false
+local disableEffectFishingEnabled = false
+local autoInstantComplicatedFishingEnabled = false
+local autoSellFishEnabled = false
+local sellMythicalAndSecret = false
+local delayFishSell = 1
+local antiKickEnabled = false
+local antiDetectEnabled = false
+local antiAFKEnabled = false
+local speedHackEnabled = false
+local speedHackValue = 50
+local maxBoatSpeedEnabled = false
+local infinityJumpEnabled = false
+local flyEnabled = false
+local flyValue = 50
+local flyBoatEnabled = false
+local ghostHackEnabled = false
+local espLinesEnabled = false
+local espBoxEnabled = false
+local espRangeEnabled = false
+local espLevelEnabled = false
+local espHologramEnabled = false
+local autoAcceptTradeEnabled = false
+local autoBuyWeatherEnabled = false
+local boostFPSEnabled = false
+local fpsValue = 60
+local autoCleanMemoryEnabled = false
+local highQualityEnabled = false
+local maxRenderingEnabled = false
+local ultraLowModeEnabled = false
+local disableWaterReflectionEnabled = false
+local customShaderEnabled = false
+local rngReducerEnabled = false
+local forceLegendaryCatchEnabled = false
+local secretFishBoostEnabled = false
+local mythicalChanceEnabled = false
+local antiBadLuckEnabled = false
+
+-- Saved Positions
+local savedPositions = {}
+
+-- ESP Objects
+local espObjects = {}
 
 -- Create Window
 local Window = Rayfield:CreateWindow({
     Name = "Fish It Hub | September 2025",
     LoadingTitle = "Fish It Script",
-    LoadingSubtitle = "by AI Assistant",
+    LoadingSubtitle = "by Scripter",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "FishItHub",
@@ -42,7 +118,7 @@ local Window = Rayfield:CreateWindow({
         FileName = "FishItKey",
         SaveKey = true,
         GrabKeyFromSite = false,
-        Key = {"FISHIT2025"}
+        Key = {"FishIt2025"}
     }
 })
 
@@ -54,1265 +130,76 @@ local TraderTab = Window:CreateTab("Trader", 4483362458)
 local ServerTab = Window:CreateTab("Server", 4483362458)
 local SystemTab = Window:CreateTab("System", 4483362458)
 local GraphicTab = Window:CreateTab("Graphic", 4483362458)
-local RngKillTab = Window:CreateTab("RNG Kill", 4483362458)
+local RNGKillTab = Window:CreateTab("RNG Kill", 4483362458)
 local ShopTab = Window:CreateTab("Shop", 4483362458)
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 -- Fish Farm Tab
-local AutoFishSection = FishFarmTab:CreateSection("Auto Fish")
+local FishFarmSection = FishFarmTab:CreateSection("Fish Farm")
+
+-- Auto Fish
 local AutoFishToggle = FishFarmTab:CreateToggle({
     Name = "Auto Fish",
     CurrentValue = false,
     Flag = "AutoFish",
     Callback = function(Value)
-        _G.AutoFish = Value
-        
-        if _G.AutoFish then
+        autoFishEnabled = Value
+        if autoFishEnabled then
             task.spawn(function()
-                while _G.AutoFish and task.wait(0.1) do
-                    pcall(function()
-                        -- Check if player is holding a rod
-                        local character = LocalPlayer.Character
-                        if character and character:FindFirstChildOfClass("Tool") then
-                            local tool = character:FindFirstChildOfClass("Tool")
-                            if tool:FindFirstChild("Rod") then
-                                -- Cast line
-                                FishItRemotes.CastLine:FireServer()
-                                
-                                -- Wait for fish to bite
-                                local biteEvent = FishItEvents.FishBite
-                                local connection
-                                connection = biteEvent.OnClientEvent:Connect(function()
-                                    -- Reel in the fish
-                                    FishItRemotes.ReelIn:FireServer()
+                while autoFishEnabled do
+                    if player.Character and player.Character:FindFirstChildOfClass("Tool") then
+                        local tool = player.Character:FindFirstChildOfClass("Tool")
+                        if tool.Name:find("Rod") or tool.Name:find("rod") then
+                            -- Cast line
+                            CastLineRemote:FireServer()
+                            task.wait(0.5)
+                            
+                            -- Auto reel when fish caught
+                            local connection
+                            connection = game.Workspace.ChildAdded:Connect(function(child)
+                                if child.Name == "Fish" and autoFishEnabled then
+                                    task.wait(0.2)
+                                    ReelInRemote:FireServer()
                                     connection:Disconnect()
-                                end)
-                                
-                                -- Wait a bit before next cast
-                                task.wait(2)
-                            end
+                                end                            end)
+                            
+                            task.wait(2)
+                        else
+                            task.wait(1)
                         end
-                    end)
+                    else
+                        task.wait(1)
+                    end
                 end
             end)
         end
     end,
 })
 
+-- Water Fish
 local WaterFishToggle = FishFarmTab:CreateToggle({
     Name = "Water Fish",
     CurrentValue = false,
     Flag = "WaterFish",
     Callback = function(Value)
-        _G.WaterFish = Value
-        
-        if _G.WaterFish then
+        waterFishEnabled = Value
+        if waterFishEnabled then
             task.spawn(function()
-                while _G.WaterFish and task.wait(0.1) do
-                    pcall(function()
-                        -- Check if player is holding a rod
-                        local character = LocalPlayer.Character
-                        if character and character:FindFirstChildOfClass("Tool") then
-                            local tool = character:FindFirstChildOfClass("Tool")
-                            if tool:FindFirstChild("Rod") then
-                                -- Force water detection even on land
-                                local waterDetectionModule = require(FishItModules.WaterDetection)
-                                local originalFunction = waterDetectionModule.CheckWater
-                                waterDetectionModule.CheckWater = function()
-                                    return true
+                while waterFishEnabled do
+                    if player.Character and player.Character:FindFirstChildOfClass("Tool") then
+                        local tool = player.Character:FindFirstChildOfClass("Tool")
+                        if tool.Name:find("Rod") or tool.Name:find("rod") then
+                            -- Modify cast position to always hit water
+                            local oldCastLine = CastLineRemote.FireServer
+                            CastLineRemote.FireServer = function(self, ...)
+                                local args = {...}
+                                if #args == 0 then
+                                    args = {CFrame.new(0, -100, 0)}
                                 end
+                                return oldCastLine(self, unpack(args))
                             end
                         end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local BypassRadarToggle = FishFarmTab:CreateToggle({
-    Name = "Bypass Radar",
-    CurrentValue = false,
-    Flag = "BypassRadar",
-    Callback = function(Value)
-        _G.BypassRadar = Value
-        
-        if _G.BypassRadar then
-            task.spawn(function()
-                while _G.BypassRadar and task.wait(5) do
-                    pcall(function()
-                        -- Check if player has radar
-                        local playerDataModule = require(FishItModules.PlayerData)
-                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
-                        if not playerData.Inventory.Radar then
-                            -- Auto buy radar
-                            FishItRemotes.BuyItem:FireServer("Radar", 1)
-                        end
-                        
-                        -- Activate radar
-                        FishItRemotes.ActivateRadar:FireServer(true)
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local BypassAirToggle = FishFarmTab:CreateToggle({
-    Name = "Bypass Air",
-    CurrentValue = false,
-    Flag = "BypassAir",
-    Callback = function(Value)
-        _G.BypassAir = Value
-        
-        if _G.BypassAir then
-            task.spawn(function()
-                while _G.BypassAir and task.wait(5) do
-                    pcall(function()
-                        -- Check if player has air item
-                        local playerDataModule = require(FishItModules.PlayerData)
-                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
-                        if not playerData.Inventory.AirTank then
-                            -- Auto buy air tank
-                            FishItRemotes.BuyItem:FireServer("AirTank", 1)
-                        end
-                        
-                        -- Activate air tank
-                        FishItRemotes.ActivateAirTank:FireServer(true)
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local DisableEffectToggle = FishFarmTab:CreateToggle({
-    Name = "Disable Effect Fishing",
-    CurrentValue = false,
-    Flag = "DisableEffect",
-    Callback = function(Value)
-        _G.DisableEffect = Value
-        
-        if _G.DisableEffect then
-            -- Disable particle effects
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = false
-                end
-            end
-        else
-            -- Re-enable particle effects
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = true
-                end
-            end
-        end
-    end,
-})
-
-local InstantFishingToggle = FishFarmTab:CreateToggle({
-    Name = "Auto Instant Complicated Fishing",
-    CurrentValue = false,
-    Flag = "InstantFishing",
-    Callback = function(Value)
-        _G.InstantFishing = Value
-        
-        if _G.InstantFishing then
-            task.spawn(function()
-                while _G.InstantFishing and task.wait(0.1) do
-                    pcall(function()
-                        -- Modify fishing mechanics to make it instant
-                        local fishingMechanicsModule = require(FishItModules.FishingMechanics)
-                        local originalFunction = fishingMechanicsModule.StartFishingMinigame
-                        fishingMechanicsModule.StartFishingMinigame = function()
-                            -- Immediately complete the minigame
-                            FishItRemotes.CompleteFishingMinigame:FireServer(true)
-                        end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local AutoSellSection = FishFarmTab:CreateSection("Auto Sell Fish")
-local AutoSellToggle = FishFarmTab:CreateToggle({
-    Name = "Auto Sell Fish",
-    CurrentValue = false,
-    Flag = "AutoSell",
-    Callback = function(Value)
-        _G.AutoSell = Value
-        
-        if _G.AutoSell then
-            task.spawn(function()
-                while _G.AutoSell and task.wait(5) do
-                    pcall(function()
-                        -- Get player inventory
-                        local playerDataModule = require(FishItModules.PlayerData)
-                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
-                        local fishToSell = {}
-                        
-                        -- Filter fish to sell (exclude favorites)
-                        for fishName, fishData in pairs(playerData.Inventory.Fish) do
-                            if not fishData.Favorite and (_G.SellMythical or not fishData.Mythical) and (_G.SellSecret or not fishData.Secret) then
-                                table.insert(fishToSell, fishName)
-                            end
-                        end
-                        
-                        -- Sell fish
-                        if #fishToSell > 0 then
-                            for _, fishName in ipairs(fishToSell) do
-                                FishItRemotes.SellFish:FireServer(fishName, fishData.Amount)
-                                task.wait(_G.SellDelay or 1)
-                            end
-                        end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local SellMythicalToggle = FishFarmTab:CreateToggle({
-    Name = "Sell Mythical Fish",
-    CurrentValue = false,
-    Flag = "SellMythical",
-    Callback = function(Value)
-        _G.SellMythical = Value
-    end,
-})
-
-local SellSecretToggle = FishFarmTab:CreateToggle({
-    Name = "Sell Secret Fish",
-    CurrentValue = false,
-    Flag = "SellSecret",
-    Callback = function(Value)
-        _G.SellSecret = Value
-    end,
-})
-
-local SellDelaySlider = FishFarmTab:CreateSlider({
-    Name = "Delay Fish Sell",
-    Range = {0, 10},
-    Increment = 0.1,
-    Suffix = "s",
-    CurrentValue = 1,
-    Flag = "SellDelay",
-    Callback = function(Value)
-        _G.SellDelay = Value
-    end,
-})
-
-local AntiSection = FishFarmTab:CreateSection("Anti System")
-local AntiKickToggle = FishFarmTab:CreateToggle({
-    Name = "Anti Kick Server",
-    CurrentValue = false,
-    Flag = "AntiKick",
-    Callback = function(Value)
-        _G.AntiKick = Value
-        
-        if _G.AntiKick then
-            task.spawn(function()
-                while _G.AntiKick and task.wait(30) do
-                    pcall(function()
-                        -- Send a heartbeat to prevent kick
-                        FishItRemotes.Heartbeat:FireServer()
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local AntiDetectToggle = FishFarmTab:CreateToggle({
-    Name = "Anti Detect System",
-    CurrentValue = false,
-    Flag = "AntiDetect",
-    Callback = function(Value)
-        _G.AntiDetect = Value
-        
-        if _G.AntiDetect then
-            task.spawn(function()
-                while _G.AntiDetect and task.wait(1) do
-                    pcall(function()
-                        -- Bypass anti-cheat detection
-                        if getidentity then
-                            local originalIdentity = getidentity()
-                            setidentity(7) -- Spoof identity level
-                        end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local AntiAFKToggle = FishFarmTab:CreateToggle({
-    Name = "Anti AFK & Auto Jump",
-    CurrentValue = false,
-    Flag = "AntiAFK",
-    Callback = function(Value)
-        _G.AntiAFK = Value
-        
-        if _G.AntiAFK then
-            task.spawn(function()
-                while _G.AntiAFK and task.wait(30) do
-                    pcall(function()
-                        -- Move character to prevent AFK kick
-                        local character = LocalPlayer.Character
-                        if character and character:FindFirstChild("Humanoid") then
-                            character.Humanoid.Jump = true
-                        end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
--- Teleport Tab
-local MapsSection = TeleportTab:CreateSection("Teleport Maps")
-local MapsDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Map",
-    Options = {"Starter Island", "Pearl Island", "Volcano Bay", "Deep Sea Trench", "Sky Lagoon", "Coral Reef", "Ancient Temple"},
-    CurrentOption = "Starter Island",
-    MultipleOptions = false,
-    Flag = "SelectedMap",
-    Callback = function(Option)
-        _G.SelectedMap = Option
-    end,
-})
-
-local TeleportMapButton = TeleportTab:CreateButton({
-    Name = "Teleport to Map",
-    Callback = function()
-        pcall(function()
-            -- Get map locations
-            local mapLocations = {
-                ["Starter Island"] = CFrame.new(0, 10, 0),
-                ["Pearl Island"] = CFrame.new(250, 15, 300),
-                ["Volcano Bay"] = CFrame.new(-400, 20, -200),
-                ["Deep Sea Trench"] = CFrame.new(100, -50, -500),
-                ["Sky Lagoon"] = CFrame.new(0, 200, 0),
-                ["Coral Reef"] = CFrame.new(300, 5, 400),
-                ["Ancient Temple"] = CFrame.new(-300, 10, 300)
-            }
-            
-            -- Teleport player
-            local character = LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                character.HumanoidRootPart.CFrame = mapLocations[_G.SelectedMap]
-            end
-        end)
-    end,
-})
-
-local PlayerSection = TeleportTab:CreateSection("Teleport Player")
-local PlayersDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Player",
-    Options = {},
-    CurrentOption = "",
-    MultipleOptions = false,
-    Flag = "SelectedPlayer",
-    Callback = function(Option)
-        _G.SelectedPlayer = Option
-    end,
-})
-
--- Update players list
-task.spawn(function()
-    while task.wait(5) do
-        pcall(function()
-            local playerList = {}
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    table.insert(playerList, player.Name)
-                end
-            end
-            PlayersDropdown:SetOptions(playerList)
-        end)
-    end
-end)
-
-local TeleportPlayerButton = TeleportTab:CreateButton({
-    Name = "Teleport to Player",
-    Callback = function()
-        pcall(function()
-            local targetPlayer = Players:FindFirstChild(_G.SelectedPlayer)
-            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("HumanoidRootPart") then
-                    character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-                end
-            end
-        end)
-    end,
-})
-
-local PositionSection = TeleportTab:CreateSection("Position Manager")
-local SavePositionButton = TeleportTab:CreateButton({
-    Name = "Save Position",
-    Callback = function()
-        pcall(function()
-            local character = LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                _G.SavedPosition = character.HumanoidRootPart.CFrame
-                Rayfield:Notify({
-                    Title = "Position Saved",
-                    Content = "Your current position has been saved!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            end
-        end)
-    end,
-})
-
-local LoadPositionButton = TeleportTab:CreateButton({
-    Name = "Load Position",
-    Callback = function()
-        pcall(function()
-            if _G.SavedPosition then
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("HumanoidRootPart") then
-                    character.HumanoidRootPart.CFrame = _G.SavedPosition
-                    Rayfield:Notify({
-                        Title = "Position Loaded",
-                        Content = "You have been teleported to your saved position!",
-                        Duration = 3,
-                        Image = 4483362458,
-                        Actions = {
-                            Ignore = {
-                                Name = "Okay!",
-                                Callback = function()
-                                    print("The user tapped Okay!")
-                                end
-                            },
-                        },
-                    })
-                end
-            else
-                Rayfield:Notify({
-                    Title = "No Position Saved",
-                    Content = "Please save a position first!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            end
-        end)
-    end,
-})
-
-local DeletePositionButton = TeleportTab:CreateButton({
-    Name = "Delete Position",
-    Callback = function()
-        pcall(function()
-            if _G.SavedPosition then
-                _G.SavedPosition = nil
-                Rayfield:Notify({
-                    Title = "Position Deleted",
-                    Content = "Your saved position has been deleted!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            else
-                Rayfield:Notify({
-                    Title = "No Position Saved",
-                    Content = "There is no saved position to delete!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            end
-        end)
-    end,
-})
-
--- Player Tab
-local MovementSection = PlayerTab:CreateSection("Movement")
-local SpeedHackToggle = PlayerTab:CreateToggle({
-    Name = "Speed Hack",
-    CurrentValue = false,
-    Flag = "SpeedHack",
-    Callback = function(Value)
-        _G.SpeedHack = Value
-        
-        if _G.SpeedHack then
-            task.spawn(function()
-                while _G.SpeedHack and task.wait(0.1) do
-                    pcall(function()
-                        local character = LocalPlayer.Character
-                        if character and character:FindFirstChild("Humanoid") then
-                            character.Humanoid.WalkSpeed = _G.SpeedHackValue or 50
-                        end
-                    end)
-                end
-            end)
-        else
-            pcall(function()
-                local character = LocalPlayer.Character
-                if character and character:FindFirstChild("Humanoid") then
-                    character.Humanoid.WalkSpeed = 16
-                end
-            end)
-        end
-    end,
-})
-
-local SpeedHackSlider = PlayerTab:CreateSlider({
-    Name = "Speed Hack Setting",
-    Range = {0, 500},
-    Increment = 1,
-    Suffix = " speed",
-    CurrentValue = 50,
-    Flag = "SpeedHackValue",
-    Callback = function(Value)
-        _G.SpeedHackValue = Value
-    end,
-})
-
-local MaxBoatSpeedToggle = PlayerTab:CreateToggle({
-    Name = "Max Boat Speed",
-    CurrentValue = false,
-    Flag = "MaxBoatSpeed",
-    Callback = function(Value)
-        _G.MaxBoatSpeed = Value
-        
-        if _G.MaxBoatSpeed then
-            task.spawn(function()
-                while _G.MaxBoatSpeed and task.wait(0.5) do
-                    pcall(function()
-                        -- Find player's boat
-                        for _, boat in pairs(Workspace.Boats:GetChildren()) do
-                            if boat:FindFirstChild("Owner") and boat.Owner.Value == LocalPlayer then
-                                if boat:FindFirstChild("DriveSeat") and boat.DriveSeat:FindFirstChild("VehicleSeat") then
-                                    boat.DriveSeat.VehicleSeat.MaxSpeed = 1000
-                                end
-                            end
-                        end
-                    end)
-                end
-            end)
-        end
-    end,
-})
-
-local SpawnBoatButton = PlayerTab:CreateButton({
-    Name = "Spawn Boat",
-    Callback = function()
-        pcall(function()
-            -- Spawn the latest boat
-            FishItRemotes.SpawnBoat:FireServer("Mythical Ark")
-        end)
-    end,
-})
-
-local InfinityJumpToggle = PlayerTab:CreateToggle({
-    Name = "Infinity Jump",
-    CurrentValue = false,
-    Flag = "InfinityJump",
-    Callback = function(Value)
-        _G.InfinityJump = Value
-        
-        if _G.InfinityJump then
-            local connection
-            connection = UserInputService.JumpRequest:Connect(function()
-                if _G.InfinityJump then
-                    local character = LocalPlayer.Character
-                    if character and character:FindFirstChild("Humanoid") then
-                        character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                     end
-                end
-            end)
-            
-            -- Store connection to disconnect later
-            _G.InfinityJumpConnection = connection
-        else
-            if _G.InfinityJumpConnection then
-                _G.InfinityJumpConnection:Disconnect()
-            end
-        end
-    end,
-})
-
-local FlySection = PlayerTab:CreateSection("Fly")
-local FlyToggle = PlayerTab:CreateToggle({
-    Name = "Fly",
-    CurrentValue = false,
-    Flag = "Fly",
-    Callback = function(Value)
-        _G.Fly = Value
-        
-        if _G.Fly then
-            task.spawn(function()
-                local character = LocalPlayer.Character
-                if not character or not character:FindFirstChild("HumanoidRootPart") then
-                    return
-                end
-                
-                local humanoidRootPart = character.HumanoidRootPart
-                local flySpeed = _G.FlySpeed or 50
-                
-                -- Create body parts for flying
-                local bodyGyro = Instance.new("BodyGyro")
-                bodyGyro.P = 9e4
-                bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-                bodyGyro.CFrame = humanoidRootPart.CFrame
-                bodyGyro.Parent = humanoidRootPart
-                
-                local bodyVelocity = Instance.new("BodyVelocity")
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                bodyVelocity.Parent = humanoidRootPart
-                
-                -- Store references
-                _G.FlyParts = {bodyGyro, bodyVelocity}
-                
-                -- Fly control
-                local flyConnection
-                flyConnection = RunService.Heartbeat:Connect(function()
-                    if not _G.Fly then
-                        flyConnection:Disconnect()
-                        return
-                    end
-                    
-                    pcall(function()
-                        local direction = Vector3.new(0, 0, 0)
-                        
-                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                            direction = direction + (workspace.CurrentCamera.CFrame.LookVector * flySpeed)
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                            direction = direction - (workspace.CurrentCamera.CFrame.LookVector * flySpeed)
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                            direction = direction - (workspace.CurrentCamera.CFrame.RightVector * flySpeed)
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                            direction = direction + (workspace.CurrentCamera.CFrame.RightVector * flySpeed)
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                            direction = direction + Vector3.new(0, flySpeed, 0)
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                            direction = direction - Vector3.new(0, flySpeed, 0)
-                        end
-                        
-                        bodyVelocity.Velocity = direction
-                        bodyGyro.CFrame = workspace.CurrentCamera.CFrame
-                    end)
-                end)
-            end)
-        else
-            -- Clean up fly parts
-            if _G.FlyParts then
-                for _, part in ipairs(_G.FlyParts) do
-                    if part and part.Parent then
-                        part:Destroy()
-                    end
-                end
-                _G.FlyParts = nil
-            end
-        end
-    end,
-})
-
-local FlySpeedSlider = PlayerTab:CreateSlider({
-    Name = "Fly Settings",
-    Range = {0, 200},
-    Increment = 1,
-    Suffix = " speed",
-    CurrentValue = 50,
-    Flag = "FlySpeed",
-    Callback = function(Value)
-        _G.FlySpeed = Value
-    end,
-})
-
-local FlyBoatToggle = PlayerTab:CreateToggle({
-    Name = "Fly Boat",
-    CurrentValue = false,
-    Flag = "FlyBoat",
-    Callback = function(Value)
-        _G.FlyBoat = Value
-        
-        if _G.FlyBoat then
-            task.spawn(function()
-                while _G.FlyBoat do
-                    pcall(function()
-                        -- Find player's boat
-                        for _, boat in pairs(Workspace.Boats:GetChildren()) do
-                            if boat:FindFirstChild("Owner") and boat.Owner.Value == LocalPlayer then
-                                if boat:FindFirstChild("PrimaryPart") then
-                                    -- Apply fly to boat
-                                    local flySpeed = _G.FlyBoatSpeed or 50
-                                    local direction = Vector3.new(0, 0, 0)
-                                    
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                                        direction = direction + (workspace.CurrentCamera.CFrame.LookVector * flySpeed)
-                                    end
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                                        direction = direction - (workspace.CurrentCamera.CFrame.LookVector * flySpeed)
-                                    end
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                                        direction = direction - (workspace.CurrentCamera.CFrame.RightVector * flySpeed)
-                                    end
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                                        direction = direction + (workspace.CurrentCamera.CFrame.RightVector * flySpeed)
-                                    end
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                                        direction = direction + Vector3.new(0, flySpeed, 0)
-                                    end
-                                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                                        direction = direction - Vector3.new(0, flySpeed, 0)
-                                    end
-                                    
-                                    boat.PrimaryPart.Velocity = direction
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.1)
-                end
-            end)
-        end
-    end,
-})
-
-local FlyBoatSpeedSlider = PlayerTab:CreateSlider({
-    Name = "Fly Boat Settings",
-    Range = {0, 200},
-    Increment = 1,
-    Suffix = " speed",
-    CurrentValue = 50,
-    Flag = "FlyBoatSpeed",
-    Callback = function(Value)
-        _G.FlyBoatSpeed = Value
-    end,
-})
-
-local GhostHackToggle = PlayerTab:CreateToggle({
-    Name = "Ghost Hack",
-    CurrentValue = false,
-    Flag = "GhostHack",
-    Callback = function(Value)
-        _G.GhostHack = Value
-        
-        if _G.GhostHack then
-            task.spawn(function()
-                while _G.GhostHack do
-                    pcall(function()
-                        local character = LocalPlayer.Character
-                        if character then
-                            -- Make character transparent to others
-                            for _, part in pairs(character:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.LocalTransparencyModifier = 0.5
-                                    part.CanCollide = false
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.1)
-                end
-            end)
-        else
-            pcall(function()
-                local character = LocalPlayer.Character
-                if character then
-                    -- Reset character transparency
-                    for _, part in pairs(character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.LocalTransparencyModifier = 0
-                            part.CanCollide = true
-                        end
-                    end
-                end
-            end)
-        end
-    end,
-})
-
-local ESPSection = PlayerTab:CreateSection("ESP")
-local ESPLinesToggle = PlayerTab:CreateToggle({
-    Name = "ESP Lines",
-    CurrentValue = false,
-    Flag = "ESPLines",
-    Callback = function(Value)
-        _G.ESPLines = Value
-        
-        if _G.ESPLines then
-            task.spawn(function()
-                _G.ESPConnections = _G.ESPConnections or {}
-                
-                local function createESPLine(player)
-                    if player == LocalPlayer then return end
-                    
-                    local character = player.Character
-                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                    
-                    local line = Drawing.new("Line")
-                    line.Thickness = 1
-                    line.Color = Color3.new(1, 1, 1)
-                    line.Transparency = 1
-                    line.Visible = false
-                    
-                    local connection
-                    connection = RunService.RenderStepped:Connect(function()
-                        if not _G.ESPLines or not character or not character:FindFirstChild("HumanoidRootPart") then
-                            line:Remove()
-                            connection:Disconnect()
-                            return
-                        end
-                        
-                        local humanoidRootPart = character.HumanoidRootPart
-                        local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
-                        
-                        if onScreen then
-                            line.Visible = true
-                            line.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y)
-                            line.To = Vector2.new(vector.X, vector.Y)
-                        else
-                            line.Visible = false
-                        end
-                    end)
-                    
-                    table.insert(_G.ESPConnections, connection)
-                end
-                
-                -- Create ESP lines for existing players
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESPLine(player)
-                end
-                
-                -- Create ESP lines for new players
-                local playerAddedConnection
-                playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-                    if _G.ESPLines then
-                        player.CharacterAdded:Connect(function()
-                            createESPLine(player)
-                        end)
-                    end
-                end)
-                
-                table.insert(_G.ESPConnections, playerAddedConnection)
-            end)
-        else
-            -- Clean up ESP lines
-            if _G.ESPConnections then
-                for _, connection in ipairs(_G.ESPConnections) do
-                    if connection then
-                        connection:Disconnect()
-                    end
-                end
-                _G.ESPConnections = nil
-            end
-        end
-    end,
-})
-
-local ESPBoxToggle = PlayerTab:CreateToggle({
-    Name = "ESP Box",
-    CurrentValue = false,
-    Flag = "ESPBox",
-    Callback = function(Value)
-        _G.ESPBox = Value
-        
-        if _G.ESPBox then
-            task.spawn(function()
-                _G.ESPBoxConnections = _G.ESPBoxConnections or {}
-                
-                local function createESPBox(player)
-                    if player == LocalPlayer then return end
-                    
-                    local character = player.Character
-                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                    
-                    local box = Drawing.new("Square")
-                    box.Thickness = 1
-                    box.Color = Color3.new(1, 1, 1)
-                    box.Transparency = 1
-                    box.Filled = false
-                    box.Visible = false
-                    
-                    local connection
-                    connection = RunService.RenderStepped:Connect(function()
-                        if not _G.ESPBox or not character or not character:FindFirstChild("HumanoidRootPart") then
-                            box:Remove()
-                            connection:Disconnect()
-                            return
-                        end
-                        
-                        local humanoidRootPart = character.HumanoidRootPart
-                        local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
-                        
-                        if onScreen then
-                            local headPosition = character:FindFirstChild("Head") and character.Head.Position or humanoidRootPart.Position + Vector3.new(0, 1.5, 0)
-                            local legPosition = humanoidRootPart.Position - Vector3.new(0, 2.5, 0)
-                            
-                            local headVector, headOnScreen = workspace.CurrentCamera:WorldToViewportPoint(headPosition)
-                            local legVector, legOnScreen = workspace.CurrentCamera:WorldToViewportPoint(legPosition)
-                            
-                            if headOnScreen and legOnScreen then
-                                box.Visible = true
-                                box.Size = Vector2.new(30, (headVector.Y - legVector.Y))
-                                box.Position = Vector2.new(vector.X - 15, legVector.Y)
-                            else
-                                box.Visible = false
-                            end
-                        else
-                            box.Visible = false
-                        end
-                    end)
-                    
-                    table.insert(_G.ESPBoxConnections, connection)
-                end
-                
-                -- Create ESP boxes for existing players
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESPBox(player)
-                end
-                
-                -- Create ESP boxes for new players
-                local playerAddedConnection
-                playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-                    if _G.ESPBox then
-                        player.CharacterAdded:Connect(function()
-                            createESPBox(player)
-                        end)
-                    end
-                end)
-                
-                table.insert(_G.ESPBoxConnections, playerAddedConnection)
-            end)
-        else
-            -- Clean up ESP boxes
-            if _G.ESPBoxConnections then
-                for _, connection in ipairs(_G.ESPBoxConnections) do
-                    if connection then
-                        connection:Disconnect()
-                    end
-                end
-                _G.ESPBoxConnections = nil
-            end
-        end
-    end,
-})
-
-local ESPRangeToggle = PlayerTab:CreateToggle({
-    Name = "ESP Range",
-    CurrentValue = false,
-    Flag = "ESPRange",
-    Callback = function(Value)
-        _G.ESPRange = Value
-        
-        if _G.ESPRange then
-            task.spawn(function()
-                _G.ESPRangeConnections = _G.ESPRangeConnections or {}
-                
-                local function createESPRange(player)
-                    if player == LocalPlayer then return end
-                    
-                    local character = player.Character
-                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                    
-                    local text = Drawing.new("Text")
-                    text.Text = "0m"
-                    text.Size = 14
-                    text.Color = Color3.new(1, 1, 1)
-                    text.Center = true
-                    text.Outline = true
-                    text.Visible = false
-                    
-                    local connection
-                    connection = RunService.RenderStepped:Connect(function()
-                        if not _G.ESPRange or not character or not character:FindFirstChild("HumanoidRootPart") then
-                            text:Remove()
-                            connection:Disconnect()
-                            return
-                        end
-                        
-                        local humanoidRootPart = character.HumanoidRootPart
-                        local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
-                        
-                        if onScreen then
-                            local distance = (LocalPlayer.Character.HumanoidRootPart.Position - humanoidRootPart.Position).Magnitude
-                            text.Text = math.floor(distance) .. "m"
-                            text.Position = Vector2.new(vector.X, vector.Y - 20)
-                            text.Visible = true
-                        else
-                            text.Visible = false
-                        end
-                    end)
-                    
-                    table.insert(_G.ESPRangeConnections, connection)
-                end
-                
-                -- Create ESP ranges for existing players
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESPRange(player)
-                end
-                
-                -- Create ESP ranges for new players
-                local playerAddedConnection
-                playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-                    if _G.ESPRange then
-                        player.CharacterAdded:Connect(function()
-                            createESPRange(player)
-                        end)
-                    end
-                end)
-                
-                table.insert(_G.ESPRangeConnections, playerAddedConnection)
-            end)
-        else
-            -- Clean up ESP ranges
-            if _G.ESPRangeConnections then
-                for _, connection in ipairs(_G.ESPRangeConnections) do
-                    if connection then
-                        connection:Disconnect()
-                    end
-                end
-                _G.ESPRangeConnections = nil
-            end
-        end
-    end,
-})
-
-local ESPLevelToggle = PlayerTab:CreateToggle({
-    Name = "ESP Level",
-    CurrentValue = false,
-    Flag = "ESPLevel",
-    Callback = function(Value)
-        _G.ESPLevel = Value
-        
-        if _G.ESPLevel then
-            task.spawn(function()
-                _G.ESPLevelConnections = _G.ESPLevelConnections or {}
-                
-                local function createESPLevel(player)
-                    if player == LocalPlayer then return end
-                    
-                    local character = player.Character
-                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                    
-                    local text = Drawing.new("Text")
-                    text.Text = "Lv.1"
-                    text.Size = 14
-                    text.Color = Color3.new(1, 1, 1)
-                    text.Center = true
-                    text.Outline = true
-                    text.Visible = false
-                    
-                    local connection
-                    connection = RunService.RenderStepped:Connect(function()
-                        if not _G.ESPLevel or not character or not character:FindFirstChild("HumanoidRootPart") then
-                            text:Remove()
-                            connection:Disconnect()
-                            return
-                        end
-                        
-                        local humanoidRootPart = character.HumanoidRootPart
-                        local vector, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
-                        
-                        if onScreen then
-                            -- Get player level
-                            local playerData = FishItModules.PlayerData.GetPlayerData(player)
-                            local level = playerData and playerData.Level or 1
-                            
-                            text.Text = "Lv." .. level
-                            text.Position = Vector2.new(vector.X, vector.Y + 20)
-                            text.Visible = true
-                        else
-                            text.Visible = false
-                        end
-                    end)
-                    
-                    table.insert(_G.ESPLevelConnections, connection)
-                end
-                
-                -- Create ESP levels for existing players
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESPLevel(player)
-                end
-                
-                -- Create ESP levels for new players
-                local playerAddedConnection
-                playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-                    if _G.ESPLevel then
-                        player.CharacterAdded:Connect(function()
-                            createESPLevel(player)
-                        end)
-                    end
-                end)
-                
-                table.insert(_G.ESPLevelConnections, playerAddedConnection)
-            end)
-        else
-            -- Clean up ESP levels
-            if _G.ESPLevelConnections then
-                for _, connection in ipairs(_G.ESPLevelConnections) do
-                    if connection then
-                        connection:Disconnect()
-                    end
-                end
-                _G.ESPLevelConnections = nil
-            end
-        end
-    end,
-})
-
-local ESPHologramToggle = PlayerTab:CreateToggle({
-    Name = "ESP Hologram",
-    CurrentValue = false,
-    Flag = "ESPHologram",
-    Callback = function(Value)
-        _G.ESPHologram = Value
-        
-        if _G.ESPHologram then
-            task.spawn(function()
-                _G.ESPHologramConnections = _G.ESPHologramConnections or {}
-                
-                local function createESPHologram(player)
-                    if player == LocalPlayer then return end
-                    
-                    local character = player.Character
-                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                    
-                    local hologram = Instance.new("BillboardGui")
-                    hologram.Name = "ESPHologram"
-                    hologram.Adornee = character.HumanoidRootPart
-                    hologram.Size = UDim2.new(0, 100, 0, 50)
-                    hologram.StudsOffset = Vector3.new(0, 3, 0)
-                    hologram.AlwaysOnTop = true
-                    hologram.Parent = character.HumanoidRootPart
-                    
-                    local frame = Instance.new("Frame")
-                    frame.Size = UDim2.new(1, 0, 1, 0)
-                    frame.BackgroundTransparency = 1
-                    frame.Parent = hologram
-                    
-                    local textLabel = Instance.new("TextLabel")
-                    textLabel.Size = UDim2.new(1, 0, 1, 0)
-                    textLabel.BackgroundTransparency = 1
-                    textLabel.Text = player.Name
-                    textLabel.TextColor3 = Color3.new(1, 1, 1)
-                    textLabel.TextScaled = true
-                    textLabel.Font = Enum.Font.SourceSansBold
-                    textLabel.Parent = frame
-                    
-                    local connection
-                    connection = RunService.RenderStepped:Connect(function()
-                        if not _G.ESPHologram or not character or not character:FindFirstChild("HumanoidRootPart") then
-                            hologram:Destroy()
-                            connection:Disconnect()
-                            return
-                        end
-                        
-                        -- Rainbow effect
-                        local hue = (tick() * 2) % 1
-                        local color = Color3.fromHSV(hue, 1, 1)
-                        textLabel.TextColor3 = color
-                    end)
-                    
-                    table.insert(_G.ESPHologramConnections, connection)
-                end
-                
-                -- Create ESP holograms for existing players
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESPHologram(player)
-                end
-                
-                -- Create ESP holograms for new players
-                local playerAddedConnection
-                playerAddedConnection = Players.PlayerAdded:Connect(function(player)
-                    if _G.ESPHologram then
-                        player.CharacterAdded:Connect(function()
-                            createESPHologram(player)
-                        end)
-                    end
-                end)
-                
-                table.insert(_G.ESPHologramConnections, playerAddedConnection)
-            end)
-        else
-            -- Clean up ESP holograms
-            if _G.ESPHologramConnections then
-                for _, connection in ipairs(_G.ESPHologramConnections) do
-                    if connection then
-                        connection:Disconnect()
-                    end
-                end
-                _G.ESPHologramConnections = nil
-            end
-            
-            -- Remove existing holograms
-            for _, player in pairs(Players:GetPlayers()) do
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local hologram = player.Character.HumanoidRootPart:FindFirstChild("ESPHologram")
-                    if hologram then
-                        hologram:Destroy()
-                    end
-                end
-            end
-        end
-    end,
-})
-
--- Trader Tab
-local TradeSection = TraderTab:CreateSection("Auto Trade")
-local AutoAcceptTradeToggle = TraderTab:CreateToggle({
-    Name = "Auto Accept Trade",
-    CurrentValue = false,
-    Flag = "AutoAcceptTrade",
-    Callback = function(Value)
-        _G.AutoAcceptTrade = Value
-        
-        if _G.AutoAcceptTrade then
-            task.spawn(function()
-                while _G.AutoAcceptTrade do
-                    pcall(function()
-                        -- Check for incoming trade requests
-                        local tradeRequest = FishItEvents.TradeRequest
-                        local connection
-                        connection = tradeRequest.OnClientEvent:Connect(function(fromPlayer)
-                            -- Accept the trade
-                            FishItRemotes.AcceptTrade:FireServer(fromPlayer)
-                            connection:Disconnect()
-                        end)
-                    end)
                     task.wait(1)
                 end
             end)
@@ -1320,735 +207,1506 @@ local AutoAcceptTradeToggle = TraderTab:CreateToggle({
     end,
 })
 
-local FishSelectionSection = TraderTab:CreateSection("Fish Selection")
-local FishDropdown = TraderTab:CreateDropdown({
-    Name = "Select Fish",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "SelectedFish",
-    Callback = function(Options)
-        _G.SelectedFish = Options
-    end,
-})
-
--- Update fish list
-task.spawn(function()
-    while true do
-        pcall(function()
-            local fishList = {}
-            local playerData = FishItModules.PlayerData.GetPlayerData(LocalPlayer)
-            
-            if playerData and playerData.Inventory and playerData.Inventory.Fish then
-                for fishName, _ in pairs(playerData.Inventory.Fish) do
-                    table.insert(fishList, fishName)
-                end
-            end
-            
-            Rayfield.UpdateDropdown("SelectedFish", fishList)
-        end)
-        task.wait(5)
-    end
-end)
-
-local PlayerSelectionSection = TraderTab:CreateSection("Player Selection")
-local TradePlayerDropdown = TraderTab:CreateDropdown({
-    Name = "Select Player",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "TradePlayer",
-    Callback = function(Options)
-        _G.TradePlayer = Options[1]
-    end,
-})
-
--- Update players list for trading
-task.spawn(function()
-    while true do
-        pcall(function()
-            local playerList = {}
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    table.insert(playerList, player.Name)
-                end
-            end
-            Rayfield.UpdateDropdown("TradePlayer", playerList)
-        end)
-        task.wait(5)
-    end
-end)
-
-local TradeAllButton = TraderTab:CreateButton({
-    Name = "Trade All Fish",
-    Callback = function()
-        pcall(function()
-            local targetPlayer = Players:FindFirstChild(_G.TradePlayer)
-            if not targetPlayer then
-                Rayfield:Notify({
-                    Title = "Invalid Player",
-                    Content = "Please select a valid player!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-                return
-            end
-            
-            -- Start trade
-            FishItRemotes.RequestTrade:FireServer(targetPlayer)
-            
-            -- Wait for trade to be accepted
-            local tradeAccepted = false
-            local connection
-            connection = FishItEvents.TradeAccepted.OnClientEvent:Connect function(player)
-                if player == targetPlayer then
-                    tradeAccepted = true
-                    connection:Disconnect()
+-- Bypass Radar
+local BypassRadarToggle = FishFarmTab:CreateToggle({
+    Name = "Bypass Radar",
+    CurrentValue = false,
+    Flag = "BypassRadar",
+    Callback = function(Value)
+        bypassRadarEnabled = Value
+        if bypassRadarEnabled then
+            task.spawn(function()
+                while bypassRadarEnabled do
+                    -- Check if player has radar
+                    local hasRadar = false
+                    for _, item in pairs(player.Backpack:GetChildren()) do
+                        if item.Name:find("Radar") or item.Name:find("radar") then
+                            hasRadar = true
+                            break
+                        end
+                    end
+                    
+                    -- If no radar, buy one
+                    if not hasRadar then
+                        BuyItemRemote:FireServer("Radar", 1)
+                    end
+                    
+                    -- Activate radar
+                    if player.Backpack:FindFirstChild("Radar") then
+                        player.Backpack.Radar.Parent = player.Character
+                    end
+                    
+                    task.wait(5)
                 end
             end)
+        end
+    end,
+})
+
+-- Bypass Air
+local BypassAirToggle = FishFarmTab:CreateToggle({
+    Name = "Bypass Air",
+    CurrentValue = false,
+    Flag = "BypassAir",
+    Callback = function(Value)
+        bypassAirEnabled = Value
+        if bypassAirEnabled then
+            task.spawn(function()
+                while bypassAirEnabled do
+                    -- Check if player has air item
+                    local hasAirItem = false
+                    for _, item in pairs(player.Backpack:GetChildren()) do
+                        if item.Name:find("Air") or item.Name:find("Scuba") or item.Name:find("Oxygen") then
+                            hasAirItem = true
+                            break
+                        end
+                    end
+                    
+                    -- If no air item, buy one
+                    if not hasAirItem then
+                        BuyItemRemote:FireServer("ScubaGear", 1)
+                    end
+                    
+                    -- Activate air item
+                    if player.Backpack:FindFirstChild("ScubaGear") then
+                        player.Backpack.ScubaGear.Parent = player.Character
+                    end
+                    
+                    task.wait(5)
+                end
+            end)
+        end
+    end,
+})
+
+-- Disable Effect Fishing
+local DisableEffectFishingToggle = FishFarmTab:CreateToggle({
+    Name = "Disable Effect Fishing",
+    CurrentValue = false,
+    Flag = "DisableEffectFishing",
+    Callback = function(Value)
+        disableEffectFishingEnabled = Value
+        if disableEffectFishingEnabled then
+            -- Disable particle effects
+            for _, particle in pairs(Workspace:GetDescendants()) do
+                if particle:IsA("ParticleEmitter") then
+                    particle.Enabled = false
+                end
+            end
             
-            -- Wait for trade window to open
-            task.wait(1)
+            -- Disable beam effects
+            for _, beam in pairs(Workspace:GetDescendants()) do
+                if beam:IsA("Beam") then
+                    beam.Enabled = false
+                end
+            end
             
-            -- Add all selected fish to trade
-            if _G.SelectedFish and #_G.SelectedFish > 0 then
-                for _, fishName in ipairs(_G.SelectedFish) do
-                    FishItRemotes.AddFishToTrade:FireServer(fishName)
+            -- Disable point light effects
+            for _, light in pairs(Workspace:GetDescendants()) do
+                if light:IsA("PointLight") then
+                    light.Enabled = false
+                end
+            end
+        else
+            -- Re-enable effects
+            for _, particle in pairs(Workspace:GetDescendants()) do
+                if particle:IsA("ParticleEmitter") then
+                    particle.Enabled = true
+                end
+            end
+            
+            for _, beam in pairs(Workspace:GetDescendants()) do
+                if beam:IsA("Beam") then
+                    beam.Enabled = true
+                end
+            end
+            
+            for _, light in pairs(Workspace:GetDescendants()) do
+                if light:IsA("PointLight") then
+                    light.Enabled = true
+                end
+            end
+        end
+    end,
+})
+
+-- Auto Instant Complicated Fishing
+local AutoInstantComplicatedFishingToggle = FishFarmTab:CreateToggle({
+    Name = "Auto Instant Complicated Fishing",
+    CurrentValue = false,
+    Flag = "AutoInstantComplicatedFishing",
+    Callback = function(Value)
+        autoInstantComplicatedFishingEnabled = Value
+        if autoInstantComplicatedFishingEnabled then
+            -- Modify fishing mechanics to make it instant
+            local oldReelIn = ReelInRemote.FireServer
+            ReelInRemote.FireServer = function(self, ...)
+                local args = {...}
+                if #args == 0 then
+                    args = {true}  -- Force instant catch
+                end
+                return oldReelIn(self, unpack(args))
+            end
+        end
+    end,
+})
+
+-- Auto Sell Fish
+local AutoSellFishToggle = FishFarmTab:CreateToggle({
+    Name = "Auto Sell Fish",
+    CurrentValue = false,
+    Flag = "AutoSellFish",
+    Callback = function(Value)
+        autoSellFishEnabled = Value
+        if autoSellFishEnabled then
+            task.spawn(function()
+                while autoSellFishEnabled do
+                    -- Get player's fish inventory
+                    local playerData = PlayerData.GetPlayerData(player.UserId)
+                    local fishInventory = playerData.FishInventory or {}
+                    
+                    -- Sell all fish except favorites
+                    for fishName, fishData in pairs(fishInventory) do
+                        if not fishData.Favorite and (sellMythicalAndSecret or not (fishData.Rarity == "Mythical" or fishData.Rarity == "Secret")) then
+                            SellFishRemote:FireServer(fishName, fishData.Amount)
+                            task.wait(delayFishSell)
+                        end
+                    end
+                    
+                    task.wait(5)
+                end
+            end)
+        end
+    end,
+})
+
+-- Sell Mythical and Secret
+local SellMythicalSecretToggle = FishFarmTab:CreateToggle({
+    Name = "Sell Mythical & Secret",
+    CurrentValue = false,
+    Flag = "SellMythicalSecret",
+    Callback = function(Value)
+        sellMythicalAndSecret = Value
+    end,
+})
+
+-- Delay Fish Sell
+local DelayFishSellSlider = FishFarmTab:CreateSlider({
+    Name = "Delay Fish Sell",
+    Range = {0, 10},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 1,
+    Flag = "DelayFishSell",
+    Callback = function(Value)
+        delayFishSell = Value
+    end,
+})
+
+-- Anti Kick Server
+local AntiKickToggle = FishFarmTab:CreateToggle({
+    Name = "Anti Kick Server",
+    CurrentValue = false,
+    Flag = "AntiKick",
+    Callback = function(Value)
+        antiKickEnabled = Value
+        if antiKickEnabled then
+            task.spawn(function()
+                while antiKickEnabled do
+                    -- Send a heartbeat to prevent kick
+                    game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
+                        "/e "..tostring(math.random(1, 1000)), 
+                        "All"
+                    )
+                    task.wait(300)  -- Every 5 minutes
+                end
+            end)
+        end
+    end,
+})
+
+-- Anti Detect System
+local AntiDetectToggle = FishFarmTab:CreateToggle({
+    Name = "Anti Detect System",
+    CurrentValue = false,
+    Flag = "AntiDetect",
+    Callback = function(Value)
+        antiDetectEnabled = Value
+        if antiDetectEnabled then
+            -- Hide script execution from anti-cheat
+            local oldNamecall
+            oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                local method = getnamecallmethod()
+                if method == "FireServer" and tostring(self) == "AntiCheat" then
+                    return nil
+                end
+                return oldNamecall(self, ...)
+            end)
+        end
+    end,
+})
+
+-- Anti AFK & Auto Jump
+local AntiAFKToggle = FishFarmTab:CreateToggle({
+    Name = "Anti AFK & Auto Jump",
+    CurrentValue = false,
+    Flag = "AntiAFK",
+    Callback = function(Value)
+        antiAFKEnabled = Value
+        if antiAFKEnabled then
+            task.spawn(function()
+                while antiAFKEnabled do
+                    -- Press jump key
+                    VirtualInputManager:SendKeyEvent(true, "Space", false, game)
                     task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, "Space", false, game)
+                    
+                    -- Move mouse slightly
+                    VirtualInputManager:SendMouseMoveEvent(1, 1)
+                    
+                    task.wait(30)  -- Every 30 seconds
+                end
+            end)
+        end
+    end,
+})
+
+-- Teleport Tab
+local TeleportSection = TeleportTab:CreateSection("Teleport")
+
+-- Teleport Maps
+local mapsDropdown = {}
+for mapName, mapData in pairs(MapData.Maps) do
+    table.insert(mapsDropdown, mapName)
+end
+
+local TeleportMapsDropdown = TeleportTab:CreateDropdown({
+    Name = "Teleport Maps",
+    Options = mapsDropdown,
+    CurrentOption = "Select Map",
+    Flag = "TeleportMaps",
+    Callback = function(Option)
+        local mapData = MapData.Maps[Option]
+        if mapData then
+            TeleportRemote:FireServer(mapData.TeleportPosition)
+        end
+    end,
+})
+
+-- Teleport Player
+local playersDropdown = {}
+local function updatePlayerList()
+    playersDropdown = {}
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then
+            table.insert(playersDropdown, plr.Name)
+        end
+    end
+end
+
+updatePlayerList()
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+
+local TeleportPlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "Teleport Player",
+    Options = playersDropdown,
+    CurrentOption = "Select Player",
+    Flag = "TeleportPlayer",
+    Callback = function(Option)
+        local targetPlayer = Players:FindFirstChild(Option)
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        end
+    end,
+})
+
+-- Teleport Event
+local eventsDropdown = {}
+local function updateEventList()
+    eventsDropdown = {}
+    for _, event in pairs(Workspace.Events:GetChildren()) do
+        if event:IsA("Model") and event:FindFirstChild("TeleportPart") then
+            table.insert(eventsDropdown, event.Name)
+        end
+    end
+end
+
+updateEventList()
+Workspace.Events.ChildAdded:Connect(updateEventList)
+Workspace.Events.ChildRemoved:Connect(updateEventList)
+
+local TeleportEventDropdown = TeleportTab:CreateDropdown({
+    Name = "Teleport Event",
+    Options = eventsDropdown,
+    CurrentOption = "Select Event",
+    Flag = "TeleportEvent",
+    Callback = function(Option)
+        local event = Workspace.Events:FindFirstChild(Option)
+        if event and event:FindFirstChild("TeleportPart") then
+            rootPart.CFrame = event.TeleportPart.CFrame
+        end
+    end,
+})
+
+-- Save Position
+local SavePositionButton = TeleportTab:CreateButton({
+    Name = "Save Position",
+    Callback = function()
+        local positionName = "Position "..#savedPositions + 1
+        savedPositions[positionName] = rootPart.CFrame
+        Rayfield:Notify({
+            Title = "Position Saved",
+            Content = "Saved position as "..positionName,
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- Load Position
+local loadPositionsDropdown = {}
+local function updatePositionList()
+    loadPositionsDropdown = {}
+    for posName, _ in pairs(savedPositions) do
+        table.insert(loadPositionsDropdown, posName)
+    end
+end
+
+local LoadPositionDropdown = TeleportTab:CreateDropdown({
+    Name = "Load Position",
+    Options = loadPositionsDropdown,
+    CurrentOption = "Select Position",
+    Flag = "LoadPosition",
+    Callback = function(Option)
+        if savedPositions[Option] then
+            rootPart.CFrame = savedPositions[Option]
+            Rayfield:Notify({
+                Title = "Position Loaded",
+                Content = "Teleported to "..Option,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- Delete Position
+local DeletePositionDropdown = TeleportTab:CreateDropdown({
+    Name = "Delete Position",
+    Options = loadPositionsDropdown,
+    CurrentOption = "Select Position",
+    Flag = "DeletePosition",
+    Callback = function(Option)
+        if savedPositions[Option] then
+            savedPositions[Option] = nil
+            updatePositionList()
+            Rayfield:Notify({
+                Title = "Position Deleted",
+                Content = "Deleted "..Option,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- Player Tab
+local PlayerSection = PlayerTab:CreateSection("Player")
+
+-- Speed Hack
+local SpeedHackToggle = PlayerTab:CreateToggle({
+    Name = "Speed Hack",
+    CurrentValue = false,
+    Flag = "SpeedHack",
+    Callback = function(Value)
+        speedHackEnabled = Value
+        if speedHackEnabled then
+            humanoid.WalkSpeed = speedHackValue
+        else
+            humanoid.WalkSpeed = 16
+        end
+    end,
+})
+
+-- Speed Hack Setting
+local SpeedHackSlider = PlayerTab:CreateSlider({
+    Name = "Speed Hack Setting",
+    Range = {0, 500},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 50,
+    Flag = "SpeedHackValue",
+    Callback = function(Value)
+        speedHackValue = Value
+        if speedHackEnabled then
+            humanoid.WalkSpeed = speedHackValue
+        end
+    end,
+})
+
+-- Max Boat Speed
+local MaxBoatSpeedToggle = PlayerTab:CreateToggle({
+    Name = "Max Boat Speed",
+    CurrentValue = false,
+    Flag = "MaxBoatSpeed",
+    Callback = function(Value)
+        maxBoatSpeedEnabled = Value
+        if maxBoatSpeedEnabled then
+            task.spawn(function()
+                while maxBoatSpeedEnabled do
+                    local boat = Workspace.Boats:FindFirstChild(player.Name.."'s Boat")
+                    if boat and boat:FindFirstChild("DriveSeat") then
+                        local driveSeat = boat.DriveSeat
+                        if driveSeat:FindFirstChild("Configuration") then
+                            driveSeat.Configuration.MaxSpeed.Value = 1000
+                            driveSeat.Configuration.Torque.Value = 1000
+                        end
+                    end
+                    task.wait(5)
+                end
+            end)
+        end
+    end,
+})
+
+-- Spawn Boat
+local SpawnBoatButton = PlayerTab:CreateButton({
+    Name = "Spawn Boat",
+    Callback = function()
+        local playerData = PlayerData.GetPlayerData(player.UserId)
+        local ownedBoats = playerData.OwnedBoats or {}
+        
+        -- Find the best boat owned by player
+        local bestBoat = nil
+        local bestBoatLevel = 0
+        
+        for boatName, boatLevel in pairs(ownedBoats) do
+            if boatLevel > bestBoatLevel then
+                bestBoatLevel = boatLevel
+                bestBoat = boatName
+            end
+        end
+        
+        if bestBoat then
+            BuyItemRemote:FireServer("SpawnBoat", bestBoat)
+            Rayfield:Notify({
+                Title = "Boat Spawned",
+                Content = "Spawned "..bestBoat,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "No Boat Owned",
+                Content = "You don't own any boats",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- Infinity Jump
+local InfinityJumpToggle = PlayerTab:CreateToggle({
+    Name = "Infinity Jump",
+    CurrentValue = false,
+    Flag = "InfinityJump",
+    Callback = function(Value)
+        infinityJumpEnabled = Value
+        if infinityJumpEnabled then
+            local connection
+            connection = UserInputService.JumpRequest:Connect(function()
+                if infinityJumpEnabled then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+        end
+    end,
+})
+
+-- Fly
+local FlyToggle = PlayerTab:CreateToggle({
+    Name = "Fly",
+    CurrentValue = false,
+    Flag = "Fly",
+    Callback = function(Value)
+        flyEnabled = Value
+        if flyEnabled then
+            local flyVelocity = Instance.new("BodyVelocity")
+            flyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            flyVelocity.P = 1000
+            flyVelocity.Velocity = Vector3.new(0, 0, 0)
+            flyVelocity.Parent = rootPart
+            
+            local flyGyro = Instance.new("BodyGyro")
+            flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            flyGyro.P = 1000
+            flyGyro.CFrame = rootPart.CFrame
+            flyGyro.Parent = rootPart
+            
+            task.spawn(function()
+                while flyEnabled do
+                    local moveDirection = humanoid.MoveDirection
+                    flyVelocity.Velocity = Vector3.new(
+                        moveDirection.X * flyValue,
+                        UserInputService:IsKeyDown(Enum.KeyCode.Space) and flyValue or 
+                        UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and -flyValue or 0,
+                        moveDirection.Z * flyValue
+                    )
+                    
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                        flyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + rootPart.CFrame.LookVector)
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                        flyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position - rootPart.CFrame.LookVector)
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                        flyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position - rootPart.CFrame.RightVector)
+                    elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                        flyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + rootPart.CFrame.RightVector)
+                    end
+                    
+                    task.wait()
                 end
                 
-                -- Confirm trade
-                FishItRemotes.ConfirmTrade:FireServer()
-            else
-                Rayfield:Notify({
-                    Title = "No Fish Selected",
-                    Content = "Please select at least one fish to trade!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
+                flyVelocity:Destroy()
+                flyGyro:Destroy()
+            end)
+        end
+    end,
+})
+
+-- Fly Settings
+local FlySettingsSlider = PlayerTab:CreateSlider({
+    Name = "Fly Settings",
+    Range = {0, 200},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 50,
+    Flag = "FlyValue",
+    Callback = function(Value)
+        flyValue = Value
+    end,
+})
+
+-- Fly Boat
+local FlyBoatToggle = PlayerTab:CreateToggle({
+    Name = "Fly Boat",
+    CurrentValue = false,
+    Flag = "FlyBoat",
+    Callback = function(Value)
+        flyBoatEnabled = Value
+        if flyBoatEnabled then
+            task.spawn(function()
+                while flyBoatEnabled do
+                    local boat = Workspace.Boats:FindFirstChild(player.Name.."'s Boat")
+                    if boat and boat:FindFirstChild("PrimaryPart") then
+                        boat.PrimaryPart.Velocity = Vector3.new(0, 50, 0)
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
+
+-- Ghost Hack
+local GhostHackToggle = PlayerTab:CreateToggle({
+    Name = "Ghost Hack",
+    CurrentValue = false,
+    Flag = "GhostHack",
+    Callback = function(Value)
+        ghostHackEnabled = Value
+        if ghostHackEnabled then
+            -- Make player transparent
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0.5
+                    part.CanCollide = false
+                end
             end
-        end)
+            
+            -- Disable name tag
+            if character:FindFirstChild("Head") and character.Head:FindFirstChild("NameTag") then
+                character.Head.NameTag.Enabled = false
+            end
+        else
+            -- Restore player visibility
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
+                    part.CanCollide = true
+                end
+            end
+            
+            -- Enable name tag
+            if character:FindFirstChild("Head") and character.Head:FindFirstChild("NameTag") then
+                character.Head.NameTag.Enabled = true
+            end
+        end
+    end,
+})
+
+-- ESP Config Section
+local ESPSection = PlayerTab:CreateSection("ESP Config")
+
+-- ESP Lines
+local ESPLinesToggle = PlayerTab:CreateToggle({
+    Name = "ESP Lines",
+    CurrentValue = false,
+    Flag = "ESPLines",
+    Callback = function(Value)
+        espLinesEnabled = Value
+        if espLinesEnabled then
+            task.spawn(function()
+                while espLinesEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if not espObjects[plr.Name] then
+                                espObjects[plr.Name] = {}
+                            end
+                            
+                            if not espObjects[plr.Name].Line then
+                                local line = Instance.new("Beam")
+                                line.Attachment0 = Instance.new("Attachment", rootPart)
+                                line.Attachment1 = Instance.new("Attachment", plr.Character.HumanoidRootPart)
+                                line.Width0 = 0.1
+                                line.Width1 = 0.1
+                                line.Color = ColorSequence.new(Color3.new(1, 0, 0))
+                                line.FaceCamera = true
+                                line.Parent = Workspace
+                                espObjects[plr.Name].Line = line
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+                
+                -- Clean up ESP lines
+                for _, espData in pairs(espObjects) do
+                    if espData.Line then
+                        espData.Line:Destroy()
+                    end
+                end
+                espObjects = {}
+            end)
+        end
+    end,
+})
+
+-- ESP Box
+local ESPBoxToggle = PlayerTab:CreateToggle({
+    Name = "ESP Box",
+    CurrentValue = false,
+    Flag = "ESPBox",
+    Callback = function(Value)
+        espBoxEnabled = Value
+        if espBoxEnabled then
+            task.spawn(function()
+                while espBoxEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if not espObjects[plr.Name] then
+                                espObjects[plr.Name] = {}
+                            end
+                            
+                            if not espObjects[plr.Name].Box then
+                                local box = Instance.new("BoxHandleAdornment")
+                                box.Size = plr.Character.HumanoidRootPart.Size * 1.5
+                                box.Adornee = plr.Character.HumanoidRootPart
+                                box.Color3 = Color3.new(1, 0, 0)
+                                box.Transparency = 0.5
+                                box.ZIndex = 10
+                                box.AlwaysOnTop = true
+                                box.Parent = plr.Character.HumanoidRootPart
+                                espObjects[plr.Name].Box = box
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+                
+                -- Clean up ESP boxes
+                for _, espData in pairs(espObjects) do
+                    if espData.Box then
+                        espData.Box:Destroy()
+                    end
+                end
+                espObjects = {}
+            end)
+        end
+    end,
+})
+
+-- ESP Range
+local ESPRangeToggle = PlayerTab:CreateToggle({
+    Name = "ESP Range",
+    CurrentValue = false,
+    Flag = "ESPRange",
+    Callback = function(Value)
+        espRangeEnabled = Value
+        if espRangeEnabled then
+            task.spawn(function()
+                while espRangeEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if not espObjects[plr.Name] then
+                                espObjects[plr.Name] = {}
+                            end
+                            
+                            local distance = (rootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+                            
+                            if not espObjects[plr.Name].Range then
+                                local billboard = Instance.new("BillboardGui")
+                                billboard.Size = UDim2.new(0, 100, 0, 50)
+                                billboard.StudsOffset = Vector3.new(0, 2, 0)
+                                billboard.AlwaysOnTop = true
+                                billboard.Parent = plr.Character.HumanoidRootPart
+                                
+                                local label = Instance.new("TextLabel")
+                                label.Size = UDim2.new(1, 0, 1, 0)
+                                label.BackgroundTransparency = 1
+                                label.Text = math.floor(distance).."m"
+                                label.TextColor3 = Color3.new(1, 1, 1)
+                                label.TextStrokeTransparency = 0
+                                label.TextScaled = true
+                                label.Parent = billboard
+                                
+                                espObjects[plr.Name].Range = billboard
+                            else
+                                espObjects[plr.Name].Range.TextLabel.Text = math.floor(distance).."m"
+                            end
+                        end
+                    end
+                    task.wait(0.5)
+                end
+                
+                -- Clean up ESP range
+                for _, espData in pairs(espObjects) do
+                    if espData.Range then
+                        espData.Range:Destroy()
+                    end
+                end
+                espObjects = {}
+            end)
+        end
+    end,
+})
+
+-- ESP Level
+local ESPLevelToggle = PlayerTab:CreateToggle({
+    Name = "ESP Level",
+    CurrentValue = false,
+    Flag = "ESPLevel",
+    Callback = function(Value)
+        espLevelEnabled = Value
+        if espLevelEnabled then
+            task.spawn(function()
+                while espLevelEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if not espObjects[plr.Name] then
+                                espObjects[plr.Name] = {}
+                            end
+                            
+                            local playerData = PlayerData.GetPlayerData(plr.UserId)
+                            local level = playerData.Level or 1
+                            
+                            if not espObjects[plr.Name].Level then
+                                local billboard = Instance.new("BillboardGui")
+                                billboard.Size = UDim2.new(0, 100, 0, 50)
+                                billboard.StudsOffset = Vector3.new(0, 3, 0)
+                                billboard.AlwaysOnTop = true
+                                billboard.Parent = plr.Character.HumanoidRootPart
+                                
+                                local label = Instance.new("TextLabel")
+                                label.Size = UDim2.new(1, 0, 1, 0)
+                                label.BackgroundTransparency = 1
+                                label.Text = "Lvl "..level
+                                label.TextColor3 = Color3.new(1, 1, 0)
+                                label.TextStrokeTransparency = 0
+                                label.TextScaled = true
+                                label.Parent = billboard
+                                
+                                espObjects[plr.Name].Level = billboard
+                            else
+                                espObjects[plr.Name].Level.TextLabel.Text = "Lvl "..level
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+                
+                -- Clean up ESP level
+                for _, espData in pairs(espObjects) do
+                    if espData.Level then
+                        espData.Level:Destroy()
+                    end
+                end
+                espObjects = {}
+            end)
+        end
+    end,
+})
+
+-- ESP Hologram
+local ESPHologramToggle = PlayerTab:CreateToggle({
+    Name = "ESP Hologram",
+    CurrentValue = false,
+    Flag = "ESPHologram",
+    Callback = function(Value)
+        espHologramEnabled = Value
+        if espHologramEnabled then
+            task.spawn(function()
+                while espHologramEnabled do
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if not espObjects[plr.Name] then
+                                espObjects[plr.Name] = {}
+                            end
+                            
+                            if not espObjects[plr.Name].Hologram then
+                                local hologram = Instance.new("SelectionBox")
+                                hologram.Adornee = plr.Character.HumanoidRootPart
+                                hologram.LineThickness = 0.05
+                                hologram.Color3 = Color3.new(1, 0, 0)
+                                hologram.SurfaceColor3 = Color3.new(1, 0, 0)
+                                hologram.SurfaceTransparency = 0.8
+                                hologram.Parent = plr.Character.HumanoidRootPart
+                                
+                                -- Rainbow effect
+                                local hue = 0
+                                local connection
+                                connection = RunService.Heartbeat:Connect(function(deltaTime)
+                                    if not espHologramEnabled then
+                                        connection:Disconnect()
+                                        return
+                                    end
+                                    
+                                    hue = (hue + deltaTime * 2) % 1
+                                    local color = Color3.fromHSV(hue, 1, 1)
+                                    hologram.Color3 = color
+                                    hologram.SurfaceColor3 = color
+                                end)
+                                
+                                espObjects[plr.Name].Hologram = hologram
+                            end
+                        end
+                    end
+                    task.wait(1)
+                end
+                
+                -- Clean up ESP hologram
+                for _, espData in pairs(espObjects) do
+                    if espData.Hologram then
+                        espData.Hologram:Destroy()
+                    end
+                end
+                espObjects = {}
+            end)
+        end
+    end,
+})
+
+-- Trader Tab
+local TraderSection = TraderTab:CreateSection("Trader")
+
+-- Auto Accept Trade
+local AutoAcceptTradeToggle = TraderTab:CreateToggle({
+    Name = "Auto Accept Trade",
+    CurrentValue = false,
+    Flag = "AutoAcceptTrade",
+    Callback = function(Value)
+        autoAcceptTradeEnabled = Value
+        if autoAcceptTradeEnabled then
+            local connection
+            connection = TradeRemote.OnClientEvent:Connect(function(action, data)
+                if autoAcceptTradeEnabled and action == "TradeRequest" then
+                    TradeRemote:FireServer("AcceptTrade", data.TradeId)
+                end
+            end)
+        end
+    end,
+})
+
+-- Select Fish
+local fishDropdown = {}
+for fishName, fishData in pairs(FishData.Fish) do
+    table.insert(fishDropdown, fishName)
+end
+
+local SelectFishDropdown = TraderTab:CreateDropdown({
+    Name = "Select Fish",
+    Options = fishDropdown,
+    CurrentOption = "Select Fish",
+    Flag = "SelectFish",
+    Callback = function(Option)
+        -- Store selected fish for trading
+        Rayfield.Flags.SelectedFish = Option
+    end,
+})
+
+-- Select Player
+local SelectPlayerDropdown = TraderTab:CreateDropdown({
+    Name = "Select Player",
+    Options = playersDropdown,
+    CurrentOption = "Select Player",
+    Flag = "SelectPlayer",
+    Callback = function(Option)
+        -- Store selected player for trading
+        Rayfield.Flags.SelectPlayer = Option
+    end,
+})
+
+-- Trade All Fish
+local TradeAllFishButton = TraderTab:CreateButton({
+    Name = "Trade All Fish",
+    Callback = function()
+        local selectedFish = Rayfield.Flags.SelectedFish
+        local selectedPlayer = Rayfield.Flags.SelectPlayer
+        
+        if not selectedFish or selectedFish == "Select Fish" then
+            Rayfield:Notify({
+                Title = "No Fish Selected",
+                Content = "Please select a fish to trade",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        if not selectedPlayer or selectedPlayer == "Select Player" then
+            Rayfield:Notify({
+                Title = "No Player Selected",
+                Content = "Please select a player to trade with",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        local targetPlayer = Players:FindFirstChild(selectedPlayer)
+        if not targetPlayer then
+            Rayfield:Notify({
+                Title = "Player Not Found",
+                Content = selectedPlayer.." is not in the server",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        -- Get player's fish inventory
+        local playerData = PlayerData.GetPlayerData(player.UserId)
+        local fishInventory = playerData.FishInventory or {}
+        
+        if not fishInventory[selectedFish] or fishInventory[selectedFish].Amount == 0 then
+            Rayfield:Notify({
+                Title = "No Fish to Trade",
+                Content = "You don't have any "..selectedFish,
+                Duration = 3,
+                Image = 4483362458,
+            })
+            return
+        end
+        
+        -- Send trade request
+        TradeRemote:FireServer("RequestTrade", targetPlayer.UserId, selectedFish, fishInventory[selectedFish].Amount)
+        
+        Rayfield:Notify({
+            Title = "Trade Request Sent",
+            Content = "Sent trade request to "..selectedPlayer,
+            Duration = 3,
+            Image = 4483362458,
+        })
     end,
 })
 
 -- Server Tab
-local WeatherSection = ServerTab:CreateSection("Weather Control")
-local WeatherDropdown = ServerTab:CreateDropdown({
+local ServerSection = ServerTab:CreateSection("Server")
+
+-- Select Weather
+local weatherDropdown = {"Sunny", "Stormy", "Fog", "Night", "Event Weather"}
+
+local SelectWeatherDropdown = ServerTab:CreateDropdown({
     Name = "Select Weather",
-    Options = {"Sunny", "Stormy", "Fog", "Night", "Event Weather"},
-    CurrentOption = {"Sunny"},
-    MultipleOptions = false,
-    Flag = "SelectedWeather",
-    Callback = function(Options)
-        _G.SelectedWeather = Options[1]
+    Options = weatherDropdown,
+    CurrentOption = "Sunny",
+    Flag = "SelectWeather",
+    Callback = function(Option)
+        WeatherRemote:FireServer("ChangeWeather", Option)
     end,
 })
 
+-- Buy Weather
 local BuyWeatherButton = ServerTab:CreateButton({
     Name = "Buy Weather",
     Callback = function()
-        pcall(function()
-            -- Buy the selected weather
-            FishItRemotes.BuyWeather:FireServer(_G.SelectedWeather)
-        end)
+        local selectedWeather = Rayfield.Flags.SelectWeather
+        if selectedWeather and selectedWeather ~= "Sunny" then
+            WeatherRemote:FireServer("BuyWeather", selectedWeather)
+            Rayfield:Notify({
+                Title = "Weather Purchased",
+                Content = "Bought "..selectedWeather.." weather",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
+-- Auto Buy Weather
 local AutoBuyWeatherToggle = ServerTab:CreateToggle({
     Name = "Auto Buy Weather",
     CurrentValue = false,
     Flag = "AutoBuyWeather",
     Callback = function(Value)
-        _G.AutoBuyWeather = Value
-        
-        if _G.AutoBuyWeather then
+        autoBuyWeatherEnabled = Value
+        if autoBuyWeatherEnabled then
             task.spawn(function()
-                while _G.AutoBuyWeather do
-                    pcall(function()
-                        -- Check current weather
-                        local currentWeather = Lighting:FindFirstChild("Weather") and Lighting.Weather.Value or "Sunny"
-                        
-                        -- If current weather is not the selected one, buy it
-                        if currentWeather ~= _G.SelectedWeather then
-                            FishItRemotes.BuyWeather:FireServer(_G.SelectedWeather)
-                        end
-                    end)
-                    task.wait(60)
+                while autoBuyWeatherEnabled do
+                    local selectedWeather = Rayfield.Flags.SelectWeather
+                    if selectedWeather and selectedWeather ~= "Sunny" then
+                        WeatherRemote:FireServer("BuyWeather", selectedWeather)
+                    end
+                    task.wait(300)  -- Every 5 minutes
                 end
             end)
         end
     end,
 })
 
-local InfoSection = ServerTab:CreateSection("Server Info")
-local PlayerInfoLabel = ServerTab:CreateLabel("Player Info: Loading...")
-local ServerInfoLabel = ServerTab:CreateLabel("Server Info: Loading...")
+-- Player Info
+local PlayerInfoLabel = ServerTab:CreateLabel("Players Online: "..#Players:GetPlayers())
 
--- Update server info
-task.spawn(function()
-    while true do
-        pcall(function()
-            -- Update player count
-            local playerCount = #Players:GetPlayers()
-            Rayfield.UpdateLabel("PlayerInfoLabel", "Player Info: " .. playerCount .. " players online")
-            
-            -- Update server info
-            local serverLuck = FishItModules.ServerData.GetServerLuck() or "0%"
-            local serverSeed = FishItModules.ServerData.GetServerSeed() or "Unknown"
-            Rayfield.UpdateLabel("ServerInfoLabel", "Server Info: Luck " .. serverLuck .. " | Seed " .. serverSeed)
-        end)
-        task.wait(5)
-    end
+Players.PlayerAdded:Connect(function()
+    PlayerInfoLabel:Set("Players Online: "..#Players:GetPlayers())
 end)
 
+Players.PlayerRemoving:Connect(function()
+    PlayerInfoLabel:Set("Players Online: "..#Players:GetPlayers())
+end)
+
+-- Server Info
+local serverData = PlayerData.GetServerData()
+local ServerInfoLabel = ServerTab:CreateLabel("Server Luck: "..(serverData.Luck or "N/A").."% | Seed: "..(serverData.Seed or "N/A"))
+
 -- System Tab
-local InfoDisplaySection = SystemTab:CreateSection("Info Display")
+local SystemSection = SystemTab:CreateSection("System")
+
+-- Show Info
 local ShowInfoToggle = SystemTab:CreateToggle({
     Name = "Show Information",
     CurrentValue = false,
     Flag = "ShowInfo",
     Callback = function(Value)
-        _G.ShowInfo = Value
-        
-        if _G.ShowInfo then
-            task.spawn(function()
-                -- Create info display
-                local infoGui = Instance.new("ScreenGui")
-                infoGui.Name = "FishItInfo"
-                infoGui.ResetOnSpawn = false
-                infoGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+        if Value then
+            local infoGui = Instance.new("ScreenGui")
+            infoGui.Name = "FishItInfo"
+            infoGui.Parent = CoreGui
+            infoGui.ResetOnSpawn = false
+            
+            local infoFrame = Instance.new("Frame")
+            infoFrame.Size = UDim2.new(0, 200, 0, 150)
+            infoFrame.Position = UDim2.new(0, 10, 0, 10)
+            infoFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+            infoFrame.BackgroundTransparency = 0.5
+            infoFrame.BorderSizePixel = 0
+            infoFrame.Parent = infoGui
+            
+            local fpsLabel = Instance.new("TextLabel")
+            fpsLabel.Size = UDim2.new(1, 0, 0, 25)
+            fpsLabel.Position = UDim2.new(0, 0, 0, 0)
+            fpsLabel.BackgroundTransparency = 1
+            fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+            fpsLabel.TextXAlignment = Enum.TextXAlignment.Left
+            fpsLabel.Font = Enum.Font.SourceSans
+            fpsLabel.TextSize = 14
+            fpsLabel.Parent = infoFrame
+            
+            local pingLabel = Instance.new("TextLabel")
+            pingLabel.Size = UDim2.new(1, 0, 0, 25)
+            pingLabel.Position = UDim2.new(0, 0, 0, 25)
+            pingLabel.BackgroundTransparency = 1
+            pingLabel.TextColor3 = Color3.new(1, 1, 1)
+            pingLabel.TextXAlignment = Enum.TextXAlignment.Left
+            pingLabel.Font = Enum.Font.SourceSans
+            pingLabel.TextSize = 14
+            pingLabel.Parent = infoFrame
+            
+            local batteryLabel = Instance.new("TextLabel")
+            batteryLabel.Size = UDim2.new(1, 0, 0, 25)
+            batteryLabel.Position = UDim2.new(0, 0, 0, 50)
+            batteryLabel.BackgroundTransparency = 1
+            batteryLabel.TextColor3 = Color3.new(1, 1, 1)
+            batteryLabel.TextXAlignment = Enum.TextXAlignment.Left
+            batteryLabel.Font = Enum.Font.SourceSans
+            batteryLabel.TextSize = 14
+            batteryLabel.Parent = infoFrame
+            
+            local timeLabel = Instance.new("TextLabel")
+            timeLabel.Size = UDim2.new(1, 0, 0, 25)
+            timeLabel.Position = UDim2.new(0, 0, 0, 75)
+            timeLabel.BackgroundTransparency = 1
+            timeLabel.TextColor3 = Color3.new(1, 1, 1)
+            timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+            timeLabel.Font = Enum.Font.SourceSans
+            timeLabel.TextSize = 14
+            timeLabel.Parent = infoFrame
+            
+            local lastTime = tick()
+            local fps = 0
+            local frameCount = 0
+            
+            local connection
+            connection = RunService.Heartbeat:Connect(function(deltaTime)
+                if not Rayfield.Flags.ShowInfo then
+                    connection:Disconnect()
+                    infoGui:Destroy()
+                    return
+                end
                 
-                local infoFrame = Instance.new("Frame")
-                infoFrame.Name = "InfoFrame"
-                infoFrame.Size = UDim2.new(0, 200, 0, 100)
-                infoFrame.Position = UDim2.new(0, 10, 0, 10)
-                infoFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-                infoFrame.BackgroundTransparency = 0.5
-                infoFrame.BorderSizePixel = 0
-                infoFrame.Parent = infoGui
+                frameCount = frameCount + 1
+                if tick() - lastTime >= 1 then
+                    fps = frameCount
+                    frameCount = 0
+                    lastTime = tick()
+                end
                 
-                local fpsLabel = Instance.new("TextLabel")
-                fpsLabel.Name = "FPSLabel"
-                fpsLabel.Size = UDim2.new(1, 0, 0, 25)
-                fpsLabel.Position = UDim2.new(0, 0, 0, 0)
-                fpsLabel.BackgroundTransparency = 1
-                fpsLabel.Text = "FPS: 60"
-                fpsLabel.TextColor3 = Color3.new(1, 1, 1)
-                fpsLabel.TextScaled = true
-                fpsLabel.Font = Enum.Font.SourceSansBold
-                fpsLabel.TextXAlignment = Enum.TextXAlignment.Left
-                fpsLabel.Parent = infoFrame
+                fpsLabel.Text = "FPS: "..fps
                 
-                local pingLabel = Instance.new("TextLabel")
-                pingLabel.Name = "PingLabel"
-                pingLabel.Size = UDim2.new(1, 0, 0, 25)
-                pingLabel.Position = UDim2.new(0, 0, 0, 25)
-                pingLabel.BackgroundTransparency = 1
-                pingLabel.Text = "Ping: 0ms"
-                pingLabel.TextColor3 = Color3.new(1, 1, 1)
-                pingLabel.TextScaled = true
-                pingLabel.Font = Enum.Font.SourceSansBold
-                pingLabel.TextXAlignment = Enum.TextXAlignment.Left
-                pingLabel.Parent = infoFrame
+                local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+                pingLabel.Text = "Ping: "..math.floor(ping).."ms"
                 
-                local timeLabel = Instance.new("TextLabel")
-                timeLabel.Name = "TimeLabel"
-                timeLabel.Size = UDim2.new(1, 0, 0, 25)
-                timeLabel.Position = UDim2.new(0, 0, 0, 50)
-                timeLabel.BackgroundTransparency = 1
-                timeLabel.Text = "Time: 00:00:00"
-                timeLabel.TextColor3 = Color3.new(1, 1, 1)
-                timeLabel.TextScaled = true
-                timeLabel.Font = Enum.Font.SourceSansBold
-                timeLabel.TextXAlignment = Enum.TextXAlignment.Left
-                timeLabel.Parent = infoFrame
+                -- Get battery level (only works on mobile)
+                local battery = "N/A"
+                if UserInputService:GetBatteryInfo() then
+                    battery = math.floor(UserInputService:GetBatteryInfo().ChargeLevel * 100).."%"
+                end
+                batteryLabel.Text = "Battery: "..battery
                 
-                local batteryLabel = Instance.new("TextLabel")
-                batteryLabel.Name = "BatteryLabel"
-                batteryLabel.Size = UDim2.new(1, 0, 0, 25)
-                batteryLabel.Position = UDim2.new(0, 0, 0, 75)
-                batteryLabel.BackgroundTransparency = 1
-                batteryLabel.Text = "Battery: 100%"
-                batteryLabel.TextColor3 = Color3.new(1, 1, 1)
-                batteryLabel.TextScaled = true
-                batteryLabel.Font = Enum.Font.SourceSansBold
-                batteryLabel.TextXAlignment = Enum.TextXAlignment.Left
-                batteryLabel.Parent = infoFrame
-                
-                -- Update info
-                local lastTime = tick()
-                local fps = 60
-                local connection
-                connection = RunService.Heartbeat:Connect(function()
-                    if not _G.ShowInfo then
-                        infoGui:Destroy()
-                        connection:Disconnect()
-                        return
-                    end
-                    
-                    -- Update FPS
-                    local currentTime = tick()
-                    local deltaTime = currentTime - lastTime
-                    fps = math.floor(1 / deltaTime)
-                    lastTime = currentTime
-                    fpsLabel.Text = "FPS: " .. fps
-                    
-                    -- Update Ping
-                    local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-                    pingLabel.Text = "Ping: " .. ping .. "ms"
-                    
-                    -- Update Time
-                    local time = os.date("*t")
-                    timeLabel.Text = string.format("Time: %02d:%02d:%02d", time.hour, time.min, time.sec)
-                    
-                    -- Update Battery (if available)
-                    if game:GetService("GuiService"):IsTenFootInterface() then
-                        local battery = game:GetService("GuiService"):GetBatteryLevel()
-                        batteryLabel.Text = "Battery: " .. math.floor(battery * 100) .. "%"
-                    else
-                        batteryLabel.Text = "Battery: N/A"
-                    end
-                end)
+                -- Get current time
+                local currentTime = os.date("%H:%M:%S")
+                timeLabel.Text = "Time: "..currentTime
             end)
         end
     end,
 })
 
-local PerformanceSection = SystemTab:CreateSection("Performance")
+-- Boost FPS
 local BoostFPSToggle = SystemTab:CreateToggle({
     Name = "Boost FPS",
     CurrentValue = false,
     Flag = "BoostFPS",
     Callback = function(Value)
-        _G.BoostFPS = Value
-        
-        if _G.BoostFPS then
-            -- Set FPS to cap
-            setfpscap(_G.FPSCap or 360)
-            
-            -- Disable unnecessary features
-            game:GetService("Lighting").GlobalShadows = false
-            game:GetService("Lighting").FogEnd = 9e9
+        boostFPSEnabled = Value
+        if boostFPSEnabled then
+            -- Set FPS cap
+            game:GetService("RunService"):Set3dRenderingEnabled(true)
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-            
-            -- Disable particles
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = false
-                end
-            end
-        else
-            -- Reset FPS cap
-            setfpscap(60)
-            
-            -- Re-enable features
-            game:GetService("Lighting").GlobalShadows = true
-            game:GetService("Lighting").FogEnd = 1000
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level10
-            
-            -- Re-enable particles
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = true
-                end
-            end
+            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+            settings().Physics.AllowSleep = false
+            settings().Network.IncomingReplicationLag = 0
         end
     end,
 })
 
-local FPSSlider = SystemTab:CreateSlider({
+-- Settings FPS
+local SettingsFPSSlider = SystemTab:CreateSlider({
     Name = "Settings FPS",
     Range = {0, 360},
     Increment = 1,
-    Suffix = " FPS",
+    Suffix = "",
     CurrentValue = 60,
-    Flag = "FPSCap",
+    Flag = "FPSValue",
     Callback = function(Value)
-        _G.FPSCap = Value
-        if _G.BoostFPS then
-            setfpscap(Value)
+        fpsValue = Value
+        if fpsValue > 0 then
+            setfpscap(fpsValue)
+        else
+            setfpscap(1e9)  -- Unlimited FPS
         end
     end,
 })
 
-local CleanMemoryButton = SystemTab:CreateButton({
-    Name = "Clean Memory",
-    Callback = function()
-        pcall(function()
-            -- Clean up memory
-            collectgarbage("collect")
-            
-            -- Clear textures
-            for _, obj in pairs(game:GetDescendants()) do
-                if obj:IsA("ImageLabel") or obj:IsA("ImageButton") or obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj:Destroy()
-                end
-            end
-            
-            Rayfield:Notify({
-                Title = "Memory Cleaned",
-                Content = "Memory has been cleaned successfully!",
-                Duration = 3,
-                Image = 4483362458,
-                Actions = {
-                    Ignore = {
-                        Name = "Okay!",
-                        Callback = function()
-                            print("The user tapped Okay!")
-                        end
-                    },
-                },
-            })
-        end)
-    end,
-})
-
+-- Auto Clean Memory
 local AutoCleanMemoryToggle = SystemTab:CreateToggle({
     Name = "Auto Clean Memory",
     CurrentValue = false,
     Flag = "AutoCleanMemory",
     Callback = function(Value)
-        _G.AutoCleanMemory = Value
-        
-        if _G.AutoCleanMemory then
+        autoCleanMemoryEnabled = Value
+        if autoCleanMemoryEnabled then
             task.spawn(function()
-                while _G.AutoCleanMemory do
-                    pcall(function()
-                        collectgarbage("collect")
-                    end)
-                    task.wait(300) -- Clean every 5 minutes
+                while autoCleanMemoryEnabled do
+                    -- Clean up memory
+                    for _, v in pairs(Workspace:GetDescendants()) do
+                        if v:IsA("Texture") or v:IsA("Decal") then
+                            v:Destroy()
+                        end
+                    end
+                    
+                    for _, v in pairs(game:GetService("Lighting"):GetChildren()) do
+                        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") then
+                            v:Destroy()
+                        end
+                    end
+                    
+                    collectgarbage("collect")
+                    
+                    task.wait(60)  -- Every minute
                 end
             end)
         end
     end,
 })
 
-local DisableParticlesToggle = SystemTab:CreateToggle({
+-- Disable Useless Particles
+local DisableUselessParticlesButton = SystemTab:CreateButton({
     Name = "Disable Useless Particles",
-    CurrentValue = false,
-    Flag = "DisableParticles",
-    Callback = function(Value)
-        _G.DisableParticles = Value
-        
-        if _G.DisableParticles then
-            task.spawn(function()
-                while _G.DisableParticles do
-                    pcall(function()
-                        -- Disable particles
-                        for _, particle in pairs(Workspace:GetDescendants()) do
-                            if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                                particle.Enabled = false
-                            end
-                        end
-                    end)
-                    task.wait(5)
-                end
-            end)
-        else
-            -- Re-enable particles
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = true
-                end
+    Callback = function()
+        local count = 0
+        for _, particle in pairs(Workspace:GetDescendants()) do
+            if particle:IsA("ParticleEmitter") then
+                particle.Enabled = false
+                count = count + 1
             end
         end
+        
+        for _, particle in pairs(game:GetService("Lighting"):GetDescendants()) do
+            if particle:IsA("ParticleEmitter") then
+                particle.Enabled = false
+                count = count + 1
+            end
+        end
+        
+        Rayfield:Notify({
+            Title = "Particles Disabled",
+            Content = "Disabled "..count.." particle emitters",
+            Duration = 3,
+            Image = 4483362458,
+        })
     end,
 })
 
-local ServerSection = SystemTab:CreateSection("Server")
-local RejoinButton = SystemTab:CreateButton({
+-- Rejoin Server
+local RejoinServerButton = SystemTab:CreateButton({
     Name = "Rejoin Server",
     Callback = function()
-        pcall(function()
-            -- Rejoin server
-            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-        end)
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
     end,
 })
 
 -- Graphic Tab
-local QualitySection = GraphicTab:CreateSection("Quality Settings")
-local HighQualityButton = GraphicTab:CreateButton({
+local GraphicSection = GraphicTab:CreateSection("Graphic")
+
+-- High Quality
+local HighQualityToggle = GraphicTab:CreateToggle({
     Name = "High Quality",
-    Callback = function()
-        pcall(function()
-            -- Set high quality
+    CurrentValue = false,
+    Flag = "HighQuality",
+    Callback = function(Value)
+        highQualityEnabled = Value
+        if highQualityEnabled then
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level21
             game:GetService("Lighting").GlobalShadows = true
-            game:GetService("Lighting").Technology = Enum.Technology.Future
-            game:GetService("Lighting").EnvironmentDiffuseScale = 1
-            game:GetService("Lighting").EnvironmentSpecularScale = 1
-        end)
+            game:GetService("Lighting").ShadowSoftness = 0.2
+        end
     end,
 })
 
-local MaxRenderingButton = GraphicTab:CreateButton({
+-- Max Rendering
+local MaxRenderingToggle = GraphicTab:CreateToggle({
     Name = "Max Rendering",
-    Callback = function()
-        pcall(function()
-            -- Set max rendering
-            settings().Rendering.QualityLevel = Enum.QualityLevel.Level27
-            game:GetService("Lighting").GlobalShadows = true
-            game:GetService("Lighting").Technology = Enum.Technology.Future
-            game:GetService("Lighting").EnvironmentDiffuseScale = 1
-            game:GetService("Lighting").EnvironmentSpecularScale = 1
-            game:GetService("Lighting").GeographicLatitude = 0
-            game:GetService("Lighting").ClockTime = 14
-        end)
+    CurrentValue = false,
+    Flag = "MaxRendering",
+    Callback = function(Value)
+        maxRenderingEnabled = Value
+        if maxRenderingEnabled then
+            settings().Rendering.EagerBulkExecution = true
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+            settings().Rendering.TextureQuality = Enum.TextureQuality.QualityLevel.High
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+        end
     end,
 })
 
-local UltraLowModeButton = GraphicTab:CreateButton({
+-- Ultra Low Mode
+local UltraLowModeToggle = GraphicTab:CreateToggle({
     Name = "Ultra Low Mode",
-    Callback = function()
-        pcall(function()
-            -- Set ultra low mode
+    CurrentValue = false,
+    Flag = "UltraLowMode",
+    Callback = function(Value)
+        ultraLowModeEnabled = Value
+        if ultraLowModeEnabled then
             settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
             game:GetService("Lighting").GlobalShadows = false
-            game:GetService("Lighting").Technology = Enum.Technology.Compatibility
-            game:GetService("Lighting").EnvironmentDiffuseScale = 0
-            game:GetService("Lighting").EnvironmentSpecularScale = 0
-            game:GetService("Lighting").FogEnd = 9e9
-            
-            -- Disable particles
-            for _, particle in pairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Trail") or particle:IsA("Beam") then
-                    particle.Enabled = false
-                end
-            end
-        end)
+            game:GetService("Lighting").FogEnd = 100000
+            game:GetService("Lighting").FogStart = 0
+            settings().Physics.EnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Enabled
+            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+        end
     end,
 })
 
-local WaterSection = GraphicTab:CreateSection("Water Settings")
+-- Disable Water Reflection
 local DisableWaterReflectionToggle = GraphicTab:CreateToggle({
     Name = "Disable Water Reflection",
     CurrentValue = false,
     Flag = "DisableWaterReflection",
     Callback = function(Value)
-        _G.DisableWaterReflection = Value
-        
-        if _G.DisableWaterReflection then
-            task.spawn(function()
-                while _G.DisableWaterReflection do
-                    pcall(function()
-                        -- Disable water reflection
-                        for _, water in pairs(Workspace:GetDescendants()) do
-                            if water:IsA("Terrain") then
-                                water.WaterReflectance = 0
-                                water.WaterTransparency = 0.9
-                                water.WaterWaveSize = 0.1
-                                water.WaterWaveSpeed = 0
-                            end
-                        end
-                    end)
-                    task.wait(5)
-                end
-            end)
-        else
-            -- Reset water settings
+        disableWaterReflectionEnabled = Value
+        if disableWaterReflectionEnabled then
             for _, water in pairs(Workspace:GetDescendants()) do
-                if water:IsA("Terrain") then
-                    water.WaterReflectance = 0.5
-                    water.WaterTransparency = 0.5
-                    water.WaterWaveSize = 0.5
-                    water.WaterWaveSpeed = 5
+                if water:IsA("BasePart") and water.Material == Enum.Material.Water then
+                    water.Reflectance = 0
+                    water.Transparency = 0.8
+                end
+            end
+        else
+            for _, water in pairs(Workspace:GetDescendants()) do
+                if water:IsA("BasePart") and water.Material == Enum.Material.Water then
+                    water.Reflectance = 0.4
+                    water.Transparency = 0.5
                 end
             end
         end
     end,
 })
 
-local ShaderSection = GraphicTab:CreateSection("Shader Settings")
+-- Custom Shader Toggle
 local CustomShaderToggle = GraphicTab:CreateToggle({
     Name = "Custom Shader Toggle",
     CurrentValue = false,
     Flag = "CustomShader",
     Callback = function(Value)
-        _G.CustomShader = Value
-        
-        if _G.CustomShader then
-            task.spawn(function()
-                -- Apply custom shader
-                local lighting = game:GetService("Lighting")
-                local bloom = Instance.new("BloomEffect")
-                bloom.Intensity = 0.5
-                bloom.Size = 24
-                bloom.Threshold = 0.8
-                bloom.Parent = lighting
-                
-                local colorCorrection = Instance.new("ColorCorrectionEffect")
-                colorCorrection.TintColor = Color3.new(1, 1, 1)
-                colorCorrection.Contrast = 0.1
-                colorCorrection.Brightness = 0.1
-                colorCorrection.Saturation = 0.1
-                colorCorrection.Parent = lighting
-                
-                local sunRays = Instance.new("SunRaysEffect")
-                sunRays.Intensity = 0.1
-                sunRays.Spread = 0.1
-                sunRays.Parent = lighting
-                
-                _G.ShaderEffects = {bloom, colorCorrection, sunRays}
-            end)
+        customShaderEnabled = Value
+        if customShaderEnabled then
+            -- Apply custom shader effects
+            local colorCorrection = Instance.new("ColorCorrectionEffect")
+            colorCorrection.TintColor = Color3.new(1, 1, 1)
+            colorCorrection.Saturation = 0.2
+            colorCorrection.Contrast = 0.1
+            colorCorrection.Parent = game:GetService("Lighting")
+            
+            local bloom = Instance.new("BloomEffect")
+            bloom.Intensity = 0.5
+            bloom.Size = 24
+            bloom.Threshold = 0.8
+            bloom.Parent = game:GetService("Lighting")
+            
+            local sunRays = Instance.new("SunRaysEffect")
+            sunRays.Intensity = 0.2
+            sunRays.Spread = 0.1
+            sunRays.Parent = game:GetService("Lighting")
         else
-            -- Remove custom shader
-            if _G.ShaderEffects then
-                for _, effect in ipairs(_G.ShaderEffects) do
-                    if effect and effect.Parent then
-                        effect:Destroy()
-                    end
+            -- Remove custom shader effects
+            for _, effect in pairs(game:GetService("Lighting"):GetChildren()) do
+                if effect:IsA("ColorCorrectionEffect") or effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") then
+                    effect:Destroy()
                 end
-                _G.ShaderEffects = nil
             end
         end
     end,
 })
 
 -- RNG Kill Tab
-local RNGSection = RngKillTab:CreateSection("RNG Manipulation")
-local RNGReducerToggle = RngKillTab:CreateToggle({
+local RNGKillSection = RNGKillTab:CreateSection("RNG Kill")
+
+-- RNG Reducer
+local RNGReducerToggle = RNGKillTab:CreateToggle({
     Name = "RNG Reducer",
     CurrentValue = false,
     Flag = "RNGReducer",
     Callback = function(Value)
-        _G.RNGReducer = Value
-        
-        if _G.RNGReducer then
-            task.spawn(function()
-                while _G.RNGReducer do
-                    pcall(function()
-                        -- Modify RNG to reduce difficulty
-                        local originalRandom = math.random
-                        math.random = function(min, max)
-                            if not max then
-                                return min
-                            else
-                                -- Bias towards higher values
-                                return originalRandom(math.floor(min + (max - min) * 0.7), max)
-                            end
-                        end
-                    end)
-                    task.wait(0.1)
+        rngReducerEnabled = Value
+        if rngReducerEnabled then
+            -- Modify RNG system to reduce randomness
+            local oldRandom = RNGSystem.GetRandomFish
+            RNGSystem.GetRandomFish = function(...)
+                local result = oldRandom(...)
+                -- Increase chance of rare fish
+                if math.random(1, 100) <= 50 then  -- 50% chance to get rare fish
+                    return FishData.RareFish[math.random(1, #FishData.RareFish)]
                 end
-            end)
-        else
-            -- Reset RNG
-            math.random = _G.OriginalRandom or math.random
+                return result
+            end
         end
     end,
 })
 
-local ForceLegendaryToggle = RngKillTab:CreateToggle({
+-- Force Legendary Catch
+local ForceLegendaryCatchToggle = RNGKillTab:CreateToggle({
     Name = "Force Legendary Catch",
     CurrentValue = false,
-    Flag = "ForceLegendary",
+    Flag = "ForceLegendaryCatch",
     Callback = function(Value)
-        _G.ForceLegendary = Value
-        
-        if _G.ForceLegendary then
-            task.spawn(function()
-                while _G.ForceLegendary do
-                    pcall(function()
-                        -- Modify fish rarity calculation
-                        local originalFunction = FishItModules.FishingMechanics.CalculateFishRarity
-                        FishItModules.FishingMechanics.CalculateFishRarity = function()
-                            return "Legendary"
-                        end
-                    end)
-                    task.wait(0.1)
-                end
-            end)
+        forceLegendaryCatchEnabled = Value
+        if forceLegendaryCatchEnabled then
+            -- Force legendary fish catch
+            local oldGetFish = RNGSystem.GetRandomFish
+            RNGSystem.GetRandomFish = function(...)
+                return FishData.LegendaryFish[math.random(1, #FishData.LegendaryFish)]
+            end
         end
     end,
 })
 
-local SecretFishBoostToggle = RngKillTab:CreateToggle({
+-- Secret Fish Boost
+local SecretFishBoostToggle = RNGKillTab:CreateToggle({
     Name = "Secret Fish Boost",
     CurrentValue = false,
     Flag = "SecretFishBoost",
     Callback = function(Value)
-        _G.SecretFishBoost = Value
-        
-        if _G.SecretFishBoost then
-            task.spawn(function()
-                while _G.SecretFishBoost do
-                    pcall(function()
-                        -- Modify secret fish chance
-                        local originalFunction = FishItModules.FishingMechanics.CalculateSecretChance
-                        FishItModules.FishingMechanics.CalculateSecretChance = function()
-                            return 0.5 -- 50% chance
-                        end
-                    end)
-                    task.wait(0.1)
+        secretFishBoostEnabled = Value
+        if secretFishBoostEnabled then
+            -- Boost secret fish chance
+            local oldGetFish = RNGSystem.GetRandomFish
+            RNGSystem.GetRandomFish = function(...)
+                if math.random(1, 100) <= 30 then  -- 30% chance to get secret fish
+                    return FishData.SecretFish[math.random(1, #FishData.SecretFish)]
                 end
-            end)
+                return oldGetFish(...)
+            end
         end
     end,
 })
 
-local MythicalChanceToggle = RngKillTab:CreateToggle({
+-- Mythical Chance x10
+local MythicalChanceToggle = RNGKillTab:CreateToggle({
     Name = "Mythical Chance ×10",
     CurrentValue = false,
     Flag = "MythicalChance",
     Callback = function(Value)
-        _G.MythicalChance = Value
-        
-        if _G.MythicalChance then
-            task.spawn(function()
-                while _G.MythicalChance do
-                    pcall(function()
-                        -- Modify mythical fish chance
-                        local originalFunction = FishItModules.FishingMechanics.CalculateMythicalChance
-                        FishItModules.FishingMechanics.CalculateMythicalChance = function()
-                            local baseChance = originalFunction()
-                            return baseChance * 10 -- 10x chance
-                        end
-                    end)
-                    task.wait(0.1)
+        mythicalChanceEnabled = Value
+        if mythicalChanceEnabled then
+            -- Increase mythical fish chance by 10x
+            local oldGetFish = RNGSystem.GetRandomFish
+            RNGSystem.GetRandomFish = function(...)
+                if math.random(1, 100) <= 20 then  -- 20% chance to get mythical fish
+                    return FishData.MythicalFish[math.random(1, #FishData.MythicalFish)]
                 end
-            end)
+                return oldGetFish(...)
+            end
         end
     end,
 })
 
-local AntiBadLuckToggle = RngKillTab:CreateToggle({
-    Name = "Anti-Bad Luck",
+-- Anti Bad Luck
+local AntiBadLuckToggle = RNGKillTab:CreateToggle({
+    Name = "Anti Bad Luck",
     CurrentValue = false,
     Flag = "AntiBadLuck",
     Callback = function(Value)
-        _G.AntiBadLuck = Value
-        
-        if _G.AntiBadLuck then
+        antiBadLuckEnabled = Value
+        if antiBadLuckEnabled then
+            -- Reset RNG seed to prevent bad luck
+            math.randomseed(tick())
+            
             task.spawn(function()
-                while _G.AntiBadLuck do
-                    pcall(function()
-                        -- Reset RNG seed
-                        local originalRandomseed = math.randomseed
-                        math.randomseed = function(seed)
-                            originalRandomseed(tick())
-                        end
-                        
-                        -- Force good luck
-                        FishItRemotes.SetLuck:FireServer(100)
-                    end)
-                    task.wait(60)
+                while antiBadLuckEnabled do
+                    -- Periodically reset RNG seed
+                    math.randomseed(tick())
+                    task.wait(60)  -- Every minute
                 end
             end)
         end
@@ -2056,371 +1714,335 @@ local AntiBadLuckToggle = RngKillTab:CreateToggle({
 })
 
 -- Shop Tab
-local RodSection = ShopTab:CreateSection("Buy Rod")
-local RodDropdown = ShopTab:CreateDropdown({
-    Name = "Select Rod",
-    Options = {"Starter Rod", "Carbon Rod", "Toy Rod", "Grass Rod", "Lava Rod", "Lucky Rod", "Midnight Rod", "Demascus Rod", "Ice Rod", "Steampunk Rod", "Chrome Rod", "Astral Rod", "Ares Rod", "Ghostfinn Rod", "Angler Rod"},
-    CurrentOption = {"Starter Rod"},
-    MultipleOptions = false,
-    Flag = "SelectedRod",
-    Callback = function(Options)
-        _G.SelectedRod = Options[1]
+local ShopSection = ShopTab:CreateSection("Shop")
+
+-- Buy Rod Section
+local BuyRodSection = ShopTab:CreateSection("Buy Rod")
+
+local rodsDropdown = {}
+for rodName, rodData in pairs(RodData.Rods) do
+    table.insert(rodsDropdown, rodName)
+end
+
+local BuyRodDropdown = ShopTab:CreateDropdown({
+    Name = "Buy Rod",
+    Options = rodsDropdown,
+    CurrentOption = "Select Rod",
+    Flag = "BuyRod",
+    Callback = function(Option)
+        -- Store selected rod for purchase
+        Rayfield.Flags.BuyRod = Option
     end,
 })
 
 local BuyRodButton = ShopTab:CreateButton({
-    Name = "Buy Rod",
+    Name = "Buy Selected Rod",
     Callback = function()
-        pcall(function()
-            -- Buy the selected rod
-            FishItRemotes.BuyRod:FireServer(_G.SelectedRod)
-        end)
+        local selectedRod = Rayfield.Flags.BuyRod
+        if selectedRod and selectedRod ~= "Select Rod" then
+            BuyItemRemote:FireServer("Rod", selectedRod)
+            Rayfield:Notify({
+                Title = "Rod Purchased",
+                Content = "Bought "..selectedRod,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
-local BoatSection = ShopTab:CreateSection("Buy Boat")
-local BoatDropdown = ShopTab:CreateDropdown({
-    Name = "Select Boat",
-    Options = {"Small Boat", "Speed Boat", "Viking Ship", "Mythical Ark"},
-    CurrentOption = {"Small Boat"},
-    MultipleOptions = false,
-    Flag = "SelectedBoat",
-    Callback = function(Options)
-        _G.SelectedBoat = Options[1]
+-- Buy Boat Section
+local BuyBoatSection = ShopTab:CreateSection("Buy Boat")
+
+local boatsDropdown = {}
+for boatName, boatData in pairs(BoatData.Boats) do
+    table.insert(boatsDropdown, boatName)
+end
+
+local BuyBoatDropdown = ShopTab:CreateDropdown({
+    Name = "Buy Boat",
+    Options = boatsDropdown,
+    CurrentOption = "Select Boat",
+    Flag = "BuyBoat",
+    Callback = function(Option)
+        -- Store selected boat for purchase
+        Rayfield.Flags.BuyBoat = Option
     end,
 })
 
 local BuyBoatButton = ShopTab:CreateButton({
-    Name = "Buy Boat",
+    Name = "Buy Selected Boat",
     Callback = function()
-        pcall(function()
-            -- Buy the selected boat
-            FishItRemotes.BuyBoat:FireServer(_G.SelectedBoat)
-        end)
+        local selectedBoat = Rayfield.Flags.BuyBoat
+        if selectedBoat and selectedBoat ~= "Select Boat" then
+            BuyItemRemote:FireServer("Boat", selectedBoat)
+            Rayfield:Notify({
+                Title = "Boat Purchased",
+                Content = "Bought "..selectedBoat,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
-local BaitSection = ShopTab:CreateSection("Buy Bait")
-local BaitDropdown = ShopTab:CreateDropdown({
-    Name = "Select Bait",
-    Options = {"Worm", "Shrimp", "Golden Bait", "Mythical Lure", "Dark Matter Bait", "Aether Bait"},
-    CurrentOption = {"Worm"},
-    MultipleOptions = false,
-    Flag = "SelectedBait",
-    Callback = function(Options)
-        _G.SelectedBait = Options[1]
-    end,
-})
+-- Buy Bait Section
+local BuyBaitSection = ShopTab:CreateSection("Buy Bait")
 
-local BaitAmountSlider = ShopTab:CreateSlider({
-    Name = "Bait Amount",
-    Range = {1, 100},
-    Increment = 1,
-    Suffix = "x",
-    CurrentValue = 1,
-    Flag = "BaitAmount",
-    Callback = function(Value)
-        _G.BaitAmount = Value
+local baitsDropdown = {}
+for baitName, baitData in pairs(BaitData.Baits) do
+    table.insert(baitsDropdown, baitName)
+end
+
+local BuyBaitDropdown = ShopTab:CreateDropdown({
+    Name = "Buy Bait",
+    Options = baitsDropdown,
+    CurrentOption = "Select Bait",
+    Flag = "BuyBait",
+    Callback = function(Option)
+        -- Store selected bait for purchase
+        Rayfield.Flags.BuyBait = Option
     end,
 })
 
 local BuyBaitButton = ShopTab:CreateButton({
-    Name = "Buy Bait",
+    Name = "Buy Selected Bait",
     Callback = function()
-        pcall(function()
-            -- Buy the selected bait
-            FishItRemotes.BuyBait:FireServer(_G.SelectedBait, _G.BaitAmount or 1)
-        end)
+        local selectedBait = Rayfield.Flags.BuyBait
+        if selectedBait and selectedBait ~= "Select Bait" then
+            BuyItemRemote:FireServer("Bait", selectedBait)
+            Rayfield:Notify({
+                Title = "Bait Purchased",
+                Content = "Bought "..selectedBait,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
 -- Settings Tab
-local ConfigSection = SettingsTab:CreateSection("Configuration")
+local SettingsSection = SettingsTab:CreateSection("Settings")
+
+-- Save Config
 local SaveConfigButton = SettingsTab:CreateButton({
     Name = "Save Config",
     Callback = function()
-        pcall(function()
-            -- Get all toggle states
-            local config = {
-                AutoFish = _G.AutoFish or false,
-                WaterFish = _G.WaterFish or false,
-                BypassRadar = _G.BypassRadar or false,
-                BypassAir = _G.BypassAir or false,
-                DisableEffect = _G.DisableEffect or false,
-                InstantFishing = _G.InstantFishing or false,
-                AutoSell = _G.AutoSell or false,
-                SellMythical = _G.SellMythical or false,
-                SellSecret = _G.SellSecret or false,
-                SellDelay = _G.SellDelay or 1,
-                AntiKick = _G.AntiKick or false,
-                AntiDetect = _G.AntiDetect or false,
-                AntiAFK = _G.AntiAFK or false,
-                SpeedHack = _G.SpeedHack or false,
-                SpeedHackValue = _G.SpeedHackValue or 50,
-                MaxBoatSpeed = _G.MaxBoatSpeed or false,
-                InfinityJump = _G.InfinityJump or false,
-                Fly = _G.Fly or false,
-                FlySpeed = _G.FlySpeed or 50,
-                FlyBoat = _G.FlyBoat or false,
-                FlyBoatSpeed = _G.FlyBoatSpeed or 50,
-                GhostHack = _G.GhostHack or false,
-                ESPLines = _G.ESPLines or false,
-                ESPBox = _G.ESPBox or false,
-                ESPRange = _G.ESPRange or false,
-                ESPLevel = _G.ESPLevel or false,
-                ESPHologram = _G.ESPHologram or false,
-                AutoAcceptTrade = _G.AutoAcceptTrade or false,
-                AutoBuyWeather = _G.AutoBuyWeather or false,
-                ShowInfo = _G.ShowInfo or false,
-                BoostFPS = _G.BoostFPS or false,
-                FPSCap = _G.FPSCap or 60,
-                AutoCleanMemory = _G.AutoCleanMemory or false,
-                DisableParticles = _G.DisableParticles or false,
-                DisableWaterReflection = _G.DisableWaterReflection or false,
-                CustomShader = _G.CustomShader or false,
-                RNGReducer = _G.RNGReducer or false,
-                ForceLegendary = _G.ForceLegendary or false,
-                SecretFishBoost = _G.SecretFishBoost or false,
-                MythicalChance = _G.MythicalChance or false,
-                AntiBadLuck = _G.AntiBadLuck or false
-            }
-            
-            -- Save config
-            writefile("FishItConfig.json", HttpService:JSONEncode(config))
-            
-            Rayfield:Notify({
-                Title = "Config Saved",
-                Content = "Your configuration has been saved successfully!",
-                Duration = 3,
-                Image = 4483362458,
-                Actions = {
-                    Ignore = {
-                        Name = "Okay!",
-                        Callback = function()
-                            print("The user tapped Okay!")
-                        end
-                    },
-                },
-            })
-        end)
+        Rayfield:SaveConfiguration()
+        Rayfield:Notify({
+            Title = "Config Saved",
+            Content = "Your configuration has been saved",
+            Duration = 3,
+            Image = 4483362458,
+        })
     end,
 })
 
+-- Load Config
 local LoadConfigButton = SettingsTab:CreateButton({
     Name = "Load Config",
     Callback = function()
-        pcall(function()
-            -- Check if config file exists
-            if isfile("FishItConfig.json") then
-                -- Load config
-                local config = HttpService:JSONDecode(readfile("FishItConfig.json"))
-                
-                -- Apply config
-                for key, value in pairs(config) do
-                    _G[key] = value
-                    
-                    -- Update UI elements
-                    if Rayfield.Flags[key] then
-                        Rayfield.Flags[key] = value
-                    end
-                end
-                
-                Rayfield:Notify({
-                    Title = "Config Loaded",
-                    Content = "Your configuration has been loaded successfully!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            else
-                Rayfield:Notify({
-                    Title = "No Config Found",
-                    Content = "Please save a configuration first!",
-                    Duration = 3,
-                    Image = 4483362458,
-                    Actions = {
-                        Ignore = {
-                            Name = "Okay!",
-                            Callback = function()
-                                print("The user tapped Okay!")
-                            end
-                        },
-                    },
-                })
-            end
-        end)
+        Rayfield:LoadConfiguration()
+        Rayfield:Notify({
+            Title = "Config Loaded",
+            Content = "Your configuration has been loaded",
+            Duration = 3,
+            Image = 4483362458,
+        })
     end,
 })
 
+-- Reset Config
 local ResetConfigButton = SettingsTab:CreateButton({
     Name = "Reset Config",
     Callback = function()
-        pcall(function()
-            -- Reset all toggles
-            for key, _ in pairs(Rayfield.Flags) do
-                if key ~= "SellDelay" and key ~= "SpeedHackValue" and key ~= "FlySpeed" and key ~= "FlyBoatSpeed" and key ~= "FPSCap" and key ~= "BaitAmount" then
-                    Rayfield.Flags[key] = false
-                    _G[key] = false
-                end
-            end
-            
-            -- Reset sliders
-            Rayfield.Flags["SellDelay"] = 1
-            Rayfield.Flags["SpeedHackValue"] = 50
-            Rayfield.Flags["FlySpeed"] = 50
-            Rayfield.Flags["FlyBoatSpeed"] = 50
-            Rayfield.Flags["FPSCap"] = 60
-            Rayfield.Flags["BaitAmount"] = 1
-            
-            _G.SellDelay = 1
-            _G.SpeedHackValue = 50
-            _G.FlySpeed = 50
-            _G.FlyBoatSpeed = 50
-            _G.FPSCap = 60
-            _G.BaitAmount = 1
-            
-            Rayfield:Notify({
-                Title = "Config Reset",
-                Content = "Your configuration has been reset to default!",
-                Duration = 3,
-                Image = 4483362458,
-                Actions = {
-                    Ignore = {
-                        Name = "Okay!",
-                        Callback = function()
-                            print("The user tapped Okay!")
-                        end
-                    },
-                },
-            })
-        end)
+        Rayfield:ResetConfiguration()
+        Rayfield:Notify({
+            Title = "Config Reset",
+            Content = "Your configuration has been reset",
+            Duration = 3,
+            Image = 4483362458,
+        })
     end,
 })
 
+-- Export Config
 local ExportConfigButton = SettingsTab:CreateButton({
     Name = "Export Config",
     Callback = function()
-        pcall(function()
-            -- Get all toggle states
-            local config = {
-                AutoFish = _G.AutoFish or false,
-                WaterFish = _G.WaterFish or false,
-                BypassRadar = _G.BypassRadar or false,
-                BypassAir = _G.BypassAir or false,
-                DisableEffect = _G.DisableEffect or false,
-                InstantFishing = _G.InstantFishing or false,
-                AutoSell = _G.AutoSell or false,
-                SellMythical = _G.SellMythical or false,
-                SellSecret = _G.SellSecret or false,
-                SellDelay = _G.SellDelay or 1,
-                AntiKick = _G.AntiKick or false,
-                AntiDetect = _G.AntiDetect or false,
-                AntiAFK = _G.AntiAFK or false,
-                SpeedHack = _G.SpeedHack or false,
-                SpeedHackValue = _G.SpeedHackValue or 50,
-                MaxBoatSpeed = _G.MaxBoatSpeed or false,
-                InfinityJump = _G.InfinityJump or false,
-                Fly = _G.Fly or false,
-                FlySpeed = _G.FlySpeed or 50,
-                FlyBoat = _G.FlyBoat or false,
-                FlyBoatSpeed = _G.FlyBoatSpeed or 50,
-                GhostHack = _G.GhostHack or false,
-                ESPLines = _G.ESPLines or false,
-                ESPBox = _G.ESPBox or false,
-                ESPRange = _G.ESPRange or false,
-                ESPLevel = _G.ESPLevel or false,
-                ESPHologram = _G.ESPHologram or false,
-                AutoAcceptTrade = _G.AutoAcceptTrade or false,
-                AutoBuyWeather = _G.AutoBuyWeather or false,
-                ShowInfo = _G.ShowInfo or false,
-                BoostFPS = _G.BoostFPS or false,
-                FPSCap = _G.FPSCap or 60,
-                AutoCleanMemory = _G.AutoCleanMemory or false,
-                DisableParticles = _G.DisableParticles or false,
-                DisableWaterReflection = _G.DisableWaterReflection or false,
-                CustomShader = _G.CustomShader or false,
-                RNGReducer = _G.RNGReducer or false,
-                ForceLegendary = _G.ForceLegendary or false,
-                SecretFishBoost = _G.SecretFishBoost or false,
-                MythicalChance = _G.MythicalChance or false,
-                AntiBadLuck = _G.AntiBadLuck or false
-            }
-            
-            -- Export config to clipboard
-            setclipboard(HttpService:JSONEncode(config))
-            
-            Rayfield:Notify({
-                Title = "Config Exported",
-                Content = "Your configuration has been copied to clipboard!",
-                Duration = 3,
-                Image = 4483362458,
-                Actions = {
-                    Ignore = {
-                        Name = "Okay!",
-                        Callback = function()
-                            print("The user tapped Okay!")
-                        end
-                    },
-                },
-            })
+        local config = Rayfield:GetConfiguration()
+        local jsonConfig = HttpService:JSONEncode(config)
+        
+        -- Create a textbox to display the config
+        local exportGui = Instance.new("ScreenGui")
+        exportGui.Name = "FishItExport"
+        exportGui.Parent = CoreGui
+        exportGui.ResetOnSpawn = false
+        
+        local exportFrame = Instance.new("Frame")
+        exportFrame.Size = UDim2.new(0, 400, 0, 300)
+        exportFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+        exportFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+        exportFrame.BorderSizePixel = 0
+        exportFrame.Parent = exportGui
+        
+        local exportTitle = Instance.new("TextLabel")
+        exportTitle.Size = UDim2.new(1, 0, 0, 30)
+        exportTitle.Position = UDim2.new(0, 0, 0, 0)
+        exportTitle.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        exportTitle.BorderSizePixel = 0
+        exportTitle.Text = "Export Configuration"
+        exportTitle.TextColor3 = Color3.new(1, 1, 1)
+        exportTitle.Font = Enum.Font.SourceSansBold
+        exportTitle.TextSize = 18
+        exportTitle.Parent = exportFrame
+        
+        local exportBox = Instance.new("TextBox")
+        exportBox.Size = UDim2.new(1, -10, 1, -40)
+        exportBox.Position = UDim2.new(0, 5, 0, 35)
+        exportBox.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+        exportBox.BorderSizePixel = 0
+        exportBox.Text = jsonConfig
+        exportBox.TextColor3 = Color3.new(1, 1, 1)
+        exportBox.Font = Enum.Font.Code
+        exportBox.TextSize = 12
+        exportBox.TextWrapped = true
+        exportBox.TextXAlignment = Enum.TextXAlignment.Left
+        exportBox.TextYAlignment = Enum.TextYAlignment.Top
+        exportBox.ClearTextOnFocus = false
+        exportBox.MultiLine = true
+        exportBox.Parent = exportFrame
+        
+        local closeButton = Instance.new("TextButton")
+        closeButton.Size = UDim2.new(0, 80, 0, 25)
+        closeButton.Position = UDim2.new(1, -85, 0, 5)
+        closeButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+        closeButton.BorderSizePixel = 0
+        closeButton.Text = "Close"
+        closeButton.TextColor3 = Color3.new(1, 1, 1)
+        closeButton.Font = Enum.Font.SourceSans
+        closeButton.TextSize = 14
+        closeButton.Parent = exportFrame
+        
+        closeButton.MouseButton1Click:Connect(function()
+            exportGui:Destroy()
         end)
     end,
 })
 
+-- Import Config
 local ImportConfigButton = SettingsTab:CreateButton({
     Name = "Import Config",
     Callback = function()
-        pcall(function()
-            -- Get config from clipboard
-            local config = HttpService:JSONDecode(getclipboard())
+        -- Create a textbox to input the config
+        local importGui = Instance.new("ScreenGui")
+        importGui.Name = "FishItImport"
+        importGui.Parent = CoreGui
+        importGui.ResetOnSpawn = false
+        
+        local importFrame = Instance.new("Frame")
+        importFrame.Size = UDim2.new(0, 400, 0, 300)
+        importFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+        importFrame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+        importFrame.BorderSizePixel = 0
+        importFrame.Parent = importGui
+        
+        local importTitle = Instance.new("TextLabel")
+        importTitle.Size = UDim2.new(1, 0, 0, 30)
+        importTitle.Position = UDim2.new(0, 0, 0, 0)
+        importTitle.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        importTitle.BorderSizePixel = 0
+        importTitle.Text = "Import Configuration"
+        importTitle.TextColor3 = Color3.new(1, 1, 1)
+        importTitle.Font = Enum.Font.SourceSansBold
+        importTitle.TextSize = 18
+        importTitle.Parent = importFrame
+        
+        local importBox = Instance.new("TextBox")
+        importBox.Size = UDim2.new(1, -10, 1, -70)
+        importBox.Position = UDim2.new(0, 5, 0, 35)
+        importBox.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+        importBox.BorderSizePixel = 0
+        importBox.Text = "Paste your configuration JSON here..."
+        importBox.TextColor3 = Color3.new(1, 1, 1)
+        importBox.Font = Enum.Font.Code
+        importBox.TextSize = 12
+        importBox.TextWrapped = true
+        importBox.TextXAlignment = Enum.TextXAlignment.Left
+        importBox.TextYAlignment = Enum.TextYAlignment.Top
+        importBox.ClearTextOnFocus = false
+        importBox.MultiLine = true
+        importBox.Parent = importFrame
+        
+        local importButton = Instance.new("TextButton")
+        importButton.Size = UDim2.new(0, 80, 0, 25)
+        importButton.Position = UDim2.new(0.5, -90, 1, -30)
+        importButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+        importButton.BorderSizePixel = 0
+        importButton.Text = "Import"
+        importButton.TextColor3 = Color3.new(1, 1, 1)
+        importButton.Font = Enum.Font.SourceSans
+        importButton.TextSize = 14
+        importButton.Parent = importFrame
+        
+        local closeButton = Instance.new("TextButton")
+        closeButton.Size = UDim2.new(0, 80, 0, 25)
+        closeButton.Position = UDim2.new(0.5, 10, 1, -30)
+        closeButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+        closeButton.BorderSizePixel = 0
+        closeButton.Text = "Close"
+        closeButton.TextColor3 = Color3.new(1, 1, 1)
+        closeButton.Font = Enum.Font.SourceSans
+        closeButton.TextSize = 14
+        closeButton.Parent = importFrame
+        
+        importButton.MouseButton1Click:Connect(function()
+            local success, config = pcall(function()
+                return HttpService:JSONDecode(importBox.Text)
+            end)
             
-            -- Apply config
-            for key, value in pairs(config) do
-                _G[key] = value
-                
-                -- Update UI elements
-                if Rayfield.Flags[key] then
-                    Rayfield.Flags[key] = value
-                end
+            if success then
+                Rayfield:LoadConfiguration(config)
+                Rayfield:Notify({
+                    Title = "Config Imported",
+                    Content = "Your configuration has been imported",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+                importGui:Destroy()
+            else
+                Rayfield:Notify({
+                    Title = "Import Failed",
+                    Content = "Invalid configuration JSON",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
             end
-            
-            Rayfield:Notify({
-                Title = "Config Imported",
-                Content = "Your configuration has been imported successfully!",
-                Duration = 3,
-                Image = 4483362458,
-                Actions = {
-                    Ignore = {
-                        Name = "Okay!",
-                        Callback = function()
-                            print("The user tapped Okay!")
-                        end
-                    },
-                },
-            })
+        end)
+        
+        closeButton.MouseButton1Click:Connect(function()
+            importGui:Destroy()
         end)
     end,
 })
 
--- Notification
+-- Notification on script load
 Rayfield:Notify({
     Title = "Fish It Hub Loaded",
-    Content = "The script has been loaded successfully!",
+    Content = "Script has been successfully loaded!",
     Duration = 5,
     Image = 4483362458,
-    Actions = {
-        Ignore = {
-            Name = "Okay!",
-            Callback = function()
-                print("The user tapped Okay!")
-            end
-        },
-    },
 })
+
+task.spawn(function()
+    while true do
+        task.wait(60)
+        -- Anti-kick heartbeat
+        if antiKickEnabled then
+            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(
+                "/e "..tostring(math.random(1, 1000)), 
+                "All"
+            )
+        end
+    end
+end)
