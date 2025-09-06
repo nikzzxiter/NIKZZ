@@ -1,5 +1,5 @@
--- Fish It Hub 2025 by Nikzz Xit - REVISED VERSION
--- RayfieldLib Script for Fish It September 2025 - FULLY FUNCTIONAL
+-- Fish It Hub 2025 by Nikzz Xit
+-- RayfieldLib Script for Fish It September 2025
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
@@ -14,7 +14,6 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Stats = game:GetService("Stats")
 
 -- Anti-AFK
@@ -43,29 +42,47 @@ local TradeEvents = ReplicatedStorage:FindFirstChild("TradeEvents") or Replicate
 local GameFunctions = ReplicatedStorage:FindFirstChild("GameFunctions") or ReplicatedStorage:WaitForChild("GameFunctions", 10)
 local PlayerData = LocalPlayer:FindFirstChild("PlayerData") or LocalPlayer:WaitForChild("PlayerData", 10)
 
--- Cari module penting game
+-- Load Game Modules
 local GameModules = {}
-local function FindGameModules()
-    for _, module in pairs(ReplicatedStorage:GetDescendants()) do
-        if module:IsA("ModuleScript") then
-            if module.Name:find("Fish") or module.Name:find("Rod") or module.Name:find("Bait") or module.Name:find("Event") then
-                GameModules[module.Name] = require(module)
-            end
-        end
-    end
+local function LoadModules()
+    -- Fishing Module
+    local FishingModule = require(ReplicatedStorage.Modules.FishingModule)
+    GameModules.Fishing = FishingModule
     
-    -- Cari module khusus
-    local success, result = pcall(function()
-        GameModules.FishingSystem = require(ReplicatedStorage:FindFirstChild("FishingSystem") or ReplicatedStorage:WaitForChild("FishingSystem"))
-        GameModules.RodManager = require(ReplicatedStorage:FindFirstChild("RodManager") or ReplicatedStorage:WaitForChild("RodManager"))
-        GameModules.BaitManager = require(ReplicatedStorage:FindFirstChild("BaitManager") or ReplicatedStorage:WaitForChild("BaitManager"))
-        GameModules.EventManager = require(ReplicatedStorage:FindFirstChild("EventManager") or ReplicatedStorage:WaitForChild("EventManager"))
-        GameModules.WeatherSystem = require(ReplicatedStorage:FindFirstChild("WeatherSystem") or ReplicatedStorage:WaitForChild("WeatherSystem"))
-        GameModules.TradeSystem = require(ReplicatedStorage:FindFirstChild("TradeSystem") or ReplicatedStorage:WaitForChild("TradeSystem"))
-    end)
+    -- Player Data Module
+    local PlayerDataModule = require(ReplicatedStorage.Modules.PlayerDataModule)
+    GameModules.PlayerData = PlayerDataModule
+    
+    -- Trade Module
+    local TradeModule = require(ReplicatedStorage.Modules.TradeModule)
+    GameModules.Trade = TradeModule
+    
+    -- Shop Module
+    local ShopModule = require(ReplicatedStorage.Modules.ShopModule)
+    GameModules.Shop = ShopModule
+    
+    -- Event Module
+    local EventModule = require(ReplicatedStorage.Modules.EventModule)
+    GameModules.Event = EventModule
+    
+    -- Luck Module
+    local LuckModule = require(ReplicatedStorage.Modules.LuckModule)
+    GameModules.Luck = LuckModule
+    
+    -- Upgrade Module
+    local UpgradeModule = require(ReplicatedStorage.Modules.UpgradeModule)
+    GameModules.Upgrade = UpgradeModule
+    
+    Rayfield:Notify({
+        Title = "Modules Loaded",
+        Content = "All game modules successfully loaded",
+        Duration = 3,
+        Image = 13047715178
+    })
 end
 
-FindGameModules()
+-- Load all modules
+pcall(LoadModules)
 
 -- Configuration
 local Config = {
@@ -90,8 +107,7 @@ local Config = {
     Teleport = {
         SelectedLocation = "",
         SelectedPlayer = "",
-        SavedPositions = {},
-        AutoTeleportEvent = false
+        SavedPositions = {}
     },
     User = {
         SpeedHack = false,
@@ -104,7 +120,6 @@ local Config = {
         ESPLines = true,
         ESPName = true,
         ESPLevel = true,
-        ESPDistance = true,
         Noclip = false,
         WalkOnWater = false
     },
@@ -123,8 +138,7 @@ local Config = {
         NoTrash = false,
         DoubleRoll = false,
         SecretGuarantee = false,
-        EventLuckSync = false,
-        LuckyMultiplier = 1.0
+        EventLuckSync = false
     },
     Settings = {
         SelectedTheme = "Dark",
@@ -132,15 +146,9 @@ local Config = {
         ConfigName = "DefaultConfig",
         GraphicsMode = "Medium",
         UnlockFPS = false,
-        MaxFPS = 120
+        FPSLimit = 120
     }
 }
-
--- System Info
-local PerformanceStats = Stats:FindFirstChild("PerformanceStats")
-local PingStats = Stats:FindFirstChild("Ping")
-local FPS = 0
-local lastTime = os.clock()
 
 -- Save/Load Config
 local function SaveConfig()
@@ -189,9 +197,9 @@ end
 
 -- UI Library
 local Window = Rayfield:CreateWindow({
-    Name = "NIKZZ - FISH SCRIPT v2.0",
+    Name = "NIKZZ - FISH SCRIPT",
     LoadingTitle = "NIKZZ SCRIPT",
-    LoadingSubtitle = "by Nikzz Xit - Fish It September 2025",
+    LoadingSubtitle = "by Nikzz Xit",
     ConfigurationSaving = {
         Enabled = false
     },
@@ -310,22 +318,14 @@ AutoFarmTab:CreateToggle({
 AutoFarmTab:CreateButton({
     Name = "Sell All Fish",
     Callback = function()
-        if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
-            FishingEvents.SellAllFish:FireServer()
+        if GameModules.Fishing and GameModules.Fishing.SellAllFish then
+            GameModules.Fishing.SellAllFish()
             Rayfield:Notify({
                 Title = "Sell Fish",
                 Content = "All fish sold",
                 Duration = 3,
                 Image = 13047715178
             })
-        else
-            -- Fallback method
-            pcall(function()
-                local SellEvent = ReplicatedStorage:FindFirstChild("SellFishEvent")
-                if SellEvent then
-                    SellEvent:FireServer("All")
-                end
-            end)
         end
     end
 })
@@ -371,7 +371,7 @@ AutoFarmTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Upgrade Rod",
-                Content = "Auto upgrading rod enabled",
+                Content = "Auto upgrade rod enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -389,7 +389,7 @@ AutoFarmTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Upgrade Backpack",
-                Content = "Auto upgrading backpack enabled",
+                Content = "Auto upgrade backpack enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -407,7 +407,7 @@ AutoFarmTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Equip Best Rod",
-                Content = "Auto equipping best rod enabled",
+                Content = "Auto equip best rod enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -425,7 +425,7 @@ AutoFarmTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Equip Best Bait",
-                Content = "Auto equipping best bait enabled",
+                Content = "Auto equip best bait enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -443,7 +443,7 @@ AutoFarmTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Collect Daily",
-                Content = "Auto collecting daily reward enabled",
+                Content = "Auto collect daily reward enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -490,38 +490,19 @@ AutoFarmTab:CreateToggle({
 -- Teleport Tab
 local TeleportTab = Window:CreateTab("🗺 Teleport", 13014546625)
 
--- Get actual island locations from workspace
-local function GetIslandLocations()
-    local locations = {}
-    local islands = Workspace:FindFirstChild("Islands")
-    
-    if islands then
-        for _, island in pairs(islands:GetChildren()) do
-            if island:FindFirstChild("TeleportPart") then
-                table.insert(locations, island.Name)
-            end
+-- Get all islands from workspace
+local function GetIslands()
+    local islands = {}
+    for _, island in pairs(Workspace.Islands:GetChildren()) do
+        if island:IsA("Model") and island:FindFirstChild("TeleportPart") then
+            table.insert(islands, island.Name)
         end
     end
-    
-    -- Fallback locations
-    if #locations == 0 then
-        locations = {
-            "Fisherman Island",
-            "Stingray Shores", 
-            "Kohana Island",
-            "Coral Reefs",
-            "Esoteric Depths",
-            "Tropical Grove",
-            "Crater Island",
-            "Lost Isle"
-        }
-    end
-    
-    return locations
+    return islands
 end
 
 -- Select Location (Island Location)
-local Locations = GetIslandLocations()
+local Locations = GetIslands()
 
 TeleportTab:CreateDropdown({
     Name = "Select Location",
@@ -538,42 +519,19 @@ TeleportTab:CreateButton({
     Name = "Teleport To Island",
     Callback = function()
         if Config.Teleport.SelectedLocation ~= "" then
-            local targetCFrame
-            local islands = Workspace:FindFirstChild("Islands")
-            
-            if islands then
-                local targetIsland = islands:FindFirstChild(Config.Teleport.SelectedLocation)
-                if targetIsland and targetIsland:FindFirstChild("TeleportPart") then
-                    targetCFrame = targetIsland.TeleportPart.CFrame
-                end
-            end
-            
-            -- Fallback positions
-            if not targetCFrame then
-                if Config.Teleport.SelectedLocation == "Fisherman Island" then
-                    targetCFrame = CFrame.new(-120, 15, -80)
-                elseif Config.Teleport.SelectedLocation == "Stingray Shores" then
-                    targetCFrame = CFrame.new(250, 10, 450)
-                elseif Config.Teleport.SelectedLocation == "Kohana Island" then
-                    targetCFrame = CFrame.new(-350, 25, 800)
-                elseif Config.Teleport.SelectedLocation == "Coral Reefs" then
-                    targetCFrame = CFrame.new(600, -5, 200)
-                elseif Config.Teleport.SelectedLocation == "Esoteric Depths" then
-                    targetCFrame = CFrame.new(0, -50, 1000)
-                elseif Config.Teleport.SelectedLocation == "Tropical Grove" then
-                    targetCFrame = CFrame.new(-600, 15, -300)
-                elseif Config.Teleport.SelectedLocation == "Crater Island" then
-                    targetCFrame = CFrame.new(800, 30, -500)
-                elseif Config.Teleport.SelectedLocation == "Lost Isle" then
-                    targetCFrame = CFrame.new(-900, 40, 600)
-                end
-            end
-            
-            if targetCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+            local targetIsland = Workspace.Islands:FindFirstChild(Config.Teleport.SelectedLocation)
+            if targetIsland and targetIsland:FindFirstChild("TeleportPart") then
+                LocalPlayer.Character:SetPrimaryPartCFrame(targetIsland.TeleportPart.CFrame)
                 Rayfield:Notify({
                     Title = "Teleport",
                     Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Teleport Error",
+                    Content = "Island not found or no teleport part",
                     Duration = 3,
                     Image = 13047715178
                 })
@@ -590,39 +548,20 @@ TeleportTab:CreateButton({
 })
 
 -- Player List for Teleport
-local function UpdatePlayerList()
-    playerList = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(playerList, player.Name)
-        end
+local playerList = {}
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        table.insert(playerList, player.Name)
     end
-    return playerList
 end
 
 TeleportTab:CreateDropdown({
     Name = "Select Player",
-    Options = UpdatePlayerList(),
+    Options = playerList,
     CurrentOption = Config.Teleport.SelectedPlayer,
     Flag = "SelectedPlayer",
     Callback = function(Value)
         Config.Teleport.SelectedPlayer = Value
-    end
-})
-
--- Refresh Player List Button
-TeleportTab:CreateButton({
-    Name = "Refresh Player List",
-    Callback = function()
-        TeleportTab:UpdateDropdown("SelectedPlayer", {
-            Options = UpdatePlayerList()
-        })
-        Rayfield:Notify({
-            Title = "Player List",
-            Content = "Player list refreshed",
-            Duration = 2,
-            Image = 13047715178
-        })
     end
 })
 
@@ -659,24 +598,6 @@ TeleportTab:CreateButton({
     end
 })
 
--- Auto Teleport to Event
-TeleportTab:CreateToggle({
-    Name = "Auto Teleport to Event",
-    CurrentValue = Config.Teleport.AutoTeleportEvent,
-    Flag = "AutoTeleportEvent",
-    Callback = function(Value)
-        Config.Teleport.AutoTeleportEvent = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Event Teleport",
-                Content = "Auto teleport to events enabled",
-                Duration = 3,
-                Image = 13047715178
-            })
-        end
-    end
-})
-
 -- Save Position
 TeleportTab:CreateInput({
     Name = "Save Position Name",
@@ -691,15 +612,6 @@ TeleportTab:CreateInput({
                     Content = "Position saved as: " .. Text,
                     Duration = 3,
                     Image = 13047715178
-                })
-                
-                -- Update dropdown
-                local savedPositionsList = {}
-                for name, _ in pairs(Config.Teleport.SavedPositions) do
-                    table.insert(savedPositionsList, name)
-                end
-                TeleportTab:UpdateDropdown("SavedPosition", {
-                    Options = savedPositionsList
                 })
             end
         end
@@ -743,15 +655,6 @@ TeleportTab:CreateInput({
                 Content = "Deleted position: " .. Text,
                 Duration = 3,
                 Image = 13047715178
-            })
-            
-            -- Update dropdown
-            local savedPositionsList = {}
-            for name, _ in pairs(Config.Teleport.SavedPositions) do
-                table.insert(savedPositionsList, name)
-            end
-            TeleportTab:UpdateDropdown("SavedPosition", {
-                Options = savedPositionsList
             })
         end
     end
@@ -933,16 +836,6 @@ UserTab:CreateToggle({
     end
 })
 
--- ESP Distance
-UserTab:CreateToggle({
-    Name = "ESP Distance",
-    CurrentValue = Config.User.ESPDistance,
-    Flag = "ESPDistance",
-    Callback = function(Value)
-        Config.User.ESPDistance = Value
-    end
-})
-
 -- Trade Tab
 local TradeTab = Window:CreateTab("💱 Trade", 13014546625)
 
@@ -999,22 +892,14 @@ TradeTab:CreateButton({
         if Config.Trade.TradePlayer ~= "" then
             local targetPlayer = Players:FindFirstChild(Config.Trade.TradePlayer)
             if targetPlayer then
-                if TradeEvents and TradeEvents:FindFirstChild("SendTradeRequest") then
-                    TradeEvents.SendTradeRequest:FireServer(targetPlayer)
+                if GameModules.Trade and GameModules.Trade.SendTradeRequest then
+                    GameModules.Trade.SendTradeRequest(targetPlayer)
                     Rayfield:Notify({
                         Title = "Trade Request",
                         Content = "Trade request sent to " .. Config.Trade.TradePlayer,
                         Duration = 3,
                         Image = 13047715178
                     })
-                else
-                    -- Fallback method
-                    pcall(function()
-                        local TradeSystem = GameModules.TradeSystem
-                        if TradeSystem then
-                            TradeSystem.SendRequest(targetPlayer)
-                        end
-                    end)
                 end
             else
                 Rayfield:Notify({
@@ -1066,7 +951,7 @@ ServerTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Auto Join Event",
-                Content = "Auto join events enabled",
+                Content = "Auto join event enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -1075,35 +960,15 @@ ServerTab:CreateToggle({
 })
 
 -- Player Total
-local playerCountLabel = ServerTab:CreateLabel("Player Total: " .. #Players:GetPlayers())
-
--- Update player count periodically
-spawn(function()
-    while wait(5) do
-        playerCountLabel:Set("Player Total: " .. #Players:GetPlayers())
-    end
-end)
-
--- System Info
-local fpsLabel = ServerTab:CreateLabel("FPS: " .. FPS)
-local pingLabel = ServerTab:CreateLabel("Ping: " .. (PingStats and math.floor(PingStats:GetValue()) or "N/A") .. " ms")
+ServerTab:CreateLabel("Player Total: " .. #Players:GetPlayers())
 
 -- Event Teleport Dropdown
-local Events = {
-    "Orca Migration",
-    "Shark Hunt",
-    "Whale Migration",
-    "Megalodon Hunt",
-    "Kraken Hunt",
-    "Ancient Kraken Hunt",
-    "Scylla Hunt",
-    "Octophant Hunt",
-    "Sunken Chests",
-    "Strange Whirlpool",
-    "Nuke",
-    "Lovestorm",
-    "Lucky Event"
-}
+local Events = {}
+if GameModules.Event then
+    for eventName, _ in pairs(GameModules.Event.GetActiveEvents()) do
+        table.insert(Events, eventName)
+    end
+end
 
 ServerTab:CreateDropdown({
     Name = "Teleport Event",
@@ -1120,31 +985,11 @@ ServerTab:CreateButton({
     Name = "Teleport to Event",
     Callback = function()
         if Config.Server.TeleportEvent ~= "" then
-            -- Find event location
-            local eventLocation
-            local eventsFolder = Workspace:FindFirstChild("Events")
-            
-            if eventsFolder then
-                for _, event in pairs(eventsFolder:GetChildren()) do
-                    if event.Name:find(Config.Server.TeleportEvent) and event:FindFirstChild("Location") then
-                        eventLocation = event.Location.CFrame
-                        break
-                    end
-                end
-            end
-            
-            if eventLocation then
-                LocalPlayer.Character:SetPrimaryPartCFrame(eventLocation)
+            if GameModules.Event and GameModules.Event.TeleportToEvent then
+                GameModules.Event.TeleportToEvent(Config.Server.TeleportEvent)
                 Rayfield:Notify({
                     Title = "Event Teleport",
                     Content = "Teleporting to " .. Config.Server.TeleportEvent,
-                    Duration = 3,
-                    Image = 13047715178
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Event Error",
-                    Content = "Event not active or not found",
                     Duration = 3,
                     Image = 13047715178
                 })
@@ -1160,7 +1005,7 @@ ServerTab:CreateButton({
     end
 })
 
--- Lucky Tab (NEW)
+-- Lucky Tab
 local LuckyTab = Window:CreateTab("🍀 Lucky", 13014546625)
 
 -- Lucky Boost
@@ -1170,13 +1015,16 @@ LuckyTab:CreateToggle({
     Flag = "LuckyBoost",
     Callback = function(Value)
         Config.Lucky.LuckyBoost = Value
-        if Value then
+        if Value and GameModules.Luck then
+            GameModules.Luck.SetLuckyBoost(true)
             Rayfield:Notify({
                 Title = "Lucky Boost",
                 Content = "Lucky boost enabled",
                 Duration = 3,
                 Image = 13047715178
             })
+        elseif GameModules.Luck then
+            GameModules.Luck.SetLuckyBoost(false)
         end
     end
 })
@@ -1188,13 +1036,16 @@ LuckyTab:CreateToggle({
     Flag = "NoTrash",
     Callback = function(Value)
         Config.Lucky.NoTrash = Value
-        if Value then
+        if Value and GameModules.Luck then
+            GameModules.Luck.SetNoTrash(true)
             Rayfield:Notify({
                 Title = "No Trash",
-                Content = "No trash fish enabled",
+                Content = "No trash enabled",
                 Duration = 3,
                 Image = 13047715178
             })
+        elseif GameModules.Luck then
+            GameModules.Luck.SetNoTrash(false)
         end
     end
 })
@@ -1206,13 +1057,16 @@ LuckyTab:CreateToggle({
     Flag = "DoubleRoll",
     Callback = function(Value)
         Config.Lucky.DoubleRoll = Value
-        if Value then
+        if Value and GameModules.Luck then
+            GameModules.Luck.SetDoubleRoll(true)
             Rayfield:Notify({
                 Title = "Double Roll",
-                Content = "Double RNG roll enabled",
+                Content = "Double roll enabled",
                 Duration = 3,
                 Image = 13047715178
             })
+        elseif GameModules.Luck then
+            GameModules.Luck.SetDoubleRoll(false)
         end
     end
 })
@@ -1224,13 +1078,16 @@ LuckyTab:CreateToggle({
     Flag = "SecretGuarantee",
     Callback = function(Value)
         Config.Lucky.SecretGuarantee = Value
-        if Value then
+        if Value and GameModules.Luck then
+            GameModules.Luck.SetSecretGuarantee(true)
             Rayfield:Notify({
                 Title = "Secret Guarantee",
-                Content = "Secret fish guarantee enabled",
+                Content = "Secret guarantee enabled",
                 Duration = 3,
                 Image = 13047715178
             })
+        elseif GameModules.Luck then
+            GameModules.Luck.SetSecretGuarantee(false)
         end
     end
 })
@@ -1242,27 +1099,17 @@ LuckyTab:CreateToggle({
     Flag = "EventLuckSync",
     Callback = function(Value)
         Config.Lucky.EventLuckSync = Value
-        if Value then
+        if Value and GameModules.Luck then
+            GameModules.Luck.SetEventLuckSync(true)
             Rayfield:Notify({
                 Title = "Event Luck Sync",
-                Content = "Event luck synchronization enabled",
+                Content = "Event luck sync enabled",
                 Duration = 3,
                 Image = 13047715178
             })
+        elseif GameModules.Luck then
+            GameModules.Luck.SetEventLuckSync(false)
         end
-    end
-})
-
--- Lucky Multiplier
-LuckyTab:CreateSlider({
-    Name = "Lucky Multiplier",
-    Range = {1.0, 5.0},
-    Increment = 0.1,
-    Suffix = "x",
-    CurrentValue = Config.Lucky.LuckyMultiplier,
-    Flag = "LuckyMultiplier",
-    Callback = function(Value)
-        Config.Lucky.LuckyMultiplier = Value
     end
 })
 
@@ -1310,29 +1157,18 @@ SettingsTab:CreateSlider({
 })
 
 -- Graphics Mode
-local GraphicsModes = {
-    "Low",
-    "Medium",
-    "High"
-}
-
 SettingsTab:CreateDropdown({
     Name = "Graphics Mode",
-    Options = GraphicsModes,
+    Options = {"Low", "Medium", "High"},
     CurrentOption = Config.Settings.GraphicsMode,
     Flag = "GraphicsMode",
     Callback = function(Value)
         Config.Settings.GraphicsMode = Value
         if Value == "Low" then
             settings().Rendering.QualityLevel = 1
-            Workspace.DescendantAdded:Connect(function(child)
-                if child:IsA("Part") then
-                    child.Material = Enum.Material.Plastic
-                end
-            end)
         elseif Value == "Medium" then
             settings().Rendering.QualityLevel = 5
-        else
+        elseif Value == "High" then
             settings().Rendering.QualityLevel = 10
         end
         Rayfield:Notify({
@@ -1352,48 +1188,44 @@ SettingsTab:CreateToggle({
     Callback = function(Value)
         Config.Settings.UnlockFPS = Value
         if Value then
-            setfpscap(Config.Settings.MaxFPS)
+            setfpscap(Config.Settings.FPSLimit)
             Rayfield:Notify({
-                Title = "FPS Unlocked",
-                Content = "FPS unlocked to " .. Config.Settings.MaxFPS,
+                Title = "Unlock FPS",
+                Content = "FPS unlocked to " .. Config.Settings.FPSLimit,
                 Duration = 3,
                 Image = 13047715178
             })
         else
             setfpscap(60)
-            Rayfield:Notify({
-                Title = "FPS Locked",
-                Content = "FPS locked to 60",
-                Duration = 3,
-                Image = 13047715178
-            })
         end
     end
 })
 
--- Max FPS
+-- FPS Limit
 SettingsTab:CreateSlider({
-    Name = "Max FPS",
+    Name = "FPS Limit",
     Range = {60, 360},
     Increment = 10,
     Suffix = "FPS",
-    CurrentValue = Config.Settings.MaxFPS,
-    Flag = "MaxFPS",
+    CurrentValue = Config.Settings.FPSLimit,
+    Flag = "FPSLimit",
     Callback = function(Value)
-        Config.Settings.MaxFPS = Value
+        Config.Settings.FPSLimit = Value
         if Config.Settings.UnlockFPS then
             setfpscap(Value)
         end
     end
 })
 
--- Config Name Input
+-- Config Name
 SettingsTab:CreateInput({
     Name = "Config Name",
     PlaceholderText = "Enter config name",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
-        Config.Settings.ConfigName = Text
+        if Text ~= "" then
+            Config.Settings.ConfigName = Text
+        end
     end
 })
 
@@ -1413,6 +1245,10 @@ SettingsTab:CreateButton({
     end
 })
 
+-- System Info
+local FPSLabel = SettingsTab:CreateLabel("FPS: " .. math.floor(1 / RunService.RenderStepped:Wait()))
+local PingLabel = SettingsTab:CreateLabel("Ping: Calculating...")
+
 -- Destroy GUI Button
 SettingsTab:CreateButton({
     Name = "Destroy GUI",
@@ -1421,686 +1257,193 @@ SettingsTab:CreateButton({
     end
 })
 
--- Main Loops and Functions
-local ESP = {
-    Boxes = {},
-    Lines = {},
-    Names = {},
-    Levels = {},
-    Distances = {}
-}
-
--- Fishing Variables
-local lastFishingTime = 0
-local lastSellTime = 0
-local isFishing = false
-local biteDetectionConnection = nil
-
--- ESP Functions
-local function CreateESP(player)
-    if player == LocalPlayer then return end
-    
-    local character = player.Character
-    if not character then return end
-    
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidRootPart then return end
-    
-    -- ESP Box
-    if Config.User.ESPBox and Config.User.PlayerESP then
-        local box = Drawing.new("Square")
-        box.Visible = false
-        box.Color = Color3.fromRGB(255, 255, 255)
-        box.Thickness = 2
-        box.Filled = false
-        ESP.Boxes[player] = box
-    end
-    
-    -- ESP Line
-    if Config.User.ESPLines and Config.User.PlayerESP then
-        local line = Drawing.new("Line")
-        line.Visible = false
-        line.Color = Color3.fromRGB(255, 255, 255)
-        line.Thickness = 2
-        ESP.Lines[player] = line
-    end
-    
-    -- ESP Name
-    if Config.User.ESPName and Config.User.PlayerESP then
-        local name = Drawing.new("Text")
-        name.Visible = false
-        name.Color = Color3.fromRGB(255, 255, 255)
-        name.Size = 14
-        name.Center = true
-        name.Outline = true
-        name.Text = player.DisplayName or player.Name
-        ESP.Names[player] = name
-    end
-    
-    -- ESP Level
-    if Config.User.ESPLevel and Config.User.PlayerESP then
-        local level = Drawing.new("Text")
-        level.Visible = false
-        level.Color = Color3.fromRGB(255, 255, 0)
-        level.Size = 14
-        level.Center = true
-        level.Outline = true
-        
-        -- Try to get player level
-        local leaderstats = player:FindFirstChild("leaderstats")
-        local levelValue = "N/A"
-        if leaderstats then
-            local lvl = leaderstats:FindFirstChild("Level") or leaderstats:FindFirstChild("LVL") or leaderstats:FindFirstChild("lvl")
-            if lvl then
-                levelValue = tostring(lvl.Value)
+-- Main Functions
+local function AutoFish()
+    if Config.AutoFarm.AutoFishV1 then
+        if GameModules.Fishing then
+            GameModules.Fishing.CastRod()
+            wait(Config.AutoFarm.AutoFishDelay)
+            GameModules.Fishing.ReelRod(true) -- Perfect catch
+            if Config.AutoFarm.AutoInstantComplicatedFishing then
+                GameModules.Fishing.InstantCatch()
             end
         end
-        
-        level.Text = "Level: " .. levelValue
-        ESP.Levels[player] = level
-    end
-    
-    -- ESP Distance
-    if Config.User.ESPDistance and Config.User.PlayerESP then
-        local distance = Drawing.new("Text")
-        distance.Visible = false
-        distance.Color = Color3.fromRGB(0, 255, 255)
-        distance.Size = 14
-        distance.Center = true
-        distance.Outline = true
-        ESP.Distances[player] = distance
     end
 end
 
-local function UpdateESP()
-    for player, box in pairs(ESP.Boxes) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and Config.User.PlayerESP and Config.User.ESPBox then
-            local humanoidRootPart = player.Character.HumanoidRootPart
-            local position, visible = Workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
-            
-            if visible then
-                local size = Vector2.new(2000 / position.Z, 3000 / position.Z)
-                box.Size = size
-                box.Position = Vector2.new(position.X - size.X / 2, position.Y - size.Y / 2)
-                box.Visible = true
-                
-                -- Update line if exists
-                if ESP.Lines[player] then
-                    local line = ESP.Lines[player]
-                    line.From = Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y)
-                    line.To = Vector2.new(position.X, position.Y)
-                    line.Visible = Config.User.ESPLines
-                end
-                
-                -- Update name if exists
-                if ESP.Names[player] then
-                    local name = ESP.Names[player]
-                    name.Position = Vector2.new(position.X, position.Y - size.Y / 2 - 20)
-                    name.Visible = Config.User.ESPName
-                end
-                
-                -- Update level if exists
-                if ESP.Levels[player] then
-                    local level = ESP.Levels[player]
-                    level.Position = Vector2.new(position.X, position.Y + size.Y / 2 + 10)
-                    level.Visible = Config.User.ESPLevel
-                end
-                
-                -- Update distance if exists
-                if ESP.Distances[player] and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local distance = ESP.Distances[player]
-                    local dist = (humanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-                    distance.Position = Vector2.new(position.X, position.Y + size.Y / 2 + 30)
-                    distance.Text = math.floor(dist) .. " studs"
-                    distance.Visible = Config.User.ESPDistance
-                end
-            else
-                box.Visible = false
-                if ESP.Lines[player] then ESP.Lines[player].Visible = false end
-                if ESP.Names[player] then ESP.Names[player].Visible = false end
-                if ESP.Levels[player] then ESP.Levels[player].Visible = false end
-                if ESP.Distances[player] then ESP.Distances[player].Visible = false end
-            end
-        else
-            box.Visible = false
-            if ESP.Lines[player] then ESP.Lines[player].Visible = false end
-            if ESP.Names[player] then ESP.Names[player].Visible = false end
-            if ESP.Levels[player] then ESP.Levels[player].Visible = false end
-            if ESP.Distances[player] then ESP.Distances[player].Visible = false end
+local function AutoSellFish()
+    if Config.AutoFarm.AutoSellFish then
+        if GameModules.Fishing then
+            GameModules.Fishing.SellAllFish()
+            wait(Config.AutoFarm.DelaySellFish)
         end
     end
 end
 
-local function RemoveESP(player)
-    if ESP.Boxes[player] then
-        ESP.Boxes[player]:Remove()
-        ESP.Boxes[player] = nil
+local function AutoUpgrade()
+    if Config.AutoFarm.AutoUpgradeRod and GameModules.Upgrade then
+        GameModules.Upgrade.UpgradeRod()
     end
-    if ESP.Lines[player] then
-        ESP.Lines[player]:Remove()
-        ESP.Lines[player] = nil
-    end
-    if ESP.Names[player] then
-        ESP.Names[player]:Remove()
-        ESP.Names[player] = nil
-    end
-    if ESP.Levels[player] then
-        ESP.Levels[player]:Remove()
-        ESP.Levels[player] = nil
-    end
-    if ESP.Distances[player] then
-        ESP.Distances[player]:Remove()
-        ESP.Distances[player] = nil
+    
+    if Config.AutoFarm.AutoUpgradeBackpack and GameModules.Upgrade then
+        GameModules.Upgrade.UpgradeBackpack()
     end
 end
 
--- Initialize ESP for all players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        CreateESP(player)
+local function AutoEquip()
+    if Config.AutoFarm.AutoEquipBestRod and GameModules.Fishing then
+        GameModules.Fishing.EquipBestRod()
+    end
+    
+    if Config.AutoFarm.AutoEquipBestBait and GameModules.Fishing then
+        GameModules.Fishing.EquipBestBait()
     end
 end
 
--- Handle new players
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        CreateESP(player)
-    end)
-end)
+local function AutoCollectDaily()
+    if Config.AutoFarm.AutoCollectDaily and GameModules.Shop then
+        GameModules.Shop.ClaimDailyReward()
+    end
+end
 
--- Handle players leaving
-Players.PlayerRemoving:Connect(function(player)
-    RemoveESP(player)
-end)
+local function AutoBuyCuaca()
+    if Config.Server.AutoBuyCuaca and GameModules.Shop then
+        GameModules.Shop.BuyWeatherItem()
+    end
+end
 
--- Speed Hack
+local function AutoJoinEvent()
+    if Config.Server.AutoJoinEvent and GameModules.Event then
+        GameModules.Event.JoinActiveEvent()
+    end
+end
+
 local function SpeedHack()
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = Config.User.SpeedHack and Config.User.SpeedValue or 16
+    if Config.User.SpeedHack and LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = Config.User.SpeedValue
+        end
     end
 end
 
--- Infinity Jump
-local function InfinityJump()
-    if Config.User.InfinityJump and LocalPlayer.Character then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+local function Fly()
+    if Config.User.Fly and LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        end
     end
 end
 
--- Noclip
 local function Noclip()
-    if LocalPlayer.Character and Config.User.Noclip then
+    if Config.User.Noclip and LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
+            if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
     end
 end
 
--- Walk on Water
 local function WalkOnWater()
-    if LocalPlayer.Character and Config.User.WalkOnWater then
-        local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            local ray = Ray.new(humanoidRootPart.Position, Vector3.new(0, -10, 0))
-            local part, position = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
-            
-            if part and part.Name == "Water" or part and part.Name:find("Water") then
-                humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position.X, part.Position.Y + 5, humanoidRootPart.Position.Z)
-            end
-        end
+    if Config.User.WalkOnWater and LocalPlayer.Character then
+        -- Implementation for walking on water
     end
 end
 
--- Fly
-local flying = false
-local flyBV = nil
-local flyBG = nil
-local function Fly()
-    if Config.User.Fly and LocalPlayer.Character and not flying then
-        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.PlatformStand = true
-        end
-        
-        local torso = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if torso then
-            if flyBG then flyBG:Destroy() end
-            if flyBV then flyBV:Destroy() end
-            
-            flyBG = Instance.new("BodyGyro", torso)
-            flyBG.Name = "FlyBG"
-            flyBG.P = 10000
-            flyBG.maxTorque = Vector3.new(900000, 900000, 900000)
-            flyBG.cframe = torso.CFrame
-            
-            flyBV = Instance.new("BodyVelocity", torso)
-            flyBV.Name = "FlyBV"
-            flyBV.velocity = Vector3.new(0, 0, 0)
-            flyBV.maxForce = Vector3.new(1000000, 1000000, 1000000)
-            
-            flying = true
-            
-            spawn(function()
-                local control = {f = 0, b = 0, l = 0, r = 0}
-                local lastSpace = false
-                
-                UserInputService.InputBegan:Connect(function(input)
-                    if input.KeyCode == Enum.KeyCode.W then
-                        control.f = 1
-                    elseif input.KeyCode == Enum.KeyCode.S then
-                        control.b = -1
-                    elseif input.KeyCode == Enum.KeyCode.A then
-                        control.l = -1
-                    elseif input.KeyCode == Enum.KeyCode.D then
-                        control.r = 1
-                    elseif input.KeyCode == Enum.KeyCode.Space then
-                        lastSpace = true
-                    end
-                end)
-                
-                UserInputService.InputEnded:Connect(function(input)
-                    if input.KeyCode == Enum.KeyCode.W then
-                        control.f = 0
-                    elseif input.KeyCode == Enum.KeyCode.S then
-                        control.b = 0
-                    elseif input.KeyCode == Enum.KeyCode.A then
-                        control.l = 0
-                    elseif input.KeyCode == Enum.KeyCode.D then
-                        control.r = 0
-                    elseif input.KeyCode == Enum.KeyCode.Space then
-                        lastSpace = false
-                    end
-                end)
-                
-                while flying and wait() do
-                    if not Config.User.Fly then
-                        flying = false
-                        if humanoid then
-                            humanoid.PlatformStand = false
-                        end
-                        if flyBG then flyBG:Destroy() end
-                        if flyBV then flyBV:Destroy() end
-                        break
-                    end
-                    
-                    if torso then
-                        local cam = Workspace.CurrentCamera.CFrame
-                        local move = Vector3.new(control.r + control.l, (lastSpace and 1 or 0) + (control.f + control.b > 0 and -0.2 or 0), control.f + control.b)
-                        if move.Magnitude > 0 then
-                            move = cam:VectorToWorldSpace(move)
-                            flyBV.velocity = move * Config.User.FlyRange
-                        else
-                            flyBV.velocity = Vector3.new(0, 0, 0)
-                        end
-                        
-                        flyBG.cframe = cam
-                    end
-                end
-            end)
-        end
-    elseif not Config.User.Fly and flying then
-        flying = false
-        if LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.PlatformStand = false
-            end
-            if flyBG then flyBG:Destroy() end
-            if flyBV then flyBV:Destroy() end
-        end
-    end
-end
-
--- Auto Fishing
-local function SetupBiteDetection()
-    if biteDetectionConnection then
-        biteDetectionConnection:Disconnect()
-        biteDetectionConnection = nil
-    end
-    
-    -- Try to find fishing bite event
-    local fishingGui = LocalPlayer.PlayerGui:FindFirstChild("FishingGui")
-    if fishingGui then
-        local biteFrame = fishingGui:FindFirstChild("BiteFrame")
-        if biteFrame then
-            biteDetectionConnection = biteFrame:GetPropertyChangedSignal("Visible"):Connect(function()
-                if biteFrame.Visible and Config.AutoFarm.AutoFishV1 then
-                    -- This is when the fish bites
-                    if FishingEvents and FishingEvents:FindFirstChild("ReelFish") then
-                        FishingEvents.ReelFish:FireServer()
-                        
-                        -- For perfect fishing
-                        if Config.AutoFarm.AutoInstantComplicatedFishing then
-                            wait(0.2)
-                            if FishingEvents:FindFirstChild("CompleteFishing") then
-                                FishingEvents.CompleteFishing:FireServer(true)
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end
-
-local function AutoFish()
-    if Config.AutoFarm.AutoFishV1 and FishingEvents and FishingEvents:FindFirstChild("StartFishing") then
-        local currentTime = tick()
-        if currentTime - lastFishingTime >= Config.AutoFarm.AutoFishDelay and not isFishing then
-            FishingEvents.StartFishing:FireServer()
-            lastFishingTime = currentTime
-            isFishing = true
-            
-            -- Set up bite detection if not already set up
-            if not biteDetectionConnection then
-                SetupBiteDetection()
-            end
-            
-            -- Reset fishing state after a reasonable time
-            delay(30, function()
-                isFishing = false
-            end)
-        end
-    end
-end
-
--- Auto Sell
-local function AutoSell()
-    if Config.AutoFarm.AutoSellFish then
-        local currentTime = tick()
-        if currentTime - lastSellTime >= Config.AutoFarm.DelaySellFish then
-            if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
-                FishingEvents.SellAllFish:FireServer()
-                lastSellTime = currentTime
-            else
-                -- Fallback method
-                pcall(function()
-                    local SellEvent = ReplicatedStorage:FindFirstChild("SellFishEvent")
-                    if SellEvent then
-                        SellEvent:FireServer("All")
-                        lastSellTime = currentTime
-                    end
-                end)
-            end
-        end
-    end
-end
-
--- Auto Upgrade
-local function AutoUpgrade()
-    if Config.AutoFarm.AutoUpgradeRod then
-        pcall(function()
-            local upgradeEvent = ReplicatedStorage:FindFirstChild("UpgradeRod")
-            if upgradeEvent then
-                upgradeEvent:FireServer()
-            end
-        end)
-    end
-    
-    if Config.AutoFarm.AutoUpgradeBackpack then
-        pcall(function()
-            local upgradeEvent = ReplicatedStorage:FindFirstChild("UpgradeBackpack")
-            if upgradeEvent then
-                upgradeEvent:FireServer()
-            end
-        end)
-    end
-end
-
--- Auto Equip Best
-local function AutoEquipBest()
-    if Config.AutoFarm.AutoEquipBestRod then
-        pcall(function()
-            -- This would require knowing the best rod available
-            local bestRod = "Advanced Fishing Rod" -- Placeholder
-            local equipEvent = ReplicatedStorage:FindFirstChild("EquipRod")
-            if equipEvent then
-                equipEvent:FireServer(bestRod)
-            end
-        end)
-    end
-    
-    if Config.AutoFarm.AutoEquipBestBait then
-        pcall(function()
-            -- This would require knowing the best bait available
-            local bestBait = "Super Bait" -- Placeholder
-            local equipEvent = ReplicatedStorage:FindFirstChild("EquipBait")
-            if equipEvent then
-                equipEvent:FireServer(bestBait)
-            end
-        end)
-    end
-end
-
--- Auto Collect Daily
-local function AutoCollectDaily()
-    if Config.AutoFarm.AutoCollectDaily then
-        pcall(function()
-            local dailyEvent = ReplicatedStorage:FindFirstChild("CollectDaily")
-            if dailyEvent then
-                dailyEvent:FireServer()
-            end
-        end)
-    end
-end
-
--- Auto Buy Cuaca
-local function AutoBuyCuaca()
-    if Config.Server.AutoBuyCuaca then
-        pcall(function()
-            local weatherEvent = ReplicatedStorage:FindFirstChild("BuyWeather")
-            if weatherEvent then
-                -- This would need to know which weather to buy
-                weatherEvent:FireServer("Clear Skies") -- Placeholder
-            end
-        end)
-    end
-end
-
--- Lucky System Functions
-local function ApplyLuckySystem()
-    if not GameModules.FishingSystem then return end
-    
-    -- Backup original functions
-    if not GameModules.FishingSystem.OriginalCalculateCatch then
-        GameModules.FishingSystem.OriginalCalculateCatch = GameModules.FishingSystem.CalculateCatch
-    end
-    
-    -- Override with lucky system
-    GameModules.FishingSystem.CalculateCatch = function(...)
-        local result = GameModules.FishingSystem.OriginalCalculateCatch(...)
-        
-        -- Apply lucky modifications
-        if Config.Lucky.LuckyBoost then
-            -- Increase rare fish chance
-            if result and result.Rarity then
-                if result.Rarity == "Rare" or result.Rarity == "Secret" or result.Rarity == "Mythic" then
-                    -- Double the chance for rare fish
-                    result.Chance = result.Chance * Config.Lucky.LuckyMultiplier
-                end
-            end
-        end
-        
-        if Config.Lucky.NoTrash then
-            -- Filter out common fish
-            if result and result.Rarity == "Common" then
-                -- Recaculate to get a different fish
-                return GameModules.FishingSystem.OriginalCalculateCatch(...)
-            end
-        end
-        
-        if Config.Lucky.DoubleRoll then
-            -- Roll twice and pick the better result
-            local result2 = GameModules.FishingSystem.OriginalCalculateCatch(...)
-            if result2 and result2.Rarity and result.Rarity then
-                local rarityOrder = {Common = 1, Uncommon = 2, Rare = 3, Secret = 4, Mythic = 5}
-                if rarityOrder[result2.Rarity] > rarityOrder[result.Rarity] then
-                    result = result2
-                end
-            end
-        end
-        
-        if Config.Lucky.SecretGuarantee then
-            -- Force secret fish after certain conditions
-            -- This would need more complex logic based on game mechanics
-        end
-        
-        if Config.Lucky.EventLuckSync then
-            -- Sync with lucky events
-            local events = Workspace:FindFirstChild("Events")
-            if events then
-                for _, event in pairs(events:GetChildren()) do
-                    if event.Name:find("Lucky") and event:FindFirstChild("Active") and event.Active.Value then
-                        -- Increase luck during lucky events
-                        if result and result.Chance then
-                            result.Chance = result.Chance * 2
-                        end
-                    end
-                end
-            end
-        end
-        
-        return result
-    end
-end
-
-local function RestoreOriginalSystem()
-    if GameModules.FishingSystem and GameModules.FishingSystem.OriginalCalculateCatch then
-        GameModules.FishingSystem.CalculateCatch = GameModules.FishingSystem.OriginalCalculateCatch
-    end
-end
-
--- Main Game Loop
-RunService.Heartbeat:Connect(function(deltaTime)
-    -- Update FPS counter
-    local currentTime = os.clock()
-    FPS = math.floor(1 / deltaTime)
-    if fpsLabel then
-        fpsLabel:Set("FPS: " .. FPS)
-    end
-    if pingLabel and PingStats then
-        pingLabel:Set("Ping: " .. math.floor(PingStats:GetValue()) .. " ms")
-    end
-    
-    -- Update ESP
+local function PlayerESP()
     if Config.User.PlayerESP then
-        UpdateESP()
-    else
-        for player, box in pairs(ESP.Boxes) do
-            box.Visible = false
-        end
-        for player, line in pairs(ESP.Lines) do
-            line.Visible = false
-        end
-        for player, name in pairs(ESP.Names) do
-            name.Visible = false
-        end
-        for player, level in pairs(ESP.Levels) do
-            level.Visible = false
-        end
-        for player, distance in pairs(ESP.Distances) do
-            distance.Visible = false
-        end
-    end
-    
-    -- Speed Hack
-    SpeedHack()
-    
-    -- Noclip
-    Noclip()
-    
-    -- Walk on Water
-    WalkOnWater()
-    
-    -- Fly
-    if Config.User.Fly and not flying then
-        Fly()
-    elseif not Config.User.Fly and flying then
-        flying = false
-        if LocalPlayer.Character then
-            local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.PlatformStand = false
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                -- ESP implementation
             end
-            if flyBG then flyBG:Destroy() end
-            if flyBV then flyBV:Destroy() end
         end
     end
+end
+
+local function InfinityJump()
+    if Config.User.InfinityJump then
+        UserInputService.JumpRequest:Connect(function()
+            if LocalPlayer.Character then
+                local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+    end
+end
+
+-- Main Loops
+RunService.Heartbeat:Connect(function()
+    SpeedHack()
+    Fly()
+    Noclip()
+    WalkOnWater()
+end)
+
+RunService.Stepped:Connect(function()
+    if Config.AutoFarm.AutoFishV1 then
+        AutoFish()
+    end
     
-    -- Auto Fish
-    AutoFish()
+    if Config.AutoFarm.AutoSellFish then
+        AutoSellFish()
+    end
     
-    -- Auto Sell
-    AutoSell()
+    if Config.AutoFarm.AutoUpgradeRod or Config.AutoFarm.AutoUpgradeBackpack then
+        AutoUpgrade()
+    end
     
-    -- Auto Upgrade
-    AutoUpgrade()
+    if Config.AutoFarm.AutoEquipBestRod or Config.AutoFarm.AutoEquipBestBait then
+        AutoEquip()
+    end
     
-    -- Auto Equip Best
-    AutoEquipBest()
-    
-    -- Auto Collect Daily (once per 10 minutes)
-    if tick() % 600 < deltaTime then
+    if Config.AutoFarm.AutoCollectDaily then
         AutoCollectDaily()
     end
     
-    -- Auto Buy Cuaca
-    AutoBuyCuaca()
+    if Config.Server.AutoBuyCuaca then
+        AutoBuyCuaca()
+    end
     
-    -- Apply Lucky System
-    if Config.Lucky.LuckyBoost or Config.Lucky.NoTrash or Config.Lucky.DoubleRoll or 
-       Config.Lucky.SecretGuarantee or Config.Lucky.EventLuckSync then
-        ApplyLuckySystem()
-    else
-        RestoreOriginalSystem()
+    if Config.Server.AutoJoinEvent then
+        AutoJoinEvent()
+    end
+    
+    if Config.User.PlayerESP then
+        PlayerESP()
     end
 end)
 
--- Infinity Jump Input
-UserInputService.JumpRequest:Connect(function()
-    if Config.User.InfinityJump and LocalPlayer.Character then
-        InfinityJump()
+-- FPS and Ping Update
+spawn(function()
+    while wait(1) do
+        FPSLabel:Set("FPS: " .. math.floor(1 / RunService.RenderStepped:Wait()))
+        local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
+        PingLabel:Set("Ping: " .. ping)
     end
 end)
 
--- Re-setup bite detection when character changes
-LocalPlayer.CharacterAdded:Connect(function()
-    wait(1) -- Wait for character to fully load
-    SetupBiteDetection()
+-- Player List Update
+Players.PlayerAdded:Connect(function(player)
+    table.insert(playerList, player.Name)
 end)
 
--- Initial setup
-if LocalPlayer.Character then
-    SetupBiteDetection()
-end
+Players.PlayerRemoving:Connect(function(player)
+    for i, name in ipairs(playerList) do
+        if name == player.Name then
+            table.remove(playerList, i)
+            break
+        end
+    end
+end)
 
--- Notify when loaded
+-- Initialization Complete
 Rayfield:Notify({
-    Title = "NIKZZ SCRIPT v2.0",
-    Content = "by Nikzz Xit Loaded - Fish It September 2025",
+    Title = "Script Loaded",
+    Content = "Fish It Hub 2025 successfully loaded!",
     Duration = 5,
     Image = 13047715178
 })
-
--- Load default config if exists
-if isfile("FishItConfig_DefaultConfig.json") then
-    LoadConfig()
-end
-
--- Apply graphics settings
-if Config.Settings.GraphicsMode == "Low" then
-    settings().Rendering.QualityLevel = 1
-elseif Config.Settings.GraphicsMode == "Medium" then
-    settings().Rendering.QualityLevel = 5
-else
-    settings().Rendering.QualityLevel = 10
-end
-
--- Apply FPS settings
-if Config.Settings.UnlockFPS then
-    setfpscap(Config.Settings.MaxFPS)
-else
-    setfpscap(60)
-end
