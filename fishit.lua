@@ -721,63 +721,36 @@ TeleportTab:CreateDropdown({
     end
 })
 
--- Teleport To Island Button
+-- Teleport To Island Button (Fix)
 TeleportTab:CreateButton({
     Name = "Teleport To Island",
     Callback = function()
         if Config.Teleport.SelectedLocation ~= "" then
-            local targetCFrame
-            if Config.Teleport.SelectedLocation == "Starter Island" then
-                targetCFrame = CFrame.new(0, 10, 0)
-            elseif Config.Teleport.SelectedLocation == "Intermediate Island" then
-                targetCFrame = CFrame.new(100, 10, 100)
-            elseif Config.Teleport.SelectedLocation == "Fisherman Island (Stingray Shores)" then
-                targetCFrame = CFrame.new(-500, 20, -300)
-            elseif Config.Teleport.SelectedLocation == "Kohana Island (Volcano)" then
-                targetCFrame = CFrame.new(1200, 50, 800)
-            elseif Config.Teleport.SelectedLocation == "Coral Reefs" then
-                targetCFrame = CFrame.new(-800, -10, 600)
-            elseif Config.Teleport.SelectedLocation == "Esoteric Depths" then
-                targetCFrame = CFrame.new(0, -100, 1500)
-            elseif Config.Teleport.SelectedLocation == "Tropical Grove" then
-                targetCFrame = CFrame.new(800, 15, -600)
-            elseif Config.Teleport.SelectedLocation == "Crater Island" then
-                targetCFrame = CFrame.new(-1200, 30, -1000)
-            elseif Config.Teleport.SelectedLocation == "Lost Isle (Treasure Room)" then
-                targetCFrame = CFrame.new(1600, 100, 1600)
-            elseif Config.Teleport.SelectedLocation == "Lost Isle (Sisyphus Statue)" then
-                targetCFrame = CFrame.new(1700, 100, 1700)
-            elseif Config.Teleport.SelectedLocation == "Ocean Trench" then
-                targetCFrame = CFrame.new(-1500, -200, 500)
-            elseif Config.Teleport.SelectedLocation == "Sunken City" then
-                targetCFrame = CFrame.new(2000, -150, 2000)
-            elseif Config.Teleport.SelectedLocation == "Pirate Cove" then
-                targetCFrame = CFrame.new(-2000, 25, -1500)
-            elseif Config.Teleport.SelectedLocation == "Mermaid Lagoon" then
-                targetCFrame = CFrame.new(500, -50, -2000)
-            elseif Config.Teleport.SelectedLocation == "Whale Fall" then
-                targetCFrame = CFrame.new(-2500, -300, 2500)
-            elseif Config.Teleport.SelectedLocation == "Kraken's Lair" then
-                targetCFrame = CFrame.new(3000, -500, 3000)
-            elseif Config.Teleport.SelectedLocation == "Siren's Song" then
-                targetCFrame = CFrame.new(-3000, -100, -2500)
-            elseif Config.Teleport.SelectedLocation == "Abyssal Plain" then
-                targetCFrame = CFrame.new(0, -400, 0)
-            elseif Config.Teleport.SelectedLocation == "Hydrothermal Vents" then
-                targetCFrame = CFrame.new(2500, -350, -2500)
-            elseif Config.Teleport.SelectedLocation == "Deep Sea Trench" then
-                targetCFrame = CFrame.new(-3500, -600, 3500)
-            else
-                -- Default location
-                targetCFrame = CFrame.new(0, 10, 0)
-            end
-            
-            if targetCFrame then
-                LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+            -- Cari island dari workspace biar nggak hardcode
+            local islands = workspace:FindFirstChild("Islands")
+            local targetIsland = islands and islands:FindFirstChild(Config.Teleport.SelectedLocation)
+
+            if targetIsland and targetIsland.PrimaryPart then
+                local targetCFrame = targetIsland.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+
+                -- Teleport dengan PivotTo biar aman
+                if LocalPlayer.Character then
+                    LocalPlayer.Character:PivotTo(targetCFrame)
+                end
+
                 if Config.Settings.NotificationsEnabled then
                     Rayfield:Notify({
                         Title = "Teleport",
                         Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+            else
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Teleport Error",
+                        Content = "Island not found: " .. Config.Teleport.SelectedLocation,
                         Duration = 3,
                         Image = 13047715178
                     })
@@ -2125,21 +2098,26 @@ SettingsTab:CreateLabel("ETH: 0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
 -- Main Loops and Functions
 local function AutoFish()
     if Config.AutoFarm.AutoFishV1 and FishingEvents then
-        -- Check if player is fishing
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            local fishingState = LocalPlayer.Character.Humanoid:GetState()
-            
-            if fishingState == Enum.HumanoidStateType.Fishing then
-                -- Perfect fishing
-                if FishingEvents:FindFirstChild("PerfectCatch") then
-                    FishingEvents.PerfectCatch:FireServer()
-                end
-                
-                -- Instant catch
-                if Config.AutoFarm.AutoInstantComplicatedFishing and FishingEvents:FindFirstChild("InstantCatch") then
-                    FishingEvents.InstantCatch:FireServer()
-                end
-            end
+        -- Selalu lempar pancing di mode Perfect
+        if FishingEvents:FindFirstChild("CastLine") then
+            -- 1 = full power (ujung atas bar) → Perfect Cast
+            FishingEvents.CastLine:FireServer(1)
+        end
+
+        -- Tunggu delay sebelum tarik
+        task.wait(Config.AutoFarm.AutoFishDelay or 2)
+
+        -- Tangkap ikan Perfect
+        if FishingEvents:FindFirstChild("PerfectCatch") then
+            FishingEvents.PerfectCatch:FireServer()
+        elseif FishingEvents:FindFirstChild("CatchFish") then
+            FishingEvents.CatchFish:FireServer()
+        end
+
+        -- Instant complicated fishing (opsional)
+        if Config.AutoFarm.AutoInstantComplicatedFishing 
+            and FishingEvents:FindFirstChild("InstantCatch") then
+            FishingEvents.InstantCatch:FireServer()
         end
     end
 end
