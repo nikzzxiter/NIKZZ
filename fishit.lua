@@ -136,8 +136,8 @@ end
 
 -- UI Library
 local Window = Rayfield:CreateWindow({
-    Name = "Fish It Hub 2025",
-    LoadingTitle = "Fish It Hub 2025",
+    Name = "NIKZZ - FISH SCRIPT",
+    LoadingTitle = "NIKZZ SCRIPT",
     LoadingSubtitle = "by Nikzz Xit",
     ConfigurationSaving = {
         Enabled = false
@@ -1233,7 +1233,7 @@ end)
 
 -- Notify when loaded
 Rayfield:Notify({
-    Title = "Fish It Hub 2025",
+    Title = "NIKZZ SCRIPT",
     Content = "by Nikzz Xit Loaded",
     Duration = 5,
     Image = 13047715178
