@@ -69,7 +69,7 @@ local AutoFishToggle = FishFarmTab:CreateToggle({
         
         if _G.AutoFish then
             task.spawn(function()
-                while _G.AutoFish do
+                while _G.AutoFish and task.wait(0.1) do
                     pcall(function()
                         -- Check if player is holding a rod
                         local character = LocalPlayer.Character
@@ -93,7 +93,6 @@ local AutoFishToggle = FishFarmTab:CreateToggle({
                             end
                         end
                     end)
-                    task.wait(0.1)
                 end
             end)
         end
@@ -109,7 +108,7 @@ local WaterFishToggle = FishFarmTab:CreateToggle({
         
         if _G.WaterFish then
             task.spawn(function()
-                while _G.WaterFish do
+                while _G.WaterFish and task.wait(0.1) do
                     pcall(function()
                         -- Check if player is holding a rod
                         local character = LocalPlayer.Character
@@ -117,14 +116,14 @@ local WaterFishToggle = FishFarmTab:CreateToggle({
                             local tool = character:FindFirstChildOfClass("Tool")
                             if tool:FindFirstChild("Rod") then
                                 -- Force water detection even on land
-                                local originalFunction = FishItModules.WaterDetection.CheckWater
-                                FishItModules.WaterDetection.CheckWater = function()
+                                local waterDetectionModule = require(FishItModules.WaterDetection)
+                                local originalFunction = waterDetectionModule.CheckWater
+                                waterDetectionModule.CheckWater = function()
                                     return true
                                 end
                             end
                         end
                     end)
-                    task.wait(0.1)
                 end
             end)
         end
@@ -140,10 +139,11 @@ local BypassRadarToggle = FishFarmTab:CreateToggle({
         
         if _G.BypassRadar then
             task.spawn(function()
-                while _G.BypassRadar do
+                while _G.BypassRadar and task.wait(5) do
                     pcall(function()
                         -- Check if player has radar
-                        local playerData = FishItModules.PlayerData.GetPlayerData(LocalPlayer)
+                        local playerDataModule = require(FishItModules.PlayerData)
+                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
                         if not playerData.Inventory.Radar then
                             -- Auto buy radar
                             FishItRemotes.BuyItem:FireServer("Radar", 1)
@@ -152,7 +152,6 @@ local BypassRadarToggle = FishFarmTab:CreateToggle({
                         -- Activate radar
                         FishItRemotes.ActivateRadar:FireServer(true)
                     end)
-                    task.wait(5)
                 end
             end)
         end
@@ -168,10 +167,11 @@ local BypassAirToggle = FishFarmTab:CreateToggle({
         
         if _G.BypassAir then
             task.spawn(function()
-                while _G.BypassAir do
+                while _G.BypassAir and task.wait(5) do
                     pcall(function()
                         -- Check if player has air item
-                        local playerData = FishItModules.PlayerData.GetPlayerData(LocalPlayer)
+                        local playerDataModule = require(FishItModules.PlayerData)
+                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
                         if not playerData.Inventory.AirTank then
                             -- Auto buy air tank
                             FishItRemotes.BuyItem:FireServer("AirTank", 1)
@@ -180,7 +180,6 @@ local BypassAirToggle = FishFarmTab:CreateToggle({
                         -- Activate air tank
                         FishItRemotes.ActivateAirTank:FireServer(true)
                     end)
-                    task.wait(5)
                 end
             end)
         end
@@ -221,16 +220,16 @@ local InstantFishingToggle = FishFarmTab:CreateToggle({
         
         if _G.InstantFishing then
             task.spawn(function()
-                while _G.InstantFishing do
+                while _G.InstantFishing and task.wait(0.1) do
                     pcall(function()
                         -- Modify fishing mechanics to make it instant
-                        local originalFunction = FishItModules.FishingMechanics.StartFishingMinigame
-                        FishItModules.FishingMechanics.StartFishingMinigame = function()
+                        local fishingMechanicsModule = require(FishItModules.FishingMechanics)
+                        local originalFunction = fishingMechanicsModule.StartFishingMinigame
+                        fishingMechanicsModule.StartFishingMinigame = function()
                             -- Immediately complete the minigame
                             FishItRemotes.CompleteFishingMinigame:FireServer(true)
                         end
                     end)
-                    task.wait(0.1)
                 end
             end)
         end
@@ -247,10 +246,11 @@ local AutoSellToggle = FishFarmTab:CreateToggle({
         
         if _G.AutoSell then
             task.spawn(function()
-                while _G.AutoSell do
+                while _G.AutoSell and task.wait(5) do
                     pcall(function()
                         -- Get player inventory
-                        local playerData = FishItModules.PlayerData.GetPlayerData(LocalPlayer)
+                        local playerDataModule = require(FishItModules.PlayerData)
+                        local playerData = playerDataModule.GetPlayerData(LocalPlayer)
                         local fishToSell = {}
                         
                         -- Filter fish to sell (exclude favorites)
@@ -268,7 +268,6 @@ local AutoSellToggle = FishFarmTab:CreateToggle({
                             end
                         end
                     end)
-                    task.wait(5)
                 end
             end)
         end
@@ -315,12 +314,11 @@ local AntiKickToggle = FishFarmTab:CreateToggle({
         
         if _G.AntiKick then
             task.spawn(function()
-                while _G.AntiKick do
+                while _G.AntiKick and task.wait(30) do
                     pcall(function()
                         -- Send a heartbeat to prevent kick
                         FishItRemotes.Heartbeat:FireServer()
                     end)
-                    task.wait(30)
                 end
             end)
         end
@@ -336,17 +334,14 @@ local AntiDetectToggle = FishFarmTab:CreateToggle({
         
         if _G.AntiDetect then
             task.spawn(function()
-                while _G.AntiDetect do
+                while _G.AntiDetect and task.wait(1) do
                     pcall(function()
                         -- Bypass anti-cheat detection
-                        local originalGetIdentity = getidentity or getgenv().getidentity
-                        if originalGetIdentity then
-                            getgenv().getidentity = function()
-                                return 7 -- Spoof identity level
-                            end
+                        if getidentity then
+                            local originalIdentity = getidentity()
+                            setidentity(7) -- Spoof identity level
                         end
                     end)
-                    task.wait(1)
                 end
             end)
         end
@@ -362,7 +357,7 @@ local AntiAFKToggle = FishFarmTab:CreateToggle({
         
         if _G.AntiAFK then
             task.spawn(function()
-                while _G.AntiAFK do
+                while _G.AntiAFK and task.wait(30) do
                     pcall(function()
                         -- Move character to prevent AFK kick
                         local character = LocalPlayer.Character
@@ -370,7 +365,6 @@ local AntiAFKToggle = FishFarmTab:CreateToggle({
                             character.Humanoid.Jump = true
                         end
                     end)
-                    task.wait(30)
                 end
             end)
         end
@@ -382,11 +376,11 @@ local MapsSection = TeleportTab:CreateSection("Teleport Maps")
 local MapsDropdown = TeleportTab:CreateDropdown({
     Name = "Select Map",
     Options = {"Starter Island", "Pearl Island", "Volcano Bay", "Deep Sea Trench", "Sky Lagoon", "Coral Reef", "Ancient Temple"},
-    CurrentOption = {"Starter Island"},
+    CurrentOption = "Starter Island",
     MultipleOptions = false,
     Flag = "SelectedMap",
     Callback = function(Option)
-        _G.SelectedMap = Option[1]
+        _G.SelectedMap = Option
     end,
 })
 
@@ -418,17 +412,17 @@ local PlayerSection = TeleportTab:CreateSection("Teleport Player")
 local PlayersDropdown = TeleportTab:CreateDropdown({
     Name = "Select Player",
     Options = {},
-    CurrentOption = {},
+    CurrentOption = "",
     MultipleOptions = false,
     Flag = "SelectedPlayer",
     Callback = function(Option)
-        _G.SelectedPlayer = Option[1]
+        _G.SelectedPlayer = Option
     end,
 })
 
 -- Update players list
 task.spawn(function()
-    while true do
+    while task.wait(5) do
         pcall(function()
             local playerList = {}
             for _, player in pairs(Players:GetPlayers()) do
@@ -436,9 +430,8 @@ task.spawn(function()
                     table.insert(playerList, player.Name)
                 end
             end
-            Rayfield.UpdateDropdown("SelectedPlayer", playerList)
+            PlayersDropdown:SetOptions(playerList)
         end)
-        task.wait(5)
     end
 end)
 
@@ -451,51 +444,6 @@ local TeleportPlayerButton = TeleportTab:CreateButton({
                 local character = LocalPlayer.Character
                 if character and character:FindFirstChild("HumanoidRootPart") then
                     character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-                end
-            end
-        end)
-    end,
-})
-
-local EventSection = TeleportTab:CreateSection("Teleport Event")
-local EventsDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Event",
-    Options = {},
-    CurrentOption = {},
-    MultipleOptions = false,
-    Flag = "SelectedEvent",
-    Callback = function(Option)
-        _G.SelectedEvent = Option[1]
-    end,
-})
-
--- Update events list
-task.spawn(function()
-    while true do
-        pcall(function()
-            local eventList = {}
-            for _, event in pairs(Workspace.Events:GetChildren()) do
-                if event:IsA("Model") and event:FindFirstChild("EventName") then
-                    table.insert(eventList, event.EventName.Value)
-                end
-            end
-            Rayfield.UpdateDropdown("SelectedEvent", eventList)
-        end)
-        task.wait(10)
-    end
-end)
-
-local TeleportEventButton = TeleportTab:CreateButton({
-    Name = "Teleport to Event",
-    Callback = function()
-        pcall(function()
-            for _, event in pairs(Workspace.Events:GetChildren()) do
-                if event:IsA("Model") and event:FindFirstChild("EventName") and event.EventName.Value == _G.SelectedEvent then
-                    local character = LocalPlayer.Character
-                    if character and character:FindFirstChild("HumanoidRootPart") then
-                        character.HumanoidRootPart.CFrame = event.PrimaryPart.CFrame
-                    end
-                    break
                 end
             end
         end)
@@ -623,14 +571,13 @@ local SpeedHackToggle = PlayerTab:CreateToggle({
         
         if _G.SpeedHack then
             task.spawn(function()
-                while _G.SpeedHack do
+                while _G.SpeedHack and task.wait(0.1) do
                     pcall(function()
                         local character = LocalPlayer.Character
                         if character and character:FindFirstChild("Humanoid") then
                             character.Humanoid.WalkSpeed = _G.SpeedHackValue or 50
                         end
                     end)
-                    task.wait(0.1)
                 end
             end)
         else
@@ -665,7 +612,7 @@ local MaxBoatSpeedToggle = PlayerTab:CreateToggle({
         
         if _G.MaxBoatSpeed then
             task.spawn(function()
-                while _G.MaxBoatSpeed do
+                while _G.MaxBoatSpeed and task.wait(0.5) do
                     pcall(function()
                         -- Find player's boat
                         for _, boat in pairs(Workspace.Boats:GetChildren()) do
@@ -676,7 +623,6 @@ local MaxBoatSpeedToggle = PlayerTab:CreateToggle({
                             end
                         end
                     end)
-                    task.wait(0.5)
                 end
             end)
         end
