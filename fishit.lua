@@ -17,6 +17,7 @@ local UserInputService = game:GetService("UserInputService")
 local Stats = game:GetService("Stats")
 local GuiService = game:GetService("GuiService")
 local MarketPlaceService = game:GetService("MarketplaceService")
+local VirtualUser = game:GetService("VirtualUser")
 
 -- Game Variables
 local FishingEvents = ReplicatedStorage:FindFirstChild("FishingEvents") or ReplicatedStorage:WaitForChild("FishingEvents", 10)
@@ -25,6 +26,25 @@ local GameFunctions = ReplicatedStorage:FindFirstChild("GameFunctions") or Repli
 local PlayerData = LocalPlayer:FindFirstChild("PlayerData") or LocalPlayer:WaitForChild("PlayerData", 10)
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 10)
 local Modules = ReplicatedStorage:FindFirstChild("Modules") or ReplicatedStorage:WaitForChild("Modules", 10)
+
+-- Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+end)
+
+-- Anti-Kick
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if method == "Kick" or method == "kick" then
+        return nil
+    end
+    return old(self, ...)
+end)
+setreadonly(mt, true)
 
 -- Configuration
 local Config = {
@@ -200,7 +220,82 @@ local function ResetConfig()
             BypassFishingAnimation = false,
             BypassFishingDelay = false
         },
-        -- ... (rest of default config)
+        Teleport = {
+            SelectedLocation = "",
+            SelectedPlayer = "",
+            SelectedEvent = "",
+            SavedPositions = {}
+        },
+        Player = {
+            SpeedHack = false,
+            SpeedValue = 16,
+            MaxBoatSpeed = false,
+            InfinityJump = false,
+            Fly = false,
+            FlyRange = 50,
+            FlyBoat = false,
+            GhostHack = false,
+            PlayerESP = false,
+            ESPBox = true,
+            ESPLines = true,
+            ESPName = true,
+            ESPLevel = true,
+            ESPRange = false,
+            ESPHologram = false,
+            Noclip = false,
+            AutoSell = false,
+            AutoCraft = false,
+            AutoUpgrade = false
+        },
+        Trader = {
+            AutoAcceptTrade = false,
+            SelectedFish = {},
+            TradePlayer = "",
+            TradeAllFish = false
+        },
+        Server = {
+            PlayerInfo = false,
+            ServerInfo = false,
+            LuckBoost = false,
+            SeedViewer = false,
+            ForceEvent = false,
+            RejoinSameServer = false
+        },
+        System = {
+            ShowInfo = false,
+            BoostFPS = false,
+            FPSLimit = 60,
+            AutoCleanMemory = false,
+            DisableParticles = false,
+            RejoinServer = false
+        },
+        Graphic = {
+            HighQuality = false,
+            MaxRendering = false,
+            UltraLowMode = false,
+            DisableWaterReflection = false,
+            CustomShader = false
+        },
+        RNGKill = {
+            RNGReducer = false,
+            ForceLegendary = false,
+            SecretFishBoost = false,
+            MythicalChanceBoost = false,
+            AntiBadLuck = false
+        },
+        Shop = {
+            AutoBuyRods = false,
+            SelectedRod = "",
+            AutoBuyBoats = false,
+            SelectedBoat = "",
+            AutoBuyBaits = false,
+            SelectedBait = ""
+        },
+        Settings = {
+            SelectedTheme = "Dark",
+            Transparency = 0.5,
+            ConfigName = "DefaultConfig"
+        }
     }
     Rayfield:Notify({
         Title = "Config Reset",
@@ -280,6 +375,9 @@ BypassTab:CreateToggle({
     Flag = "BypassFishingRadar",
     Callback = function(Value)
         Config.Bypass.BypassFishingRadar = Value
+        if Value and FishingEvents and FishingEvents:FindFirstChild("RadarBypass") then
+            FishingEvents.RadarBypass:FireServer()
+        end
     end
 })
 
@@ -289,6 +387,9 @@ BypassTab:CreateToggle({
     Flag = "BypassDivingGear",
     Callback = function(Value)
         Config.Bypass.BypassDivingGear = Value
+        if Value and GameFunctions and GameFunctions:FindFirstChild("DivingBypass") then
+            GameFunctions.DivingBypass:InvokeServer()
+        end
     end
 })
 
@@ -298,6 +399,9 @@ BypassTab:CreateToggle({
     Flag = "BypassFishingAnimation",
     Callback = function(Value)
         Config.Bypass.BypassFishingAnimation = Value
+        if Value and FishingEvents and FishingEvents:FindFirstChild("AnimationBypass") then
+            FishingEvents.AnimationBypass:FireServer()
+        end
     end
 })
 
@@ -307,6 +411,9 @@ BypassTab:CreateToggle({
     Flag = "BypassFishingDelay",
     Callback = function(Value)
         Config.Bypass.BypassFishingDelay = Value
+        if Value and FishingEvents and FishingEvents:FindFirstChild("DelayBypass") then
+            FishingEvents.DelayBypass:FireServer()
+        end
     end
 })
 
@@ -1184,7 +1291,6 @@ SettingsTab:CreateInput({
 -- Main Functions
 local function AntiAFK()
     if Config.Bypass.AntiAFK then
-        local VirtualUser = game:GetService("VirtualUser")
         VirtualUser:CaptureController()
         VirtualUser:SetKeyDown("0x65")
         VirtualUser:SetKeyUp("0x65")
@@ -1218,10 +1324,51 @@ local function InfinityJump()
     end
 end
 
+local flying = false
+local flyConnection
 local function Fly()
     if Config.Player.Fly and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local root = LocalPlayer.Character.HumanoidRootPart
-        root.Velocity = Vector3.new(0, Config.Player.FlyRange, 0)
+        if not flying then
+            flying = true
+            local root = LocalPlayer.Character.HumanoidRootPart
+            local bg = Instance.new("BodyGyro", root)
+            bg.Name = "FlyBG"
+            bg.P = 10000
+            bg.maxTorque = Vector3.new(900000, 900000, 900000)
+            bg.cframe = root.CFrame
+            
+            local bv = Instance.new("BodyVelocity", root)
+            bv.Name = "FlyBV"
+            bv.velocity = Vector3.new(0, 0, 0)
+            bv.maxForce = Vector3.new(1000000, 1000000, 1000000)
+            
+            flyConnection = UserInputService.InputBegan:Connect(function(input)
+                if input.KeyCode == Enum.KeyCode.W then
+                    bv.velocity = (Workspace.CurrentCamera.CFrame.LookVector * Config.Player.FlyRange)
+                elseif input.KeyCode == Enum.KeyCode.S then
+                    bv.velocity = (Workspace.CurrentCamera.CFrame.LookVector * -Config.Player.FlyRange)
+                elseif input.KeyCode == Enum.KeyCode.A then
+                    bv.velocity = (Workspace.CurrentCamera.CFrame.RightVector * -Config.Player.FlyRange)
+                elseif input.KeyCode == Enum.KeyCode.D then
+                    bv.velocity = (Workspace.CurrentCamera.CFrame.RightVector * Config.Player.FlyRange)
+                end
+            end)
+        end
+    else
+        if flying then
+            flying = false
+            if flyConnection then
+                flyConnection:Disconnect()
+                flyConnection = nil
+            end
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local root = LocalPlayer.Character.HumanoidRootPart
+                local bg = root:FindFirstChild("FlyBG")
+                if bg then bg:Destroy() end
+                local bv = root:FindFirstChild("FlyBV")
+                if bv then bv:Destroy() end
+            end
+        end
     end
 end
 
@@ -1245,12 +1392,29 @@ local function GhostHack()
     end
 end
 
+local noclipConnection
 local function Noclip()
     if Config.Player.Noclip and LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
+        if not noclipConnection then
+            noclipConnection = RunService.Stepped:Connect(function()
+                if Config.Player.Noclip and LocalPlayer.Character then
+                    for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                else
+                    if noclipConnection then
+                        noclipConnection:Disconnect()
+                        noclipConnection = nil
+                    end
+                end
+            end)
+        end
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
         end
     end
 end
@@ -1384,47 +1548,6 @@ local function AntiBadLuck()
     end
 end
 
--- Main Loop
-task.spawn(function()
-    while task.wait(0.1) do
-        AntiAFK()
-        SpeedHack()
-        MaxBoatSpeed()
-        GhostHack()
-        Noclip()
-        BoostFPS()
-        CleanMemory()
-        DisableParticles()
-        HighQuality()
-        MaxRendering()
-        UltraLowMode()
-        DisableWaterReflection()
-        RNGReducer()
-        ForceLegendary()
-        SecretFishBoost()
-        MythicalChanceBoost()
-        AntiBadLuck()
-    end
-end)
-
--- Auto Jump Loop
-task.spawn(function()
-    while task.wait(Config.Bypass.AutoJumpDelay) do
-        if Config.Bypass.AutoJump then
-            AutoJump()
-        end
-    end
-end)
-
--- Auto Actions Loop
-task.spawn(function()
-    while task.wait(5) do
-        AutoSell()
-        AutoCraft()
-        AutoUpgrade()
-    end
-end)
-
 -- ESP Function
 local ESP = {}
 local ESPObjects = {}
@@ -1463,9 +1586,30 @@ function ESP:UpdateESP()
     end
 end
 
--- ESP Toggle
+-- Main Loop
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.1) do
+        AntiAFK()
+        SpeedHack()
+        MaxBoatSpeed()
+        Fly()
+        FlyBoat()
+        GhostHack()
+        Noclip()
+        BoostFPS()
+        CleanMemory()
+        DisableParticles()
+        HighQuality()
+        MaxRendering()
+        UltraLowMode()
+        DisableWaterReflection()
+        RNGReducer()
+        ForceLegendary()
+        SecretFishBoost()
+        MythicalChanceBoost()
+        AntiBadLuck()
+        
+        -- Update ESP
         if Config.Player.PlayerESP then
             ESP:UpdateESP()
         else
@@ -1474,6 +1618,24 @@ task.spawn(function()
                 ESPObjects[player] = nil
             end
         end
+    end
+end)
+
+-- Auto Jump Loop
+task.spawn(function()
+    while task.wait(Config.Bypass.AutoJumpDelay) do
+        if Config.Bypass.AutoJump then
+            AutoJump()
+        end
+    end
+end)
+
+-- Auto Actions Loop
+task.spawn(function()
+    while task.wait(5) do
+        AutoSell()
+        AutoCraft()
+        AutoUpgrade()
     end
 end)
 
@@ -1488,6 +1650,13 @@ Players.PlayerRemoving:Connect(function(player)
     ESP:RemoveESP(player)
 end)
 
+-- Infinity Jump Input
+UserInputService.JumpRequest:Connect(function()
+    if Config.Player.InfinityJump and LocalPlayer.Character then
+        InfinityJump()
+    end
+end)
+
 -- Initialization
 Rayfield:Notify({
     Title = "NIKZZ SCRIPT LOADED",
@@ -1497,3 +1666,8 @@ Rayfield:Notify({
 })
 
 setfpscap(Config.System.FPSLimit)
+
+-- Load default config if exists
+if isfile("FishItConfig_DefaultConfig.json") then
+    LoadConfig()
+end
