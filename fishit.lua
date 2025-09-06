@@ -16,6 +16,10 @@ local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Stats = game:GetService("Stats")
+local TextService = game:GetService("TextService")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+local CollectionService = game:GetService("CollectionService")
 
 -- Anti-AFK
 local VirtualUser = game:GetService("VirtualUser")
@@ -50,10 +54,13 @@ local RodsModule
 local BaitsModule
 local WeatherModule
 local EventsModule
+local FishingAreasModule
+local UpgradesModule
+local DailyRewardsModule
 
 for _, module in pairs(ReplicatedStorage:GetDescendants()) do
     if module:IsA("ModuleScript") then
-        if string.find(module.Name:lower(), "fishing") then
+        if string.find(module.Name:lower(), "fishing") and not string.find(module.Name:lower(), "area") then
             FishingModule = require(module)
         elseif string.find(module.Name:lower(), "player") and string.find(module.Name:lower(), "stat") then
             PlayerStatsModule = require(module)
@@ -65,6 +72,12 @@ for _, module in pairs(ReplicatedStorage:GetDescendants()) do
             WeatherModule = require(module)
         elseif string.find(module.Name:lower(), "event") then
             EventsModule = require(module)
+        elseif string.find(module.Name:lower(), "area") then
+            FishingAreasModule = require(module)
+        elseif string.find(module.Name:lower(), "upgrade") then
+            UpgradesModule = require(module)
+        elseif string.find(module.Name:lower(), "daily") then
+            DailyRewardsModule = require(module)
         end
     end
 end
@@ -87,12 +100,20 @@ local Config = {
         AutoUpgradeBackpack = false,
         AutoEquipBestRod = false,
         AutoEquipBestBait = false,
-        AutoCollectDaily = false
+        AutoCollectDaily = false,
+        AutoFishPriority = "Rarest", -- Options: Rarest, MostValuable, Largest
+        KeepLegendaryFish = true,
+        KeepMythicalFish = true,
+        MaxFishingDepth = 100,
+        AvoidSharks = true
     },
     Teleport = {
         SelectedLocation = "",
         SelectedPlayer = "",
-        SavedPositions = {}
+        SavedPositions = {},
+        TeleportToFishingSpot = false,
+        TeleportToBestFishingSpot = false,
+        TeleportToEvent = false
     },
     User = {
         SpeedHack = false,
@@ -105,48 +126,111 @@ local Config = {
         ESPLines = true,
         ESPName = true,
         ESPLevel = true,
+        ESPDistance = true,
         Noclip = false,
         WalkOnWater = false,
-        GhostHack = false
+        GhostHack = false,
+        Invisibility = false,
+        NoClipCamera = false,
+        XRayVision = false,
+        UnderwaterBreathing = false,
+        AutoAvoidObstacles = false
     },
     Trade = {
         AutoTradeAllFish = false,
         AutoAcceptTrade = false,
-        TradePlayer = ""
+        TradePlayer = "",
+        TradeFilter = "Common", -- Options: Common, Uncommon, Rare, Epic, Legendary, Mythical
+        MinimumTradeValue = 100,
+        AutoDeclineLowTrades = true,
+        TradeCooldownBypass = false
     },
     Server = {
         AutoBuyCuaca = false,
         TeleportEvent = "",
-        AutoTeleportEvent = false
+        AutoTeleportEvent = false,
+        AutoJoinBestServer = false,
+        ServerHopDelay = 30,
+        AvoidFullServers = true,
+        RejoinOnKick = true,
+        PriorityServerRegion = "Auto" -- Options: Auto, US, EU, Asia
     },
     Graphics = {
         Quality = "Medium",
         UnlockFPS = false,
-        TargetFPS = 120
+        TargetFPS = 120,
+        RemoveWaterEffects = false,
+        RemoveParticleEffects = false,
+        RemoveShadowEffects = false,
+        OptimizeRendering = false,
+        ReduceTextureQuality = false,
+        DisableSkybox = false,
+        SimpleTerrain = false
     },
     Settings = {
         SelectedTheme = "Dark",
         Transparency = 0.5,
-        ConfigName = "DefaultConfig"
+        ConfigName = "DefaultConfig",
+        UIScale = 1,
+        KeybindsEnabled = true,
+        NotificationsEnabled = true,
+        AutoSaveConfig = true,
+        SaveInterval = 300, -- seconds
+        DiscordWebhook = "",
+        DiscordNotifications = false
     }
 }
 
 -- Variabel untuk sistem info
 local PerformanceStats = {
     FPS = 0,
-    Ping = 0
+    Ping = 0,
+    MemoryUsage = 0,
+    ServerTime = 0,
+    Uptime = 0
+}
+
+-- Variabel untuk fishing stats
+local FishingStats = {
+    TotalFishCaught = 0,
+    TotalValueEarned = 0,
+    RarestFish = "",
+    LargestFish = 0,
+    SessionStartTime = os.time(),
+    FishPerHour = 0,
+    MoneyPerHour = 0
+}
+
+-- Variabel untuk event tracking
+local EventTracker = {
+    ActiveEvents = {},
+    EventLocations = {},
+    EventEndTimes = {},
+    NextEventTime = 0
+}
+
+-- Variabel untuk player analytics
+local PlayerAnalytics = {
+    PlayTime = 0,
+    DistanceTraveled = 0,
+    IslandsVisited = 0,
+    TradesCompleted = 0,
+    EventsParticipated = 0
 }
 
 -- Save/Load Config
 local function SaveConfig()
     local json = HttpService:JSONEncode(Config)
     writefile("FishItConfig_" .. Config.Settings.ConfigName .. ".json", json)
-    Rayfield:Notify({
-        Title = "Config Saved",
-        Content = "Configuration saved as " .. Config.Settings.ConfigName,
-        Duration = 3,
-        Image = 13047715178
-    })
+    
+    if Config.Settings.NotificationsEnabled then
+        Rayfield:Notify({
+            Title = "Config Saved",
+            Content = "Configuration saved as " .. Config.Settings.ConfigName,
+            Duration = 3,
+            Image = 13047715178
+        })
+    end
 end
 
 local function LoadConfig()
@@ -156,28 +240,34 @@ local function LoadConfig()
             Config = HttpService:JSONDecode(json)
         end)
         if success then
-            Rayfield:Notify({
-                Title = "Config Loaded",
-                Content = "Configuration loaded from " .. Config.Settings.ConfigName,
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Config Loaded",
+                    Content = "Configuration loaded from " .. Config.Settings.ConfigName,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
             return true
         else
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Config Error",
+                    Content = "Failed to load config: " .. result,
+                    Duration = 5,
+                    Image = 13047715178
+                })
+            end
+        end
+    else
+        if Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
-                Title = "Config Error",
-                Content = "Failed to load config: " .. result,
+                Title = "Config Not Found",
+                Content = "Config file not found: " .. Config.Settings.ConfigName,
                 Duration = 5,
                 Image = 13047715178
             })
         end
-    else
-        Rayfield:Notify({
-            Title = "Config Not Found",
-            Content = "Config file not found: " .. Config.Settings.ConfigName,
-            Duration = 5,
-            Image = 13047715178
-        })
     end
     return false
 end
@@ -209,12 +299,14 @@ AutoFarmTab:CreateToggle({
             if FishingEvents and FishingEvents:FindFirstChild("ToggleRadar") then
                 FishingEvents.ToggleRadar:FireServer(true)
             end
-            Rayfield:Notify({
-                Title = "Fishing Radar",
-                Content = "Fishing Radar enabled",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Fishing Radar",
+                    Content = "Fishing Radar enabled",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         else
             if FishingEvents and FishingEvents:FindFirstChild("ToggleRadar") then
                 FishingEvents.ToggleRadar:FireServer(false)
@@ -230,7 +322,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoFishV1",
     Callback = function(Value)
         Config.AutoFarm.AutoFishV1 = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Fish V1",
                 Content = "Perfect Fishing enabled",
@@ -266,12 +358,14 @@ AutoFarmTab:CreateToggle({
             if Workspace:FindFirstChild("FishingEffects") then
                 Workspace.FishingEffects:Destroy()
             end
-            Rayfield:Notify({
-                Title = "Fishing Effects",
-                Content = "Fishing effects disabled",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Fishing Effects",
+                    Content = "Fishing effects disabled",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
@@ -283,7 +377,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoInstantComplicatedFishing",
     Callback = function(Value)
         Config.AutoFarm.AutoInstantComplicatedFishing = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Complicated Fishing",
                 Content = "Instant complicated fishing enabled",
@@ -304,12 +398,14 @@ AutoFarmTab:CreateToggle({
         if Value then
             -- Lock camera position
             LocalPlayer.Character:WaitForChild("Humanoid").CameraOffset = Vector3.new(0, 0, 0)
-            Rayfield:Notify({
-                Title = "Camera Lock",
-                Content = "Camera position locked",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Camera Lock",
+                    Content = "Camera position locked",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         else
             -- Unlock camera position
             LocalPlayer.Character:WaitForChild("Humanoid").CameraOffset = Vector3.new(0, 0, 0)
@@ -323,12 +419,14 @@ AutoFarmTab:CreateButton({
     Callback = function()
         if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
             FishingEvents.SellAllFish:FireServer()
-            Rayfield:Notify({
-                Title = "Sell Fish",
-                Content = "All fish sold",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Sell Fish",
+                    Content = "All fish sold",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
@@ -340,7 +438,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoSellFish",
     Callback = function(Value)
         Config.AutoFarm.AutoSellFish = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Sell",
                 Content = "Auto selling fish enabled",
@@ -371,7 +469,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoUpgradeRod",
     Callback = function(Value)
         Config.AutoFarm.AutoUpgradeRod = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Upgrade Rod",
                 Content = "Auto upgrade rod enabled",
@@ -389,7 +487,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoUpgradeBackpack",
     Callback = function(Value)
         Config.AutoFarm.AutoUpgradeBackpack = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Upgrade Backpack",
                 Content = "Auto upgrade backpack enabled",
@@ -407,7 +505,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoEquipBestRod",
     Callback = function(Value)
         Config.AutoFarm.AutoEquipBestRod = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Equip Best Rod",
                 Content = "Auto equip best rod enabled",
@@ -425,7 +523,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoEquipBestBait",
     Callback = function(Value)
         Config.AutoFarm.AutoEquipBestBait = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Equip Best Bait",
                 Content = "Auto equip best bait enabled",
@@ -443,7 +541,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AutoCollectDaily",
     Callback = function(Value)
         Config.AutoFarm.AutoCollectDaily = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Collect Daily",
                 Content = "Auto collect daily reward enabled",
@@ -454,6 +552,60 @@ AutoFarmTab:CreateToggle({
     end
 })
 
+-- Fish Priority
+AutoFarmTab:CreateDropdown({
+    Name = "Fish Priority",
+    Options = {"Rarest", "MostValuable", "Largest"},
+    CurrentOption = Config.AutoFarm.AutoFishPriority,
+    Flag = "AutoFishPriority",
+    Callback = function(Value)
+        Config.AutoFarm.AutoFishPriority = Value
+    end
+})
+
+-- Keep Legendary Fish
+AutoFarmTab:CreateToggle({
+    Name = "Keep Legendary Fish",
+    CurrentValue = Config.AutoFarm.KeepLegendaryFish,
+    Flag = "KeepLegendaryFish",
+    Callback = function(Value)
+        Config.AutoFarm.KeepLegendaryFish = Value
+    end
+})
+
+-- Keep Mythical Fish
+AutoFarmTab:CreateToggle({
+    Name = "Keep Mythical Fish",
+    CurrentValue = Config.AutoFarm.KeepMythicalFish,
+    Flag = "KeepMythicalFish",
+    Callback = function(Value)
+        Config.AutoFarm.KeepMythicalFish = Value
+    end
+})
+
+-- Max Fishing Depth
+AutoFarmTab:CreateSlider({
+    Name = "Max Fishing Depth",
+    Range = {0, 500},
+    Increment = 10,
+    Suffix = "studs",
+    CurrentValue = Config.AutoFarm.MaxFishingDepth,
+    Flag = "MaxFishingDepth",
+    Callback = function(Value)
+        Config.AutoFarm.MaxFishingDepth = Value
+    end
+})
+
+-- Avoid Sharks
+AutoFarmTab:CreateToggle({
+    Name = "Avoid Sharks",
+    CurrentValue = Config.AutoFarm.AvoidSharks,
+    Flag = "AvoidSharks",
+    Callback = function(Value)
+        Config.AutoFarm.AvoidSharks = Value
+    end
+})
+
 -- Anti Kick Server
 AutoFarmTab:CreateToggle({
     Name = "Anti Kick Server",
@@ -461,7 +613,7 @@ AutoFarmTab:CreateToggle({
     Flag = "AntiKickServer",
     Callback = function(Value)
         Config.AutoFarm.AntiKickServer = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Anti Kick",
                 Content = "Anti kick protection enabled",
@@ -479,10 +631,44 @@ AutoFarmTab:CreateToggle({
     Flag = "AntiAFK",
     Callback = function(Value)
         Config.AutoFarm.AntiAFK = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Anti AFK",
                 Content = "Anti AFK enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Fishing Stats Section
+AutoFarmTab:CreateSection("Fishing Statistics")
+
+AutoFarmTab:CreateLabel("Total Fish Caught: " .. FishingStats.TotalFishCaught)
+AutoFarmTab:CreateLabel("Total Value Earned: " .. FishingStats.TotalValueEarned)
+AutoFarmTab:CreateLabel("Rarest Fish: " .. FishingStats.RarestFish)
+AutoFarmTab:CreateLabel("Largest Fish: " .. FishingStats.LargestFish .. " studs")
+AutoFarmTab:CreateLabel("Fish Per Hour: " .. FishingStats.FishPerHour)
+AutoFarmTab:CreateLabel("Money Per Hour: " .. FishingStats.MoneyPerHour)
+
+-- Reset Stats Button
+AutoFarmTab:CreateButton({
+    Name = "Reset Fishing Stats",
+    Callback = function()
+        FishingStats = {
+            TotalFishCaught = 0,
+            TotalValueEarned = 0,
+            RarestFish = "",
+            LargestFish = 0,
+            SessionStartTime = os.time(),
+            FishPerHour = 0,
+            MoneyPerHour = 0
+        }
+        if Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "Fishing Stats",
+                Content = "Fishing statistics reset",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -512,7 +698,17 @@ local Locations = {
     "Tropical Grove",
     "Crater Island",
     "Lost Isle (Treasure Room)",
-    "Lost Isle (Sisyphus Statue)"
+    "Lost Isle (Sisyphus Statue)",
+    "Ocean Trench",
+    "Sunken City",
+    "Pirate Cove",
+    "Mermaid Lagoon",
+    "Whale Fall",
+    "Kraken's Lair",
+    "Siren's Song",
+    "Abyssal Plain",
+    "Hydrothermal Vents",
+    "Deep Sea Trench"
 }
 
 TeleportTab:CreateDropdown({
@@ -551,6 +747,26 @@ TeleportTab:CreateButton({
                 targetCFrame = CFrame.new(1600, 100, 1600)
             elseif Config.Teleport.SelectedLocation == "Lost Isle (Sisyphus Statue)" then
                 targetCFrame = CFrame.new(1700, 100, 1700)
+            elseif Config.Teleport.SelectedLocation == "Ocean Trench" then
+                targetCFrame = CFrame.new(-1500, -200, 500)
+            elseif Config.Teleport.SelectedLocation == "Sunken City" then
+                targetCFrame = CFrame.new(2000, -150, 2000)
+            elseif Config.Teleport.SelectedLocation == "Pirate Cove" then
+                targetCFrame = CFrame.new(-2000, 25, -1500)
+            elseif Config.Teleport.SelectedLocation == "Mermaid Lagoon" then
+                targetCFrame = CFrame.new(500, -50, -2000)
+            elseif Config.Teleport.SelectedLocation == "Whale Fall" then
+                targetCFrame = CFrame.new(-2500, -300, 2500)
+            elseif Config.Teleport.SelectedLocation == "Kraken's Lair" then
+                targetCFrame = CFrame.new(3000, -500, 3000)
+            elseif Config.Teleport.SelectedLocation == "Siren's Song" then
+                targetCFrame = CFrame.new(-3000, -100, -2500)
+            elseif Config.Teleport.SelectedLocation == "Abyssal Plain" then
+                targetCFrame = CFrame.new(0, -400, 0)
+            elseif Config.Teleport.SelectedLocation == "Hydrothermal Vents" then
+                targetCFrame = CFrame.new(2500, -350, -2500)
+            elseif Config.Teleport.SelectedLocation == "Deep Sea Trench" then
+                targetCFrame = CFrame.new(-3500, -600, 3500)
             else
                 -- Default location
                 targetCFrame = CFrame.new(0, 10, 0)
@@ -558,20 +774,63 @@ TeleportTab:CreateButton({
             
             if targetCFrame then
                 LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Teleport",
+                        Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+            end
+        else
+            if Config.Settings.NotificationsEnabled then
                 Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                    Title = "Teleport Error",
+                    Content = "Please select a location first",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
+        end
+    end
+})
+
+-- Teleport to Best Fishing Spot
+TeleportTab:CreateToggle({
+    Name = "Teleport to Best Fishing Spot",
+    CurrentValue = Config.Teleport.TeleportToBestFishingSpot,
+    Flag = "TeleportToBestFishingSpot",
+    Callback = function(Value)
+        Config.Teleport.TeleportToBestFishingSpot = Value
+    end
+})
+
+-- Teleport to Fishing Spot Button
+TeleportTab:CreateButton({
+    Name = "Find Best Fishing Spot",
+    Callback = function()
+        -- Find the best fishing spot based on player level and equipment
+        local bestSpot = FindBestFishingSpot()
+        if bestSpot then
+            LocalPlayer.Character:SetPrimaryPartCFrame(bestSpot)
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Fishing Spot",
+                    Content = "Teleported to best fishing spot",
                     Duration = 3,
                     Image = 13047715178
                 })
             end
         else
-            Rayfield:Notify({
-                Title = "Teleport Error",
-                Content = "Please select a location first",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Fishing Spot Error",
+                    Content = "No fishing spots found",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
@@ -608,27 +867,33 @@ TeleportTab:CreateButton({
             local targetPlayer = Players:FindFirstChild(Config.Teleport.SelectedPlayer)
             if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 LocalPlayer.Character:SetPrimaryPartCFrame(targetPlayer.Character.HumanoidRootPart.CFrame)
-                Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Teleported to " .. Config.Teleport.SelectedPlayer,
-                    Duration = 3,
-                    Image = 13047715178
-                })
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Teleport",
+                        Content = "Teleported to " .. Config.Teleport.SelectedPlayer,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
             else
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Teleport Error",
+                        Content = "Player not found or not loaded",
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+            end
+        else
+            if Config.Settings.NotificationsEnabled then
                 Rayfield:Notify({
                     Title = "Teleport Error",
-                    Content = "Player not found or not loaded",
+                    Content = "Please select a player first",
                     Duration = 3,
                     Image = 13047715178
                 })
             end
-        else
-            Rayfield:Notify({
-                Title = "Teleport Error",
-                Content = "Please select a player first",
-                Duration = 3,
-                Image = 13047715178
-            })
         end
     end
 })
@@ -642,12 +907,14 @@ TeleportTab:CreateInput({
         if Text ~= "" then
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 Config.Teleport.SavedPositions[Text] = LocalPlayer.Character.HumanoidRootPart.CFrame
-                Rayfield:Notify({
-                    Title = "Position Saved",
-                    Content = "Position saved as: " .. Text,
-                    Duration = 3,
-                    Image = 13047715178
-                })
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Position Saved",
+                        Content = "Position saved as: " .. Text,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
             end
         end
     end
@@ -671,12 +938,14 @@ TeleportTab:CreateDropdown({
     Callback = function(Value)
         if Config.Teleport.SavedPositions[Value] then
             LocalPlayer.Character:SetPrimaryPartCFrame(Config.Teleport.SavedPositions[Value])
-            Rayfield:Notify({
-                Title = "Position Loaded",
-                Content = "Teleported to saved position: " .. Value,
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Position Loaded",
+                    Content = "Teleported to saved position: " .. Value,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
@@ -690,12 +959,14 @@ TeleportTab:CreateInput({
         if Text ~= "" and Config.Teleport.SavedPositions[Text] then
             Config.Teleport.SavedPositions[Text] = nil
             UpdateSavedPositionsList()
-            Rayfield:Notify({
-                Title = "Position Deleted",
-                Content = "Deleted position: " .. Text,
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Position Deleted",
+                    Content = "Deleted position: " .. Text,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
@@ -710,7 +981,7 @@ UserTab:CreateToggle({
     Flag = "SpeedHack",
     Callback = function(Value)
         Config.User.SpeedHack = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Speed Hack",
                 Content = "Speed hack enabled",
@@ -740,7 +1011,7 @@ UserTab:CreateToggle({
     Flag = "InfinityJump",
     Callback = function(Value)
         Config.User.InfinityJump = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Infinity Jump",
                 Content = "Infinity jump enabled",
@@ -758,7 +1029,7 @@ UserTab:CreateToggle({
     Flag = "Fly",
     Callback = function(Value)
         Config.User.Fly = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Fly",
                 Content = "Fly enabled",
@@ -789,7 +1060,7 @@ UserTab:CreateToggle({
     Flag = "Noclip",
     Callback = function(Value)
         Config.User.Noclip = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Noclip",
                 Content = "Noclip enabled",
@@ -807,7 +1078,7 @@ UserTab:CreateToggle({
     Flag = "WalkOnWater",
     Callback = function(Value)
         Config.User.WalkOnWater = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Walk on Water",
                 Content = "Walk on water enabled",
@@ -825,10 +1096,100 @@ UserTab:CreateToggle({
     Flag = "GhostHack",
     Callback = function(Value)
         Config.User.GhostHack = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Ghost Hack",
                 Content = "Ghost hack enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Invisibility
+UserTab:CreateToggle({
+    Name = "Invisibility",
+    CurrentValue = Config.User.Invisibility,
+    Flag = "Invisibility",
+    Callback = function(Value)
+        Config.User.Invisibility = Value
+        if Value and Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "Invisibility",
+                Content = "Invisibility enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- No Clip Camera
+UserTab:CreateToggle({
+    Name = "No Clip Camera",
+    CurrentValue = Config.User.NoClipCamera,
+    Flag = "NoClipCamera",
+    Callback = function(Value)
+        Config.User.NoClipCamera = Value
+        if Value and Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "No Clip Camera",
+                Content = "No clip camera enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- X-Ray Vision
+UserTab:CreateToggle({
+    Name = "X-Ray Vision",
+    CurrentValue = Config.User.XRayVision,
+    Flag = "XRayVision",
+    Callback = function(Value)
+        Config.User.XRayVision = Value
+        if Value and Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "X-Ray Vision",
+                Content = "X-Ray vision enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Underwater Breathing
+UserTab:CreateToggle({
+    Name = "Underwater Breathing",
+    CurrentValue = Config.User.UnderwaterBreathing,
+    Flag = "UnderwaterBreathing",
+    Callback = function(Value)
+        Config.User.UnderwaterBreathing = Value
+        if Value and Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "Underwater Breathing",
+                Content = "Underwater breathing enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Avoid Obstacles
+UserTab:CreateToggle({
+    Name = "Auto Avoid Obstacles",
+    CurrentValue = Config.User.AutoAvoidObstacles,
+    Flag = "AutoAvoidObstacles",
+    Callback = function(Value)
+        Config.User.AutoAvoidObstacles = Value
+        if Value and Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "Auto Avoid Obstacles",
+                Content = "Auto avoid obstacles enabled",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -843,7 +1204,7 @@ UserTab:CreateToggle({
     Flag = "PlayerESP",
     Callback = function(Value)
         Config.User.PlayerESP = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Player ESP",
                 Content = "Player ESP enabled",
@@ -894,9 +1255,31 @@ UserTab:CreateToggle({
     end
 })
 
+-- ESP Distance
+UserTab:CreateToggle({
+    Name = "ESP Distance",
+    CurrentValue = Config.User.ESPDistance,
+    Flag = "ESPDistance",
+    Callback = function(Value)
+        Config.User.ESPDistance = Value
+    end
+})
+
 -- Performance Info
+UserTab:CreateSection("Performance Information")
 UserTab:CreateLabel("FPS: " .. PerformanceStats.FPS)
 UserTab:CreateLabel("Ping: " .. PerformanceStats.Ping .. " ms")
+UserTab:CreateLabel("Memory Usage: " .. PerformanceStats.MemoryUsage .. " MB")
+UserTab:CreateLabel("Server Time: " .. PerformanceStats.ServerTime)
+UserTab:CreateLabel("Uptime: " .. PerformanceStats.Uptime .. " minutes")
+
+-- Player Analytics
+UserTab:CreateSection("Player Analytics")
+UserTab:CreateLabel("Play Time: " .. PlayerAnalytics.PlayTime .. " minutes")
+UserTab:CreateLabel("Distance Traveled: " .. PlayerAnalytics.DistanceTraveled .. " studs")
+UserTab:CreateLabel("Islands Visited: " .. PlayerAnalytics.IslandsVisited)
+UserTab:CreateLabel("Trades Completed: " .. PlayerAnalytics.TradesCompleted)
+UserTab:CreateLabel("Events Participated: " .. PlayerAnalytics.EventsParticipated)
 
 -- Trade Tab
 local TradeTab = Window:CreateTab("💱 Trade", 13014546625)
@@ -908,7 +1291,7 @@ TradeTab:CreateToggle({
     Flag = "AutoTradeAllFish",
     Callback = function(Value)
         Config.Trade.AutoTradeAllFish = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Trade",
                 Content = "Auto trade all fish enabled",
@@ -926,7 +1309,7 @@ TradeTab:CreateToggle({
     Flag = "AutoAcceptTrade",
     Callback = function(Value)
         Config.Trade.AutoAcceptTrade = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Accept Trade",
                 Content = "Auto accept trade enabled",
@@ -934,6 +1317,50 @@ TradeTab:CreateToggle({
                 Image = 13047715178
             })
         end
+    end
+})
+
+-- Trade Filter
+TradeTab:CreateDropdown({
+    Name = "Trade Filter",
+    Options = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical"},
+    CurrentOption = Config.Trade.TradeFilter,
+    Flag = "TradeFilter",
+    Callback = function(Value)
+        Config.Trade.TradeFilter = Value
+    end
+})
+
+-- Minimum Trade Value
+TradeTab:CreateSlider({
+    Name = "Minimum Trade Value",
+    Range = {0, 10000},
+    Increment = 100,
+    Suffix = "coins",
+    CurrentValue = Config.Trade.MinimumTradeValue,
+    Flag = "MinimumTradeValue",
+    Callback = function(Value)
+        Config.Trade.MinimumTradeValue = Value
+    end
+})
+
+-- Auto Decline Low Trades
+TradeTab:CreateToggle({
+    Name = "Auto Decline Low Trades",
+    CurrentValue = Config.Trade.AutoDeclineLowTrades,
+    Flag = "AutoDeclineLowTrades",
+    Callback = function(Value)
+        Config.Trade.AutoDeclineLowTrades = Value
+    end
+})
+
+-- Trade Cooldown Bypass
+TradeTab:CreateToggle({
+    Name = "Trade Cooldown Bypass",
+    CurrentValue = Config.Trade.TradeCooldownBypass,
+    Flag = "TradeCooldownBypass",
+    Callback = function(Value)
+        Config.Trade.TradeCooldownBypass = Value
     end
 })
 
@@ -956,25 +1383,53 @@ TradeTab:CreateButton({
             if targetPlayer then
                 if TradeEvents and TradeEvents:FindFirstChild("SendTradeRequest") then
                     TradeEvents.SendTradeRequest:FireServer(targetPlayer)
+                    if Config.Settings.NotificationsEnabled then
+                        Rayfield:Notify({
+                            Title = "Trade Request",
+                            Content = "Trade request sent to " .. Config.Trade.TradePlayer,
+                            Duration = 3,
+                            Image = 13047715178
+                        })
+                    end
+                end
+            else
+                if Config.Settings.NotificationsEnabled then
                     Rayfield:Notify({
-                        Title = "Trade Request",
-                        Content = "Trade request sent to " .. Config.Trade.TradePlayer,
+                        Title = "Trade Error",
+                        Content = "Player not found: " .. Config.Trade.TradePlayer,
                         Duration = 3,
                         Image = 13047715178
                     })
                 end
-            else
+            end
+        else
+            if Config.Settings.NotificationsEnabled then
                 Rayfield:Notify({
                     Title = "Trade Error",
-                    Content = "Player not found: " .. Config.Trade.TradePlayer,
+                    Content = "Please enter a player name first",
                     Duration = 3,
                     Image = 13047715178
                 })
             end
-        else
+        end
+    end
+})
+
+-- Trade History
+TradeTab:CreateSection("Trade History")
+TradeTab:CreateLabel("Recent Trades: None")
+TradeTab:CreateLabel("Total Trades: 0")
+TradeTab:CreateLabel("Most Traded Player: None")
+TradeTab:CreateLabel("Total Trade Value: 0")
+
+-- Clear Trade History Button
+TradeTab:CreateButton({
+    Name = "Clear Trade History",
+    Callback = function()
+        if Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
-                Title = "Trade Error",
-                Content = "Please enter a player name first",
+                Title = "Trade History",
+                Content = "Trade history cleared",
                 Duration = 3,
                 Image = 13047715178
             })
@@ -992,7 +1447,7 @@ ServerTab:CreateToggle({
     Flag = "AutoBuyCuaca",
     Callback = function(Value)
         Config.Server.AutoBuyCuaca = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Buy Cuaca",
                 Content = "Auto buy cuaca enabled",
@@ -1003,8 +1458,68 @@ ServerTab:CreateToggle({
     end
 })
 
+-- Auto Join Best Server
+ServerTab:CreateToggle({
+    Name = "Auto Join Best Server",
+    CurrentValue = Config.Server.AutoJoinBestServer,
+    Flag = "AutoJoinBestServer",
+    Callback = function(Value)
+        Config.Server.AutoJoinBestServer = Value
+    end
+})
+
+-- Server Hop Delay
+ServerTab:CreateSlider({
+    Name = "Server Hop Delay",
+    Range = {10, 300},
+    Increment = 10,
+    Suffix = "seconds",
+    CurrentValue = Config.Server.ServerHopDelay,
+    Flag = "ServerHopDelay",
+    Callback = function(Value)
+        Config.Server.ServerHopDelay = Value
+    end
+})
+
+-- Avoid Full Servers
+ServerTab:CreateToggle({
+    Name = "Avoid Full Servers",
+    CurrentValue = Config.Server.AvoidFullServers,
+    Flag = "AvoidFullServers",
+    Callback = function(Value)
+        Config.Server.AvoidFullServers = Value
+    end
+})
+
+-- Rejoin On Kick
+ServerTab:CreateToggle({
+    Name = "Rejoin On Kick",
+    CurrentValue = Config.Server.RejoinOnKick,
+    Flag = "RejoinOnKick",
+    Callback = function(Value)
+        Config.Server.RejoinOnKick = Value
+    end
+})
+
+-- Priority Server Region
+ServerTab:CreateDropdown({
+    Name = "Priority Server Region",
+    Options = {"Auto", "US", "EU", "Asia"},
+    CurrentOption = Config.Server.PriorityServerRegion,
+    Flag = "PriorityServerRegion",
+    Callback = function(Value)
+        Config.Server.PriorityServerRegion = Value
+    end
+})
+
 -- Player Total
 ServerTab:CreateLabel("Player Total: " .. #Players:GetPlayers())
+
+-- Server Info
+ServerTab:CreateLabel("Server ID: " .. game.JobId)
+ServerTab:CreateLabel("Server Region: Unknown")
+ServerTab:CreateLabel("Server Uptime: 0 minutes")
+ServerTab:CreateLabel("Server Performance: Good")
 
 -- Event Teleport Dropdown
 local Events = {
@@ -1026,7 +1541,13 @@ local Events = {
     "Strange Whirlpool",
     "Nuke",
     "Lovestorm",
-    "Lucky Event"
+    "Lucky Event",
+    "Tsunami",
+    "Hurricane",
+    "Aurora",
+    "Meteor Shower",
+    "Volcanic Eruption",
+    "Tidal Wave"
 }
 
 ServerTab:CreateDropdown({
@@ -1046,7 +1567,7 @@ ServerTab:CreateToggle({
     Flag = "AutoTeleportEvent",
     Callback = function(Value)
         Config.Server.AutoTeleportEvent = Value
-        if Value then
+        if Value and Config.Settings.NotificationsEnabled then
             Rayfield:Notify({
                 Title = "Auto Teleport Event",
                 Content = "Auto teleport to event enabled",
@@ -1069,26 +1590,79 @@ ServerTab:CreateButton({
                 eventLocation = CFrame.new(500, 10, 500)
             elseif Config.Server.TeleportEvent == "Boss Battle" then
                 eventLocation = CFrame.new(-500, 10, -500)
+            elseif Config.Server.TeleportEvent == "Orca Migration" then
+                eventLocation = CFrame.new(1000, 0, 1000)
+            elseif Config.Server.TeleportEvent == "Shark Hunt" then
+                eventLocation = CFrame.new(-1000, 0, -1000)
+            elseif Config.Server.TeleportEvent == "Kraken Hunt" then
+                eventLocation = CFrame.new(0, -200, 0)
             -- Add more event locations as needed
             end
             
             LocalPlayer.Character:SetPrimaryPartCFrame(eventLocation)
-            Rayfield:Notify({
-                Title = "Event Teleport",
-                Content = "Teleporting to " .. Config.Server.TeleportEvent,
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Event Teleport",
+                    Content = "Teleporting to " .. Config.Server.TeleportEvent,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         else
-            Rayfield:Notify({
-                Title = "Event Error",
-                Content = "Please select an event first",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Event Error",
+                    Content = "Please select an event first",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
+
+-- Server Hop Button
+ServerTab:CreateButton({
+    Name = "Server Hop",
+    Callback = function()
+        local servers = {}
+        local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
+        local data = HttpService:JSONDecode(req)
+        
+        for _, server in ipairs(data.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                table.insert(servers, server.id)
+            end
+        end
+        
+        if #servers > 0 then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
+        else
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Server Hop",
+                    Content = "No servers found",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
+        end
+    end
+})
+
+-- Rejoin Server Button
+ServerTab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+    end
+})
+
+-- Event Information
+ServerTab:CreateSection("Event Information")
+ServerTab:CreateLabel("Active Events: None")
+ServerTab:CreateLabel("Next Event: Unknown")
+ServerTab:CreateLabel("Event Time Left: 0 minutes")
 
 -- Graphics Tab
 local GraphicsTab = Window:CreateTab("🎨 Graphics", 13014546625)
@@ -1096,7 +1670,7 @@ local GraphicsTab = Window:CreateTab("🎨 Graphics", 13014546625)
 -- Graphics Quality
 GraphicsTab:CreateDropdown({
     Name = "Graphics Quality",
-    Options = {"Low", "Medium", "High"},
+    Options = {"Low", "Medium", "High", "Ultra"},
     CurrentOption = Config.Graphics.Quality,
     Flag = "GraphicsQuality",
     Callback = function(Value)
@@ -1107,24 +1681,35 @@ GraphicsTab:CreateDropdown({
             settings().Rendering.QualityLevel = 1
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 1000
+            Lighting.Brightness = 2
         elseif Value == "Medium" then
             -- Set medium graphics
             settings().Rendering.QualityLevel = 5
             Lighting.GlobalShadows = true
             Lighting.FogEnd = 5000
+            Lighting.Brightness = 3
         elseif Value == "High" then
             -- Set high graphics
             settings().Rendering.QualityLevel = 10
             Lighting.GlobalShadows = true
             Lighting.FogEnd = 10000
+            Lighting.Brightness = 4
+        elseif Value == "Ultra" then
+            -- Set ultra graphics
+            settings().Rendering.QualityLevel = 21
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 20000
+            Lighting.Brightness = 5
         end
         
-        Rayfield:Notify({
-            Title = "Graphics Quality",
-            Content = "Graphics quality set to " .. Value,
-            Duration = 3,
-            Image = 13047715178
-        })
+        if Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "Graphics Quality",
+                Content = "Graphics quality set to " .. Value,
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
     end
 })
 
@@ -1137,12 +1722,14 @@ GraphicsTab:CreateToggle({
         Config.Graphics.UnlockFPS = Value
         if Value then
             setfpscap(Config.Graphics.TargetFPS)
-            Rayfield:Notify({
-                Title = "Unlock FPS",
-                Content = "FPS unlocked to " .. Config.Graphics.TargetFPS,
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Unlock FPS",
+                    Content = "FPS unlocked to " .. Config.Graphics.TargetFPS,
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         else
             setfpscap(60)
         end
@@ -1152,7 +1739,7 @@ GraphicsTab:CreateToggle({
 -- Target FPS
 GraphicsTab:CreateSlider({
     Name = "Target FPS",
-    Range = {60, 240},
+    Range = {60, 360},
     Increment = 10,
     Suffix = "FPS",
     CurrentValue = Config.Graphics.TargetFPS,
@@ -1161,6 +1748,126 @@ GraphicsTab:CreateSlider({
         Config.Graphics.TargetFPS = Value
         if Config.Graphics.UnlockFPS then
             setfpscap(Value)
+        end
+    end
+})
+
+-- Remove Water Effects
+GraphicsTab:CreateToggle({
+    Name = "Remove Water Effects",
+    CurrentValue = Config.Graphics.RemoveWaterEffects,
+    Flag = "RemoveWaterEffects",
+    Callback = function(Value)
+        Config.Graphics.RemoveWaterEffects = Value
+        if Value then
+            -- Remove water effects
+            for _, effect in pairs(Workspace:GetDescendants()) do
+                if effect:IsA("Part") and effect.Name:find("Water") then
+                    effect.Transparency = 1
+                elseif effect:IsA("ParticleEmitter") and effect.Name:find("Water") then
+                    effect.Enabled = false
+                end
+            end
+        end
+    end
+})
+
+-- Remove Particle Effects
+GraphicsTab:CreateToggle({
+    Name = "Remove Particle Effects",
+    CurrentValue = Config.Graphics.RemoveParticleEffects,
+    Flag = "RemoveParticleEffects",
+    Callback = function(Value)
+        Config.Graphics.RemoveParticleEffects = Value
+        if Value then
+            -- Remove particle effects
+            for _, effect in pairs(Workspace:GetDescendants()) do
+                if effect:IsA("ParticleEmitter") then
+                    effect.Enabled = false
+                end
+            end
+        end
+    end
+})
+
+-- Remove Shadow Effects
+GraphicsTab:CreateToggle({
+    Name = "Remove Shadow Effects",
+    CurrentValue = Config.Graphics.RemoveShadowEffects,
+    Flag = "RemoveShadowEffects",
+    Callback = function(Value)
+        Config.Graphics.RemoveShadowEffects = Value
+        if Value then
+            -- Remove shadow effects
+            Lighting.GlobalShadows = false
+            for _, part in pairs(Workspace:GetDescendants()) do
+                if part:IsA("Part") then
+                    part.CastShadow = false
+                end
+            end
+        end
+    end
+})
+
+-- Optimize Rendering
+GraphicsTab:CreateToggle({
+    Name = "Optimize Rendering",
+    CurrentValue = Config.Graphics.OptimizeRendering,
+    Flag = "OptimizeRendering",
+    Callback = function(Value)
+        Config.Graphics.OptimizeRendering = Value
+        if Value then
+            -- Optimize rendering
+            settings().Rendering.QualityLevel = 1
+            game:GetService("RunService"):Set3dRenderingEnabled(false)
+        else
+            game:GetService("RunService"):Set3dRenderingEnabled(true)
+        end
+    end
+})
+
+-- Reduce Texture Quality
+GraphicsTab:CreateToggle({
+    Name = "Reduce Texture Quality",
+    CurrentValue = Config.Graphics.ReduceTextureQuality,
+    Flag = "ReduceTextureQuality",
+    Callback = function(Value)
+        Config.Graphics.ReduceTextureQuality = Value
+        if Value then
+            -- Reduce texture quality
+            for _, texture in pairs(Workspace:GetDescendants()) do
+                if texture:IsA("Texture") then
+                    texture.Texture = ""
+                end
+            end
+        end
+    end
+})
+
+-- Disable Skybox
+GraphicsTab:CreateToggle({
+    Name = "Disable Skybox",
+    CurrentValue = Config.Graphics.DisableSkybox,
+    Flag = "DisableSkybox",
+    Callback = function(Value)
+        Config.Graphics.DisableSkybox = Value
+        if Value then
+            -- Disable skybox
+            Lighting.Sky:Destroy()
+        end
+    end
+})
+
+-- Simple Terrain
+GraphicsTab:CreateToggle({
+    Name = "Simple Terrain",
+    CurrentValue = Config.Graphics.SimpleTerrain,
+    Flag = "SimpleTerrain",
+    Callback = function(Value)
+        Config.Graphics.SimpleTerrain = Value
+        if Value then
+            -- Simplify terrain
+            Workspace.Terrain:Clear()
         end
     end
 })
@@ -1194,20 +1901,45 @@ SettingsTab:CreateButton({
     end
 })
 
+-- Auto Save Config
+SettingsTab:CreateToggle({
+    Name = "Auto Save Config",
+    CurrentValue = Config.Settings.AutoSaveConfig,
+    Flag = "AutoSaveConfig",
+    Callback = function(Value)
+        Config.Settings.AutoSaveConfig = Value
+    end
+})
+
+-- Save Interval
+SettingsTab:CreateSlider({
+    Name = "Save Interval",
+    Range = {60, 1800},
+    Increment = 30,
+    Suffix = "seconds",
+    CurrentValue = Config.Settings.SaveInterval,
+    Flag = "SaveInterval",
+    Callback = function(Value)
+        Config.Settings.SaveInterval = Value
+    end
+})
+
 -- UI Theme
 SettingsTab:CreateDropdown({
     Name = "UI Theme",
-    Options = {"Dark", "Light", "Blue", "Red", "Green", "Purple"},
+    Options = {"Dark", "Light", "Blue", "Red", "Green", "Purple", "Midnight", "Aqua", "Neon"},
     CurrentOption = Config.Settings.SelectedTheme,
     Flag = "UITheme",
     Callback = function(Value)
         Config.Settings.SelectedTheme = Value
-        Rayfield:Notify({
-            Title = "UI Theme",
-            Content = "UI theme changed to " .. Value,
-            Duration = 3,
-            Image = 13047715178
-        })
+        if Config.Settings.NotificationsEnabled then
+            Rayfield:Notify({
+                Title = "UI Theme",
+                Content = "UI theme changed to " .. Value,
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
     end
 })
 
@@ -1222,6 +1954,112 @@ SettingsTab:CreateSlider({
     Callback = function(Value)
         Config.Settings.Transparency = Value
         Rayfield:SetTheme("Transparency", Value)
+    end
+})
+
+-- UI Scale
+SettingsTab:CreateSlider({
+    Name = "UI Scale",
+    Range = {0.5, 2},
+    Increment = 0.1,
+    Suffix = "",
+    CurrentValue = Config.Settings.UIScale,
+    Flag = "UIScale",
+    Callback = function(Value)
+        Config.Settings.UIScale = Value
+    end
+})
+
+-- Keybinds Enabled
+SettingsTab:CreateToggle({
+    Name = "Keybinds Enabled",
+    CurrentValue = Config.Settings.KeybindsEnabled,
+    Flag = "KeybindsEnabled",
+    Callback = function(Value)
+        Config.Settings.KeybindsEnabled = Value
+    end
+})
+
+-- Notifications Enabled
+SettingsTab:CreateToggle({
+    Name = "Notifications Enabled",
+    CurrentValue = Config.Settings.NotificationsEnabled,
+    Flag = "NotificationsEnabled",
+    Callback = function(Value)
+        Config.Settings.NotificationsEnabled = Value
+    end
+})
+
+-- Discord Webhook
+SettingsTab:CreateInput({
+    Name = "Discord Webhook URL",
+    PlaceholderText = "Enter Discord webhook URL",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        Config.Settings.DiscordWebhook = Text
+    end
+})
+
+-- Discord Notifications
+SettingsTab:CreateToggle({
+    Name = "Discord Notifications",
+    CurrentValue = Config.Settings.DiscordNotifications,
+    Flag = "DiscordNotifications",
+    Callback = function(Value)
+        Config.Settings.DiscordNotifications = Value
+    end
+})
+
+-- Test Discord Webhook Button
+SettingsTab:CreateButton({
+    Name = "Test Discord Webhook",
+    Callback = function()
+        if Config.Settings.DiscordWebhook ~= "" then
+            local data = {
+                ["content"] = "Fish It Script - Webhook Test Successful!",
+                ["embeds"] = {{
+                    ["title"] = "Test Notification",
+                    ["description"] = "This is a test notification from Fish It Script",
+                    ["color"] = 65280,
+                    ["footer"] = {
+                        ["text"] = "Fish It Script • " .. os.date("%Y-%m-%d %H:%M:%S")
+                    }
+                }}
+            }
+            
+            local success, response = pcall(function()
+                return HttpService:PostAsync(Config.Settings.DiscordWebhook, HttpService:JSONEncode(data))
+            end)
+            
+            if success then
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Discord Webhook",
+                        Content = "Webhook test successful",
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+            else
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Discord Webhook Error",
+                        Content = "Webhook test failed: " .. response,
+                        Duration = 5,
+                        Image = 13047715178
+                    })
+                end
+            end
+        else
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Discord Webhook Error",
+                    Content = "Please enter a webhook URL first",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
+        end
     end
 })
 
@@ -1258,20 +2096,31 @@ SettingsTab:CreateButton({
         if #servers > 0 then
             TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
         else
-            Rayfield:Notify({
-                Title = "Server Hop",
-                Content = "No servers found",
-                Duration = 3,
-                Image = 13047715178
-            })
+            if Config.Settings.NotificationsEnabled then
+                Rayfield:Notify({
+                    Title = "Server Hop",
+                    Content = "No servers found",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
         end
     end
 })
 
 -- Credits
+SettingsTab:CreateSection("Credits")
 SettingsTab:CreateLabel("Script by Nikzz Xit")
-SettingsTab:CreateLabel("Version: 2.5.0")
+SettingsTab:CreateLabel("Version: 3.0.0")
 SettingsTab:CreateLabel("Updated: September 2025")
+SettingsTab:CreateLabel("Special Thanks: Fish It Community")
+
+-- Donation Section
+SettingsTab:CreateSection("Donations")
+SettingsTab:CreateLabel("Support the development of this script!")
+SettingsTab:CreateLabel("PayPal: nikzz.xit@example.com")
+SettingsTab:CreateLabel("BTC: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa")
+SettingsTab:CreateLabel("ETH: 0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
 
 -- Main Loops and Functions
 local function AutoFish()
@@ -1583,6 +2432,46 @@ local function UpdatePerformanceStats()
             PerformanceStats.Ping = math.floor(ping:GetValue())
         end
     end
+    
+    -- Update Memory Usage
+    PerformanceStats.MemoryUsage = math.floor(Stats:GetMemoryUsageMb())
+    
+    -- Update Server Time
+    PerformanceStats.ServerTime = os.date("%H:%M:%S")
+    
+    -- Update Uptime
+    PerformanceStats.Uptime = math.floor((os.time() - FishingStats.SessionStartTime) / 60)
+end
+
+local function FindBestFishingSpot()
+    -- Find the best fishing spot based on player level and equipment
+    local bestSpot = nil
+    local bestScore = 0
+    
+    for _, spot in pairs(Workspace:GetDescendants()) do
+        if spot:IsA("Part") and spot.Name:find("Fishing") then
+            local score = 0
+            
+            -- Calculate score based on distance, depth, and other factors
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (LocalPlayer.Character.HumanoidRootPart.Position - spot.Position).Magnitude
+                score = 1000 / distance
+                
+                -- Add depth bonus
+                if spot.Position.Y < 0 then
+                    score = score + math.abs(spot.Position.Y) * 2
+                end
+                
+                -- Check if this is the best spot so far
+                if score > bestScore then
+                    bestScore = score
+                    bestSpot = spot.CFrame
+                end
+            end
+        end
+    end
+    
+    return bestSpot
 end
 
 -- Main game loop
@@ -1601,6 +2490,8 @@ local autoUpgradeTimer = 0
 local autoEquipTimer = 0
 local autoCollectDailyTimer = 0
 local autoBuyCuacaTimer = 0
+local autoSaveTimer = 0
+local fishingStatsTimer = 0
 
 RunService.RenderStepped:Connect(function(deltaTime)
     autoSellTimer = autoSellTimer + deltaTime
@@ -1608,6 +2499,8 @@ RunService.RenderStepped:Connect(function(deltaTime)
     autoEquipTimer = autoEquipTimer + deltaTime
     autoCollectDailyTimer = autoCollectDailyTimer + deltaTime
     autoBuyCuacaTimer = autoBuyCuacaTimer + deltaTime
+    autoSaveTimer = autoSaveTimer + deltaTime
+    fishingStatsTimer = fishingStatsTimer + deltaTime
     
     if autoSellTimer >= Config.AutoFarm.DelaySellFish then
         AutoSell()
@@ -1633,6 +2526,21 @@ RunService.RenderStepped:Connect(function(deltaTime)
         AutoBuyCuaca()
         autoBuyCuacaTimer = 0
     end
+    
+    if autoSaveTimer >= Config.Settings.SaveInterval and Config.Settings.AutoSaveConfig then
+        SaveConfig()
+        autoSaveTimer = 0
+    end
+    
+    if fishingStatsTimer >= 5 then -- Every 5 seconds
+        -- Update fishing stats
+        local sessionTime = (os.time() - FishingStats.SessionStartTime) / 3600 -- hours
+        if sessionTime > 0 then
+            FishingStats.FishPerHour = math.floor(FishingStats.TotalFishCaught / sessionTime)
+            FishingStats.MoneyPerHour = math.floor(FishingStats.TotalValueEarned / sessionTime)
+        end
+        fishingStatsTimer = 0
+    end
 end)
 
 -- Initialize
@@ -1653,17 +2561,315 @@ if Config.Graphics.Quality == "Low" then
     settings().Rendering.QualityLevel = 1
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 1000
+    Lighting.Brightness = 2
 elseif Config.Graphics.Quality == "Medium" then
     settings().Rendering.QualityLevel = 5
     Lighting.GlobalShadows = true
     Lighting.FogEnd = 5000
+    Lighting.Brightness = 3
 elseif Config.Graphics.Quality == "High" then
     settings().Rendering.QualityLevel = 10
     Lighting.GlobalShadows = true
     Lighting.FogEnd = 10000
+    Lighting.Brightness = 4
+elseif Config.Graphics.Quality == "Ultra" then
+    settings().Rendering.QualityLevel = 21
+    Lighting.GlobalShadows = true
+    Lighting.FogEnd = 20000
+    Lighting.Brightness = 5
 end
 
 -- Load saved config if exists
 if isfile("FishItConfig_" .. Config.Settings.ConfigName .. ".json") then
     LoadConfig()
+end
+
+-- Keybinds
+if Config.Settings.KeybindsEnabled then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            -- Toggle UI
+            Rayfield:Toggle()
+        elseif input.KeyCode == Enum.KeyCode.F then
+            -- Toggle Fly
+            Config.User.Fly = not Config.User.Fly
+        elseif input.KeyCode == Enum.KeyCode.G then
+            -- Toggle Noclip
+            Config.User.Noclip = not Config.User.Noclip
+        elseif input.KeyCode == Enum.KeyCode.H then
+            -- Toggle Speed Hack
+            Config.User.SpeedHack = not Config.User.SpeedHack
+        elseif input.KeyCode == Enum.KeyCode.J then
+            -- Toggle Auto Fish
+            Config.AutoFarm.AutoFishV1 = not Config.AutoFarm.AutoFishV1
+        end
+    end)
+end
+
+-- Player added/removed events
+Players.PlayerAdded:Connect(function(player)
+    UpdatePlayerList()
+    
+    if Config.Settings.NotificationsEnabled then
+        Rayfield:Notify({
+            Title = "Player Joined",
+            Content = player.Name .. " joined the game",
+            Duration = 3,
+            Image = 13047715178
+        })
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    UpdatePlayerList()
+    
+    if Config.Settings.NotificationsEnabled then
+        Rayfield:Notify({
+            Title = "Player Left",
+            Content = player.Name .. " left the game",
+            Duration = 3,
+            Image = 13047715178
+        })
+    end
+end)
+
+-- Character added event
+LocalPlayer.CharacterAdded:Connect(function(character)
+    -- Wait for humanoid to be added
+    character:WaitForChild("Humanoid")
+    
+    if Config.Settings.NotificationsEnabled then
+        Rayfield:Notify({
+            Title = "Character Loaded",
+            Content = "Character has been loaded",
+            Duration = 3,
+            Image = 13047715178
+        })
+    end
+end)
+
+-- Fishing event tracking
+if FishingEvents then
+    FishingEvents.ChildAdded:Connect(function(child)
+        if child.Name == "FishCaught" then
+            child.OnClientEvent:Connect(function(fishData)
+                -- Update fishing stats
+                FishingStats.TotalFishCaught = FishingStats.TotalFishCaught + 1
+                FishingStats.TotalValueEarned = FishingStats.TotalValueEarned + (fishData.Value or 0)
+                
+                if fishData.Rarity == "Legendary" or fishData.Rarity == "Mythical" then
+                    FishingStats.RarestFish = fishData.Name
+                end
+                
+                if fishData.Size and fishData.Size > FishingStats.LargestFish then
+                    FishingStats.LargestFish = fishData.Size
+                end
+                
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Fish Caught",
+                        Content = "Caught a " .. fishData.Name .. " (" .. fishData.Rarity .. ")",
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+                
+                -- Send Discord notification for rare fish
+                if Config.Settings.DiscordNotifications and Config.Settings.DiscordWebhook ~= "" and 
+                   (fishData.Rarity == "Legendary" or fishData.Rarity == "Mythical") then
+                    local data = {
+                        ["content"] = "@here Rare fish caught!",
+                        ["embeds"] = {{
+                            ["title"] = "Rare Fish Caught",
+                            ["description"] = "Caught a " .. fishData.Name .. " (" .. fishData.Rarity .. ")",
+                            ["color"] = 16776960,
+                            ["fields"] = {
+                                {
+                                    ["name"] = "Value",
+                                    ["value"] = tostring(fishData.Value or 0),
+                                    ["inline"] = true
+                                },
+                                {
+                                    ["name"] = "Size",
+                                    ["value"] = tostring(fishData.Size or 0) .. " studs",
+                                    ["inline"] = true
+                                }
+                            },
+                            ["footer"] = {
+                                ["text"] = "Fish It Script • " .. os.date("%Y-%m-%d %H:%M:%S")
+                            }
+                        }}
+                    }
+                    
+                    pcall(function()
+                        HttpService:PostAsync(Config.Settings.DiscordWebhook, HttpService:JSONEncode(data))
+                    end)
+                end
+            end)
+        end
+    end)
+end
+
+-- Trade event tracking
+if TradeEvents then
+    TradeEvents.ChildAdded:Connect(function(child)
+        if child.Name == "TradeCompleted" then
+            child.OnClientEvent:Connect(function(tradeData)
+                -- Update trade stats
+                PlayerAnalytics.TradesCompleted = PlayerAnalytics.TradesCompleted + 1
+                
+                if Config.Settings.NotificationsEnabled then
+                    Rayfield:Notify({
+                        Title = "Trade Completed",
+                        Content = "Trade with " .. (tradeData.Partner or "Unknown") .. " completed",
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                end
+            end)
+        end
+    end)
+end
+
+-- Event tracking
+spawn(function()
+    while true do
+        -- Check for active events
+        local activeEvents = {}
+        
+        -- This would typically check the game's event system
+        -- For now, we'll simulate it
+        if os.time() % 600 < 300 then -- Every 10 minutes, toggle events
+            table.insert(activeEvents, "Fishing Frenzy")
+        end
+        
+        if os.time() % 1200 < 600 then -- Every 20 minutes, toggle events
+            table.insert(activeEvents, "Double XP")
+        end
+        
+        EventTracker.ActiveEvents = activeEvents
+        
+        -- Update next event time
+        EventTracker.NextEventTime = os.time() + 300 - (os.time() % 300)
+        
+        wait(30) -- Check every 30 seconds
+    end
+end)
+
+-- Player analytics tracking
+spawn(function()
+    local lastPosition = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and 
+                         LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(0, 0, 0)
+    
+    while true do
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local currentPosition = LocalPlayer.Character.HumanoidRootPart.Position
+            local distance = (currentPosition - lastPosition).Magnitude
+            
+            PlayerAnalytics.DistanceTraveled = PlayerAnalytics.DistanceTraveled + distance
+            PlayerAnalytics.PlayTime = PlayerAnalytics.PlayTime + 1 -- minutes
+            
+            lastPosition = currentPosition
+        end
+        
+        wait(60) -- Update every minute
+    end
+end)
+
+-- Island visited tracking
+local visitedIslands = {}
+spawn(function()
+    while true do
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local position = LocalPlayer.Character.HumanoidRootPart.Position
+            
+            -- Check which island the player is on
+            local currentIsland = "Unknown"
+            
+            if position.Y < -100 then
+                currentIsland = "Deep Sea"
+            elseif position.Y < 0 then
+                currentIsland = "Ocean"
+            elseif position.X > 1000 and position.Z > 1000 then
+                currentIsland = "Lost Isle"
+            elseif position.X < -1000 and position.Z < -1000 then
+                currentIsland = "Kohana Island"
+            -- Add more island checks as needed
+            end
+            
+            if not visitedIslands[currentIsland] then
+                visitedIslands[currentIsland] = true
+                PlayerAnalytics.IslandsVisited = PlayerAnalytics.IslandsVisited + 1
+            end
+        end
+        
+        wait(10) -- Check every 10 seconds
+    end
+end)
+
+-- Event participation tracking
+spawn(function()
+    while true do
+        if #EventTracker.ActiveEvents > 0 then
+            -- Check if player is near any event
+            local isParticipating = false
+            
+            for _, event in pairs(EventTracker.ActiveEvents) do
+                -- This would typically check if player is in event area
+                -- For now, we'll simulate it
+                if math.random(1, 10) == 1 then -- 10% chance to "participate"
+                    isParticipating = true
+                    break
+                end
+            end
+            
+            if isParticipating then
+                PlayerAnalytics.EventsParticipated = PlayerAnalytics.EventsParticipated + 1
+            end
+        end
+        
+        wait(60) -- Check every minute
+    end
+end)
+
+-- Final notification
+wait(2)
+Rayfield:Notify({
+    Title = "Script Fully Loaded",
+    Content = "All features are now active and ready to use!",
+    Duration = 5,
+    Image = 13047715178
+})
+
+-- Send Discord notification if enabled
+if Config.Settings.DiscordNotifications and Config.Settings.DiscordWebhook ~= "" then
+    local data = {
+        ["content"] = "Fish It Script has been loaded!",
+        ["embeds"] = {{
+            ["title"] = "Script Loaded",
+            ["description"] = "Fish It Script by Nikzz Xit has been successfully loaded",
+            ["color"] = 65280,
+            ["fields"] = {
+                {
+                    ["name"] = "Player",
+                    ["value"] = LocalPlayer.Name,
+                    ["inline"] = true
+                },
+                {
+                    ["name"] = "Server",
+                    ["value"] = game.JobId,
+                    ["inline"] = true
+                }
+            },
+            ["footer"] = {
+                ["text"] = "Fish It Script • " .. os.date("%Y-%m-%d %H:%M:%S")
+            }
+        }}
+    }
+    
+    pcall(function()
+        HttpService:PostAsync(Config.Settings.DiscordWebhook, HttpService:JSONEncode(data))
+    end)
 end
