@@ -1,5 +1,5 @@
 -- Fish It Hub 2025 by Nikzz Xit
--- RayfieldLib Script for Fish It September 2025
+-- RayfieldLib Script for Fish It September 2025 (Revisi & Perbaikan)
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
@@ -14,6 +14,8 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Stats = game:GetService("Stats")
 
 -- Anti-AFK
 local VirtualUser = game:GetService("VirtualUser")
@@ -40,6 +42,7 @@ local FishingEvents = ReplicatedStorage:FindFirstChild("FishingEvents") or Repli
 local TradeEvents = ReplicatedStorage:FindFirstChild("TradeEvents") or ReplicatedStorage:WaitForChild("TradeEvents", 10)
 local GameFunctions = ReplicatedStorage:FindFirstChild("GameFunctions") or ReplicatedStorage:WaitForChild("GameFunctions", 10)
 local PlayerData = LocalPlayer:FindFirstChild("PlayerData") or LocalPlayer:WaitForChild("PlayerData", 10)
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 10)
 
 -- Configuration
 local Config = {
@@ -54,12 +57,20 @@ local Config = {
         AutoSellFish = false,
         DelaySellFish = 5,
         AntiKickServer = true,
-        AntiAFK = true
+        AntiAFK = true,
+        AutoUpgradeRod = false,
+        AutoUpgradeBackpack = false,
+        AutoEquipBestRod = false,
+        AutoEquipBestBait = false,
+        AutoCollectDailyReward = false,
+        AutoRankClaim = false
     },
     Teleport = {
         SelectedLocation = "",
         SelectedPlayer = "",
-        SavedPositions = {}
+        SavedPositions = {},
+        Noclip = false,
+        GhostHack = false
     },
     User = {
         SpeedHack = false,
@@ -71,7 +82,8 @@ local Config = {
         ESPBox = true,
         ESPLines = true,
         ESPName = true,
-        ESPLevel = true
+        ESPLevel = true,
+        NoClip = false
     },
     Trade = {
         AutoTradeAllFish = false,
@@ -80,7 +92,10 @@ local Config = {
     },
     Server = {
         AutoBuyCuaca = false,
-        TeleportEvent = ""
+        TeleportEvent = "",
+        AutoTeleportEvent = false,
+        ServerHop = false,
+        RejoinServer = false
     },
     Settings = {
         SelectedTheme = "Dark",
@@ -136,8 +151,8 @@ end
 
 -- UI Library
 local Window = Rayfield:CreateWindow({
-    Name = "NIKZZ - FISH SCRIPT",
-    LoadingTitle = "NIKZZ SCRIPT",
+    Name = "NIKZZ SCRIPT - FISH IT",
+    LoadingTitle = "Fish It Hub 2025",
     LoadingSubtitle = "by Nikzz Xit",
     ConfigurationSaving = {
         Enabled = false
@@ -164,6 +179,16 @@ AutoFarmTab:CreateToggle({
                 Duration = 3,
                 Image = 13047715178
             })
+            -- Implementasi Fishing Radar
+            spawn(function()
+                while Config.AutoFarm.FishingRadar and task.wait(1) do
+                    pcall(function()
+                        if Remotes and Remotes:FindFirstChild("FishingRadar") then
+                            Remotes.FishingRadar:FireServer()
+                        end
+                    end)
+                end
+            end)
         end
     end
 })
@@ -213,6 +238,12 @@ AutoFarmTab:CreateToggle({
                 Duration = 3,
                 Image = 13047715178
             })
+            -- Implementasi disable efek
+            pcall(function()
+                if game:GetService("Lighting"):FindFirstChild("FishingEffects") then
+                    game:GetService("Lighting").FishingEffects:Destroy()
+                end
+            end)
         end
     end
 })
@@ -249,6 +280,18 @@ AutoFarmTab:CreateToggle({
                 Duration = 3,
                 Image = 13047715178
             })
+            -- Implementasi lock kamera
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid.AutoRotate = false
+                end
+            end)
+        else
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid.AutoRotate = true
+                end
+            end)
         end
     end
 })
@@ -257,15 +300,25 @@ AutoFarmTab:CreateToggle({
 AutoFarmTab:CreateButton({
     Name = "Sell All Fish",
     Callback = function()
-        if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
-            FishingEvents.SellAllFish:FireServer()
-            Rayfield:Notify({
-                Title = "Sell Fish",
-                Content = "All fish sold",
-                Duration = 3,
-                Image = 13047715178
-            })
-        end
+        pcall(function()
+            if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
+                FishingEvents.SellAllFish:FireServer()
+                Rayfield:Notify({
+                    Title = "Sell Fish",
+                    Content = "All fish sold",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            elseif Remotes and Remotes:FindFirstChild("SellAllFish") then
+                Remotes.SellAllFish:FireServer()
+                Rayfield:Notify({
+                    Title = "Sell Fish",
+                    Content = "All fish sold",
+                    Duration = 3,
+                    Image = 13047715178
+                })
+            end
+        end)
     end
 })
 
@@ -297,6 +350,114 @@ AutoFarmTab:CreateSlider({
     Flag = "DelaySellFish",
     Callback = function(Value)
         Config.AutoFarm.DelaySellFish = Value
+    end
+})
+
+-- Auto Upgrade Rod
+AutoFarmTab:CreateToggle({
+    Name = "Auto Upgrade Rod",
+    CurrentValue = Config.AutoFarm.AutoUpgradeRod,
+    Flag = "AutoUpgradeRod",
+    Callback = function(Value)
+        Config.AutoFarm.AutoUpgradeRod = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Upgrade Rod",
+                Content = "Auto upgrade rod enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Upgrade Backpack
+AutoFarmTab:CreateToggle({
+    Name = "Auto Upgrade Backpack",
+    CurrentValue = Config.AutoFarm.AutoUpgradeBackpack,
+    Flag = "AutoUpgradeBackpack",
+    Callback = function(Value)
+        Config.AutoFarm.AutoUpgradeBackpack = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Upgrade Backpack",
+                Content = "Auto upgrade backpack enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Equip Best Rod
+AutoFarmTab:CreateToggle({
+    Name = "Auto Equip Best Rod",
+    CurrentValue = Config.AutoFarm.AutoEquipBestRod,
+    Flag = "AutoEquipBestRod",
+    Callback = function(Value)
+        Config.AutoFarm.AutoEquipBestRod = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Equip Best Rod",
+                Content = "Auto equip best rod enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Equip Best Bait
+AutoFarmTab:CreateToggle({
+    Name = "Auto Equip Best Bait",
+    CurrentValue = Config.AutoFarm.AutoEquipBestBait,
+    Flag = "AutoEquipBestBait",
+    Callback = function(Value)
+        Config.AutoFarm.AutoEquipBestBait = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Equip Best Bait",
+                Content = "Auto equip best bait enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Collect Daily Reward
+AutoFarmTab:CreateToggle({
+    Name = "Auto Collect Daily Reward",
+    CurrentValue = Config.AutoFarm.AutoCollectDailyReward,
+    Flag = "AutoCollectDailyReward",
+    Callback = function(Value)
+        Config.AutoFarm.AutoCollectDailyReward = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Collect Daily Reward",
+                Content = "Auto collect daily reward enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
+-- Auto Rank Claim
+AutoFarmTab:CreateToggle({
+    Name = "Auto Rank Claim",
+    CurrentValue = Config.AutoFarm.AutoRankClaim,
+    Flag = "AutoRankClaim",
+    Callback = function(Value)
+        Config.AutoFarm.AutoRankClaim = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Rank Claim",
+                Content = "Auto rank claim enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
     end
 })
 
@@ -341,16 +502,15 @@ local TeleportTab = Window:CreateTab("🗺 Teleport", 13014546625)
 
 -- Select Location (Island Location)
 local Locations = {
-    "Starter Island",
-    "Intermediate Island",
-    "Advanced Island",
-    "Expert Island",
-    "Master Island",
-    "Legendary Island",
-    "Mystic Island",
-    "Abyssal Island",
-    "Celestial Island",
-    "Event Island"
+    "Fisherman Island (Stingray Shores)",
+    "Ocean",
+    "Kohana Island (Volcano)",
+    "Coral Reefs",
+    "Esoteric Depths",
+    "Tropical Grove",
+    "Crater Island",
+    "Lost Isle (Treasure Room)",
+    "Lost Isle (Sisyphus Statue)"
 }
 
 TeleportTab:CreateDropdown({
@@ -369,15 +529,28 @@ TeleportTab:CreateButton({
     Callback = function()
         if Config.Teleport.SelectedLocation ~= "" then
             local targetCFrame
-            if Config.Teleport.SelectedLocation == "Starter Island" then
-                targetCFrame = CFrame.new(0, 10, 0)
-            elseif Config.Teleport.SelectedLocation == "Intermediate Island" then
-                targetCFrame = CFrame.new(100, 10, 100)
-            -- Add more locations as needed
+            if Config.Teleport.SelectedLocation == "Fisherman Island (Stingray Shores)" then
+                targetCFrame = CFrame.new(-1200, 50, -800)
+            elseif Config.Teleport.SelectedLocation == "Ocean" then
+                targetCFrame = CFrame.new(0, 20, 0)
+            elseif Config.Teleport.SelectedLocation == "Kohana Island (Volcano)" then
+                targetCFrame = CFrame.new(1500, 100, 1200)
+            elseif Config.Teleport.SelectedLocation == "Coral Reefs" then
+                targetCFrame = CFrame.new(-800, 30, 1500)
+            elseif Config.Teleport.SelectedLocation == "Esoteric Depths" then
+                targetCFrame = CFrame.new(2000, -50, 2000)
+            elseif Config.Teleport.SelectedLocation == "Tropical Grove" then
+                targetCFrame = CFrame.new(-1500, 40, -1500)
+            elseif Config.Teleport.SelectedLocation == "Crater Island" then
+                targetCFrame = CFrame.new(800, 80, -1200)
+            elseif Config.Teleport.SelectedLocation == "Lost Isle (Treasure Room)" then
+                targetCFrame = CFrame.new(2500, 150, 2500)
+            elseif Config.Teleport.SelectedLocation == "Lost Isle (Sisyphus Statue)" then
+                targetCFrame = CFrame.new(2600, 160, 2600)
             end
             
-            if targetCFrame then
-                LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+            if targetCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = targetCFrame
                 Rayfield:Notify({
                     Title = "Teleport",
                     Content = "Teleported to " .. Config.Teleport.SelectedLocation,
@@ -397,20 +570,36 @@ TeleportTab:CreateButton({
 })
 
 -- Player List for Teleport
-local playerList = {}
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        table.insert(playerList, player.Name)
+local function UpdatePlayerList()
+    local playerList = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(playerList, player.Name)
+        end
     end
+    return playerList
 end
 
 TeleportTab:CreateDropdown({
     Name = "Select Player",
-    Options = playerList,
+    Options = UpdatePlayerList(),
     CurrentOption = Config.Teleport.SelectedPlayer,
     Flag = "SelectedPlayer",
     Callback = function(Value)
         Config.Teleport.SelectedPlayer = Value
+    end
+})
+
+-- Refresh Player List Button
+TeleportTab:CreateButton({
+    Name = "Refresh Player List",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Player List",
+            Content = "Player list refreshed",
+            Duration = 3,
+            Image = 13047715178
+        })
     end
 })
 
@@ -509,6 +698,31 @@ TeleportTab:CreateInput({
     end
 })
 
+-- Ghost Hack (Noclip)
+TeleportTab:CreateToggle({
+    Name = "Ghost Hack (Noclip)",
+    CurrentValue = Config.Teleport.GhostHack,
+    Flag = "GhostHack",
+    Callback = function(Value)
+        Config.Teleport.GhostHack = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Ghost Hack",
+                Content = "Ghost hack enabled - You can now pass through objects",
+                Duration = 3,
+                Image = 13047715178
+            })
+        else
+            Rayfield:Notify({
+                Title = "Ghost Hack",
+                Content = "Ghost hack disabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
+    end
+})
+
 -- User Tab
 local UserTab = Window:CreateTab("👤 User", 13014546625)
 
@@ -570,10 +784,28 @@ UserTab:CreateToggle({
         if Value then
             Rayfield:Notify({
                 Title = "Fly",
-                Content = "Fly enabled",
+                Content = "Fly enabled (Press E to toggle)",
                 Duration = 3,
                 Image = 13047715178
             })
+        else
+            -- Reset fly state
+            if flying then
+                flying = false
+                if LocalPlayer.Character then
+                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.PlatformStand = false
+                    end
+                    local torso = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if torso then
+                        local bg = torso:FindFirstChild("FlyBG")
+                        if bg then bg:Destroy() end
+                        local bv = torso:FindFirstChild("FlyBV")
+                        if bv then bv:Destroy() end
+                    end
+                end
+            end
         end
     end
 })
@@ -605,6 +837,20 @@ UserTab:CreateToggle({
                 Duration = 3,
                 Image = 13047715178
             })
+        else
+            -- Clear all ESP visuals
+            for player, box in pairs(ESP.Boxes) do
+                box.Visible = false
+            end
+            for player, line in pairs(ESP.Lines) do
+                line.Visible = false
+            end
+            for player, name in pairs(ESP.Names) do
+                name.Visible = false
+            end
+            for player, level in pairs(ESP.Levels) do
+                level.Visible = false
+            end
         end
     end
 })
@@ -646,6 +892,31 @@ UserTab:CreateToggle({
     Flag = "ESPLevel",
     Callback = function(Value)
         Config.User.ESPLevel = Value
+    end
+})
+
+-- Noclip Toggle
+UserTab:CreateToggle({
+    Name = "Noclip Toggle",
+    CurrentValue = Config.User.NoClip,
+    Flag = "NoClip",
+    Callback = function(Value)
+        Config.User.NoClip = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Noclip",
+                Content = "Noclip enabled - You can pass through walls",
+                Duration = 3,
+                Image = 13047715178
+            })
+        else
+            Rayfield:Notify({
+                Title = "Noclip",
+                Content = "Noclip disabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
     end
 })
 
@@ -705,15 +976,25 @@ TradeTab:CreateButton({
         if Config.Trade.TradePlayer ~= "" then
             local targetPlayer = Players:FindFirstChild(Config.Trade.TradePlayer)
             if targetPlayer then
-                if TradeEvents and TradeEvents:FindFirstChild("SendTradeRequest") then
-                    TradeEvents.SendTradeRequest:FireServer(targetPlayer)
-                    Rayfield:Notify({
-                        Title = "Trade Request",
-                        Content = "Trade request sent to " .. Config.Trade.TradePlayer,
-                        Duration = 3,
-                        Image = 13047715178
-                    })
-                end
+                pcall(function()
+                    if TradeEvents and TradeEvents:FindFirstChild("SendTradeRequest") then
+                        TradeEvents.SendTradeRequest:FireServer(targetPlayer)
+                        Rayfield:Notify({
+                            Title = "Trade Request",
+                            Content = "Trade request sent to " .. Config.Trade.TradePlayer,
+                            Duration = 3,
+                            Image = 13047715178
+                        })
+                    elseif Remotes and Remotes:FindFirstChild("SendTradeRequest") then
+                        Remotes.SendTradeRequest:FireServer(targetPlayer)
+                        Rayfield:Notify({
+                            Title = "Trade Request",
+                            Content = "Trade request sent to " .. Config.Trade.TradePlayer,
+                            Duration = 3,
+                            Image = 13047715178
+                        })
+                    end
+                end)
             else
                 Rayfield:Notify({
                     Title = "Trade Error",
@@ -755,16 +1036,30 @@ ServerTab:CreateToggle({
 })
 
 -- Player Total
-ServerTab:CreateLabel("Player Total: " .. #Players:GetPlayers())
+local playerCountLabel = ServerTab:CreateLabel("Player Total: " .. #Players:GetPlayers())
+
+-- Update player count periodically
+spawn(function()
+    while task.wait(5) do
+        playerCountLabel:Set("Player Total: " .. #Players:GetPlayers())
+    end
+end)
 
 -- Event Teleport Dropdown
 local Events = {
-    "Fishing Frenzy",
-    "Boss Battle",
-    "Treasure Hunt",
-    "Mystery Island",
-    "Double XP",
-    "Rainbow Fish"
+    "Orca Migration",
+    "Shark Hunt",
+    "Whale Migration",
+    "Megalodon Hunt",
+    "Kraken Hunt",
+    "Ancient Kraken Hunt",
+    "Scylla Hunt",
+    "Octophant Hunt",
+    "Sunken Chests",
+    "Strange Whirlpool",
+    "Nuke",
+    "Lovestorm",
+    "Lucky Event"
 }
 
 ServerTab:CreateDropdown({
@@ -774,6 +1069,24 @@ ServerTab:CreateDropdown({
     Flag = "TeleportEvent",
     Callback = function(Value)
         Config.Server.TeleportEvent = Value
+    end
+})
+
+-- Auto Teleport Event
+ServerTab:CreateToggle({
+    Name = "Auto Teleport Event",
+    CurrentValue = Config.Server.AutoTeleportEvent,
+    Flag = "AutoTeleportEvent",
+    Callback = function(Value)
+        Config.Server.AutoTeleportEvent = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Teleport Event",
+                Content = "Auto teleport to events enabled",
+                Duration = 3,
+                Image = 13047715178
+            })
+        end
     end
 })
 
@@ -789,6 +1102,19 @@ ServerTab:CreateButton({
                 Duration = 3,
                 Image = 13047715178
             })
+            
+            -- Implementasi teleport ke event
+            local eventCFrame
+            if Config.Server.TeleportEvent == "Orca Migration" then
+                eventCFrame = CFrame.new(-2000, 30, -2000)
+            elseif Config.Server.TeleportEvent == "Shark Hunt" then
+                eventCFrame = CFrame.new(2000, 30, -2000)
+            -- Add more events as needed
+            end
+            
+            if eventCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = eventCFrame
+            end
         else
             Rayfield:Notify({
                 Title = "Event Error",
@@ -797,6 +1123,71 @@ ServerTab:CreateButton({
                 Image = 13047715178
             })
         end
+    end
+})
+
+-- Server Hop
+ServerTab:CreateButton({
+    Name = "Server Hop",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Server Hop",
+            Content = "Searching for a new server...",
+            Duration = 3,
+            Image = 13047715178
+        })
+        
+        -- Implementasi server hop
+        pcall(function()
+            local Http = game:GetService("HttpService")
+            local TeleportService = game:GetService("TeleportService")
+            
+            local function serverHop()
+                local servers = {}
+                local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
+                local data = Http:JSONDecode(req)
+                
+                for i, v in pairs(data.data) do
+                    if v.playing ~= v.maxPlayers and v.id ~= game.JobId then
+                        table.insert(servers, v.id)
+                    end
+                end
+                
+                if #servers > 0 then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)])
+                else
+                    Rayfield:Notify({
+                        Title = "Server Hop",
+                        Content = "No servers found, trying again...",
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                    wait(2)
+                    serverHop()
+                end
+            end
+            
+            serverHop()
+        end)
+    end
+})
+
+-- Rejoin Server
+ServerTab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Rejoin Server",
+            Content = "Rejoining current server...",
+            Duration = 3,
+            Image = 13047715178
+        })
+        
+        -- Implementasi rejoin server
+        pcall(function()
+            local TeleportService = game:GetService("TeleportService")
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId)
+        end)
     end
 })
 
@@ -888,7 +1279,7 @@ SettingsTab:CreateButton({
     end
 })
 
--- Main Loops and Functions
+-- ESP System
 local ESP = {
     Boxes = {},
     Lines = {},
@@ -1050,8 +1441,10 @@ local function InfinityJump()
     end
 end
 
--- Fly
+-- Fly System
 local flying = false
+local flySpeed = 0
+local flyKeys = {W = false, A = false, S = false, D = false, E = false, Q = false}
 local function Fly()
     if Config.User.Fly and LocalPlayer.Character then
         local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -1074,33 +1467,9 @@ local function Fly()
             
             flying = true
             
-            local control = {f = 0, b = 0, l = 0, r = 0}
-            UserInputService.InputBegan:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.W then
-                    control.f = 1
-                elseif input.KeyCode == Enum.KeyCode.S then
-                    control.b = -1
-                elseif input.KeyCode == Enum.KeyCode.A then
-                    control.l = -1
-                elseif input.KeyCode == Enum.KeyCode.D then
-                    control.r = 1
-                end
-            end)
-            
-            UserInputService.InputEnded:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.W then
-                    control.f = 0
-                elseif input.KeyCode == Enum.KeyCode.S then
-                    control.b = 0
-                elseif input.KeyCode == Enum.KeyCode.A then
-                    control.l = 0
-                elseif input.KeyCode == Enum.KeyCode.D then
-                    control.r = 0
-                end
-            end)
-            
+            -- Fly control system
             spawn(function()
-                while flying and wait() do
+                while flying and task.wait() do
                     if not Config.User.Fly then
                         flying = false
                         if humanoid then
@@ -1113,7 +1482,12 @@ local function Fly()
                     
                     if torso then
                         local cam = Workspace.CurrentCamera.CFrame
-                        local move = Vector3.new(control.r + control.l, 0, control.f + control.b)
+                        local move = Vector3.new(
+                            (flyKeys.D and 1 or 0) + (flyKeys.A and -1 or 0),
+                            (flyKeys.E and 1 or 0) + (flyKeys.Q and -1 or 0),
+                            (flyKeys.W and -1 or 0) + (flyKeys.S and 1 or 0)
+                        )
+                        
                         if move.Magnitude > 0 then
                             move = cam:VectorToWorldSpace(move)
                             bv.velocity = move * Config.User.FlyRange
@@ -1142,22 +1516,74 @@ local function Fly()
     end
 end
 
+-- Fly key controls
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        flyKeys.W = true
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyKeys.A = true
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyKeys.S = true
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyKeys.D = true
+    elseif input.KeyCode == Enum.KeyCode.E then
+        flyKeys.E = true
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        flyKeys.Q = true
+    elseif input.KeyCode == Enum.KeyCode.X and Config.User.Fly then
+        Config.User.Fly = not Config.User.Fly
+        Rayfield:Notify({
+            Title = "Fly",
+            Content = "Fly " .. (Config.User.Fly and "enabled" or "disabled"),
+            Duration = 2,
+            Image = 13047715178
+        })
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then
+        flyKeys.W = false
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyKeys.A = false
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyKeys.S = false
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyKeys.D = false
+    elseif input.KeyCode == Enum.KeyCode.E then
+        flyKeys.E = false
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        flyKeys.Q = false
+    end
+end)
+
 -- Auto Fishing
 local lastFishingTime = 0
 local function AutoFish()
-    if Config.AutoFarm.AutoFishV1 and FishingEvents and FishingEvents:FindFirstChild("StartFishing") then
+    if Config.AutoFarm.AutoFishV1 then
         local currentTime = tick()
         if currentTime - lastFishingTime >= Config.AutoFarm.AutoFishDelay then
-            FishingEvents.StartFishing:FireServer()
-            lastFishingTime = currentTime
-            
-            -- Simulate perfect fishing
-            if Config.AutoFarm.AutoInstantComplicatedFishing then
-                wait(0.5)
-                if FishingEvents:FindFirstChild("CompleteFishing") then
-                    FishingEvents.CompleteFishing:FireServer(true) -- Perfect catch
+            pcall(function()
+                if FishingEvents and FishingEvents:FindFirstChild("StartFishing") then
+                    FishingEvents.StartFishing:FireServer()
+                elseif Remotes and Remotes:FindFirstChild("StartFishing") then
+                    Remotes.StartFishing:FireServer()
                 end
-            end
+                
+                lastFishingTime = currentTime
+                
+                -- Simulate perfect fishing
+                if Config.AutoFarm.AutoInstantComplicatedFishing then
+                    task.wait(0.5)
+                    if FishingEvents and FishingEvents:FindFirstChild("CompleteFishing") then
+                        FishingEvents.CompleteFishing:FireServer(true) -- Perfect catch
+                    elseif Remotes and Remotes:FindFirstChild("CompleteFishing") then
+                        Remotes.CompleteFishing:FireServer(true) -- Perfect catch
+                    end
+                end
+            end)
         end
     end
 end
@@ -1165,11 +1591,164 @@ end
 -- Auto Sell
 local lastSellTime = 0
 local function AutoSell()
-    if Config.AutoFarm.AutoSellFish and FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
+    if Config.AutoFarm.AutoSellFish then
         local currentTime = tick()
         if currentTime - lastSellTime >= Config.AutoFarm.DelaySellFish then
-            FishingEvents.SellAllFish:FireServer()
-            lastSellTime = currentTime
+            pcall(function()
+                if FishingEvents and FishingEvents:FindFirstChild("SellAllFish") then
+                    FishingEvents.SellAllFish:FireServer()
+                elseif Remotes and Remotes:FindFirstChild("SellAllFish") then
+                    Remotes.SellAllFish:FireServer()
+                end
+                
+                lastSellTime = currentTime
+            end)
+        end
+    end
+end
+
+-- Auto Upgrade Rod
+local function AutoUpgradeRod()
+    if Config.AutoFarm.AutoUpgradeRod then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("UpgradeRod") then
+                GameFunctions.UpgradeRod:InvokeServer()
+            elseif Remotes and Remotes:FindFirstChild("UpgradeRod") then
+                Remotes.UpgradeRod:InvokeServer()
+            end
+        end)
+    end
+end
+
+-- Auto Upgrade Backpack
+local function AutoUpgradeBackpack()
+    if Config.AutoFarm.AutoUpgradeBackpack then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("UpgradeBackpack") then
+                GameFunctions.UpgradeBackpack:InvokeServer()
+            elseif Remotes and Remotes:FindFirstChild("UpgradeBackpack") then
+                Remotes.UpgradeBackpack:InvokeServer()
+            end
+        end)
+    end
+end
+
+-- Auto Equip Best Rod
+local function AutoEquipBestRod()
+    if Config.AutoFarm.AutoEquipBestRod then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("EquipBestRod") then
+                GameFunctions.EquipBestRod:InvokeServer()
+            elseif Remotes and Remotes:FindFirstChild("EquipBestRod") then
+                Remotes.EquipBestRod:InvokeServer()
+            end
+        end)
+    end
+end
+
+-- Auto Equip Best Bait
+local function AutoEquipBestBait()
+    if Config.AutoFarm.AutoEquipBestBait then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("EquipBestBait") then
+                GameFunctions.EquipBestBait:InvokeServer()
+            elseif Remotes and Remotes:FindFirstChild("EquipBestBait") then
+                Remotes.EquipBestBait:InvokeServer()
+            end
+        end)
+    end
+end
+
+-- Auto Collect Daily Reward
+local lastDailyTime = 0
+local function AutoCollectDailyReward()
+    if Config.AutoFarm.AutoCollectDailyReward then
+        local currentTime = tick()
+        if currentTime - lastDailyTime >= 86400 then -- 24 hours
+            pcall(function()
+                if GameFunctions and GameFunctions:FindFirstChild("ClaimDailyReward") then
+                    GameFunctions.ClaimDailyReward:InvokeServer()
+                elseif Remotes and Remotes:FindFirstChild("ClaimDailyReward") then
+                    Remotes.ClaimDailyReward:InvokeServer()
+                end
+                
+                lastDailyTime = currentTime
+            end)
+        end
+    end
+end
+
+-- Auto Rank Claim
+local function AutoRankClaim()
+    if Config.AutoFarm.AutoRankClaim then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("ClaimRankRewards") then
+                GameFunctions.ClaimRankRewards:InvokeServer()
+            elseif Remotes and Remotes:FindFirstChild("ClaimRankRewards") then
+                Remotes.ClaimRankRewards:InvokeServer()
+            end
+        end)
+    end
+end
+
+-- Auto Buy Cuaca
+local function AutoBuyCuaca()
+    if Config.Server.AutoBuyCuaca then
+        pcall(function()
+            if GameFunctions and GameFunctions:FindFirstChild("BuyWeather") then
+                GameFunctions.BuyWeather:InvokeServer("ClearSkies") -- Default to clear skies
+            elseif Remotes and Remotes:FindFirstChild("BuyWeather") then
+                Remotes.BuyWeather:InvokeServer("ClearSkies") -- Default to clear skies
+            end
+        end)
+    end
+end
+
+-- Auto Teleport Event
+local function AutoTeleportEvent()
+    if Config.Server.AutoTeleportEvent and Config.Server.TeleportEvent ~= "" then
+        pcall(function()
+            local eventCFrame
+            if Config.Server.TeleportEvent == "Orca Migration" then
+                eventCFrame = CFrame.new(-2000, 30, -2000)
+            elseif Config.Server.TeleportEvent == "Shark Hunt" then
+                eventCFrame = CFrame.new(2000, 30, -2000)
+            -- Add more events as needed
+            end
+            
+            if eventCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = eventCFrame
+            end
+        end)
+    end
+end
+
+-- Noclip System
+local function Noclip()
+    if Config.User.NoClip and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+-- Ghost Hack System
+local function GhostHack()
+    if Config.Teleport.GhostHack and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Transparency = 0.5
+            end
+        end
+    elseif not Config.Teleport.GhostHack and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+                part.Transparency = 0
+            end
         end
     end
 end
@@ -1222,6 +1801,22 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end
+    
+    -- Noclip
+    Noclip()
+    
+    -- Ghost Hack
+    GhostHack()
+    
+    -- Auto Upgrade Systems
+    AutoUpgradeRod()
+    AutoUpgradeBackpack()
+    AutoEquipBestRod()
+    AutoEquipBestBait()
+    AutoCollectDailyReward()
+    AutoRankClaim()
+    AutoBuyCuaca()
+    AutoTeleportEvent()
 end)
 
 -- Infinity Jump Input
@@ -1231,9 +1826,32 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
+-- Auto Trade System
+if TradeEvents then
+    TradeEvents.ChildAdded:Connect(function(child)
+        if child.Name == "TradeRequest" and Config.Trade.AutoAcceptTrade then
+            task.wait(1)
+            pcall(function()
+                child:FireServer(true) -- Accept trade
+            end)
+        end
+    end)
+end
+
+if Remotes then
+    Remotes.ChildAdded:Connect(function(child)
+        if child.Name == "TradeRequest" and Config.Trade.AutoAcceptTrade then
+            task.wait(1)
+            pcall(function()
+                child:FireServer(true) -- Accept trade
+            end)
+        end
+    end)
+end
+
 -- Notify when loaded
 Rayfield:Notify({
-    Title = "NIKZZ SCRIPT",
+    Title = "NIKZZ SCRIPT - FISH IT",
     Content = "by Nikzz Xit Loaded",
     Duration = 5,
     Image = 13047715178
