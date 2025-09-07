@@ -237,6 +237,7 @@ local function LoadConfig()
         local success, result = pcall(function()
             local json = readfile("FishItConfig_" .. Config.Settings.ConfigName .. ".json")
             local loadedConfig = HttpService:JSONDecode(json)
+            
             -- Deep copy to preserve table structure
             for k, v in pairs(loadedConfig) do
                 if type(v) == "table" then
@@ -248,6 +249,7 @@ local function LoadConfig()
                     Config[k] = v
                 end
             end
+            
             -- Update UI elements after loading
             Rayfield:Notify({
                 Title = "Config Loaded",
@@ -618,6 +620,7 @@ Players.PlayerAdded:Connect(function(player)
     updatePlayerList()
     logError("Player joined: " .. player.Name)
 end)
+
 Players.PlayerRemoving:Connect(function(playerName)
     updatePlayerList()
     logError("Player left: " .. playerName)
@@ -633,6 +636,7 @@ TeleportTab:CreateDropdown({
         logError("Selected Player: " .. Value)
     end
 })
+
 TeleportTab:CreateButton({
     Name = "Teleport To Player",
     Callback = function()
@@ -667,6 +671,7 @@ TeleportTab:CreateButton({
         end
     end
 })
+
 TeleportTab:CreateDropdown({
     Name = "Teleport Event",
     Options = Events,
@@ -677,6 +682,7 @@ TeleportTab:CreateDropdown({
         logError("Selected Event: " .. Value)
     end
 })
+
 TeleportTab:CreateButton({
     Name = "Teleport To Event",
     Callback = function()
@@ -724,6 +730,7 @@ TeleportTab:CreateButton({
         end
     end
 })
+
 TeleportTab:CreateInput({
     Name = "Save Position Name",
     PlaceholderText = "Enter position name",
@@ -738,6 +745,7 @@ TeleportTab:CreateInput({
                 Image = 13047715178
             })
             logError("Position saved: " .. Text)
+            
             -- Update saved positions dropdown
             local savedPositionsList = {}
             for name, _ in pairs(Config.Teleport.SavedPositions) do
@@ -753,6 +761,7 @@ local savedPositionsList = {}
 for name, _ in pairs(Config.Teleport.SavedPositions) do
     table.insert(savedPositionsList, name)
 end
+
 TeleportTab:CreateDropdown({
     Name = "Saved Positions",
     Options = savedPositionsList,
@@ -779,6 +788,7 @@ TeleportTab:CreateDropdown({
         end
     end
 })
+
 TeleportTab:CreateInput({
     Name = "Delete Position",
     PlaceholderText = "Enter position name to delete",
@@ -793,6 +803,7 @@ TeleportTab:CreateInput({
                 Image = 13047715178
             })
             logError("Deleted position: " .. Text)
+            
             -- Update saved positions dropdown
             local savedPositionsList = {}
             for name, _ in pairs(Config.Teleport.SavedPositions) do
@@ -932,11 +943,7 @@ PlayerTab:CreateToggle({
     Flag = "GhostHack",
     Callback = function(Value)
         Config.Player.GhostHack = Value
-        if Value then
-            logError("Ghost Hack: Activated (Transparency + Noclip)")
-        else
-            logError("Ghost Hack: Deactivated")
-        end
+        logError("Ghost Hack: " .. tostring(Value))
     end
 })
 
@@ -961,6 +968,7 @@ PlayerTab:CreateToggle({
         end
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Box",
     CurrentValue = Config.Player.ESPBox,
@@ -970,6 +978,7 @@ PlayerTab:CreateToggle({
         logError("ESP Box: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Lines",
     CurrentValue = Config.Player.ESPLines,
@@ -979,6 +988,7 @@ PlayerTab:CreateToggle({
         logError("ESP Lines: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Name",
     CurrentValue = Config.Player.ESPName,
@@ -988,6 +998,7 @@ PlayerTab:CreateToggle({
         logError("ESP Name: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Level",
     CurrentValue = Config.Player.ESPLevel,
@@ -997,6 +1008,7 @@ PlayerTab:CreateToggle({
         logError("ESP Level: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Range",
     CurrentValue = Config.Player.ESPRange,
@@ -1006,6 +1018,7 @@ PlayerTab:CreateToggle({
         logError("ESP Range: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "ESP Hologram",
     CurrentValue = Config.Player.ESPHologram,
@@ -1015,6 +1028,7 @@ PlayerTab:CreateToggle({
         logError("ESP Hologram: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "Noclip",
     CurrentValue = Config.Player.Noclip,
@@ -1024,6 +1038,7 @@ PlayerTab:CreateToggle({
         logError("Noclip: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "Auto Sell",
     CurrentValue = Config.Player.AutoSell,
@@ -1033,6 +1048,7 @@ PlayerTab:CreateToggle({
         logError("Auto Sell: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "Auto Craft",
     CurrentValue = Config.Player.AutoCraft,
@@ -1042,6 +1058,7 @@ PlayerTab:CreateToggle({
         logError("Auto Craft: " .. tostring(Value))
     end
 })
+
 PlayerTab:CreateToggle({
     Name = "Auto Upgrade",
     CurrentValue = Config.Player.AutoUpgrade,
@@ -1078,6 +1095,7 @@ local function updateFishInventory()
 end
 
 local fishInventory = updateFishInventory()
+
 TraderTab:CreateDropdown({
     Name = "Select Fish",
     Options = fishInventory,
@@ -1088,6 +1106,7 @@ TraderTab:CreateDropdown({
         logError("Selected Fish: " .. Value .. " - " .. tostring(Config.Trader.SelectedFish[Value]))
     end
 })
+
 TraderTab:CreateInput({
     Name = "Trade Player",
     PlaceholderText = "Enter player name",
@@ -1097,6 +1116,7 @@ TraderTab:CreateInput({
         logError("Trade Player: " .. Text)
     end
 })
+
 TraderTab:CreateToggle({
     Name = "Trade All Fish",
     CurrentValue = Config.Trader.TradeAllFish,
@@ -1106,6 +1126,7 @@ TraderTab:CreateToggle({
         logError("Trade All Fish: " .. tostring(Value))
     end
 })
+
 TraderTab:CreateButton({
     Name = "Send Trade Request",
     Callback = function()
@@ -1250,12 +1271,14 @@ SystemTab:CreateToggle({
     Callback = function(Value)
         Config.System.ShowInfo = Value
         logError("Show Info: " .. tostring(Value))
+        
         if Value then
             -- Create info display
             if not Config.System.InfoDisplay then
                 local screenGui = Instance.new("ScreenGui")
                 screenGui.Name = "SystemInfoDisplay"
                 screenGui.Parent = CoreGui
+                
                 local frame = Instance.new("Frame")
                 frame.Size = UDim2.new(0, 200, 0, 100)
                 frame.Position = UDim2.new(0, 10, 0, 10)
@@ -1263,6 +1286,7 @@ SystemTab:CreateToggle({
                 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
                 frame.BorderSizePixel = 0
                 frame.Parent = screenGui
+                
                 local title = Instance.new("TextLabel")
                 title.Size = UDim2.new(1, 0, 0, 20)
                 title.Position = UDim2.new(0, 0, 0, 0)
@@ -1272,6 +1296,7 @@ SystemTab:CreateToggle({
                 title.TextScaled = true
                 title.Font = Enum.Font.SourceSansBold
                 title.Parent = frame
+                
                 local fpsLabel = Instance.new("TextLabel")
                 fpsLabel.Size = UDim2.new(1, 0, 0, 20)
                 fpsLabel.Position = UDim2.new(0, 0, 0, 25)
@@ -1280,6 +1305,7 @@ SystemTab:CreateToggle({
                 fpsLabel.Text = "FPS: 0"
                 fpsLabel.TextScaled = true
                 fpsLabel.Parent = frame
+                
                 local pingLabel = Instance.new("TextLabel")
                 pingLabel.Size = UDim2.new(1, 0, 0, 20)
                 pingLabel.Position = UDim2.new(0, 0, 0, 45)
@@ -1288,6 +1314,7 @@ SystemTab:CreateToggle({
                 pingLabel.Text = "Ping: 0ms"
                 pingLabel.TextScaled = true
                 pingLabel.Parent = frame
+                
                 local batteryLabel = Instance.new("TextLabel")
                 batteryLabel.Size = UDim2.new(1, 0, 0, 20)
                 batteryLabel.Position = UDim2.new(0, 0, 0, 65)
@@ -1296,6 +1323,7 @@ SystemTab:CreateToggle({
                 batteryLabel.Text = "Battery: 0%"
                 batteryLabel.TextScaled = true
                 batteryLabel.Parent = frame
+                
                 local timeLabel = Instance.new("TextLabel")
                 timeLabel.Size = UDim2.new(1, 0, 0, 20)
                 timeLabel.Position = UDim2.new(0, 0, 0, 85)
@@ -1304,6 +1332,7 @@ SystemTab:CreateToggle({
                 timeLabel.Text = "Time: 00:00:00"
                 timeLabel.TextScaled = true
                 timeLabel.Parent = frame
+                
                 Config.System.InfoDisplay = {
                     ScreenGui = screenGui,
                     Frame = frame,
@@ -1312,6 +1341,7 @@ SystemTab:CreateToggle({
                     BatteryLabel = batteryLabel,
                     TimeLabel = timeLabel
                 }
+                
                 -- Update info display
                 task.spawn(function()
                     while Config.System.ShowInfo and Config.System.InfoDisplay do
@@ -1326,6 +1356,7 @@ SystemTab:CreateToggle({
                                 battery = math.floor(UserInputService:GetBatteryLevel() * 100)
                             end
                             local time = os.date("%H:%M:%S")
+                            
                             if Config.System.InfoDisplay then
                                 Config.System.InfoDisplay.FPSLabel.Text = "FPS: " .. fps
                                 Config.System.InfoDisplay.PingLabel.Text = "Ping: " .. ping .. "ms"
@@ -1346,6 +1377,7 @@ SystemTab:CreateToggle({
         end
     end
 })
+
 SystemTab:CreateToggle({
     Name = "Boost FPS",
     CurrentValue = Config.System.BoostFPS,
@@ -1359,16 +1391,19 @@ SystemTab:CreateToggle({
             lighting.FogEnd = 1000
             lighting.EnvironmentDiffuseScale = 0.5
             lighting.EnvironmentSpecularScale = 0.5
+            
             -- Reduce particle effects
             for _, particle in ipairs(Workspace:GetDescendants()) do
                 if particle:IsA("ParticleEmitter") then
                     particle.Rate = particle.Rate * 0.3
                 end
             end
+            
             -- Reduce render distance
             if game:GetService("Workspace"):FindFirstChild("Terrain") then
                 game:GetService("Workspace").Terrain.Material = Enum.Material.Grass
             end
+            
             logError("Boost FPS: Activated - Reduced graphical load")
         else
             -- Reset settings
@@ -1377,16 +1412,19 @@ SystemTab:CreateToggle({
             lighting.FogEnd = 100000
             lighting.EnvironmentDiffuseScale = 1
             lighting.EnvironmentSpecularScale = 1
+            
             -- Restore particle effects
             for _, particle in ipairs(Workspace:GetDescendants()) do
                 if particle:IsA("ParticleEmitter") then
                     -- We can't restore original rate without storing it, so we'll leave it
                 end
             end
+            
             logError("Boost FPS: Deactivated")
         end
     end
 })
+
 SystemTab:CreateDropdown({
     Name = "FPS Limit",
     Options = {"30", "60", "120", "240", "360"},
@@ -1399,6 +1437,7 @@ SystemTab:CreateDropdown({
         logError("FPS Limit set to: " .. fpsValue)
     end
 })
+
 SystemTab:CreateToggle({
     Name = "Auto Clean Memory",
     CurrentValue = Config.System.AutoCleanMemory,
@@ -1408,6 +1447,7 @@ SystemTab:CreateToggle({
         logError("Auto Clean Memory: " .. tostring(Value))
     end
 })
+
 SystemTab:CreateToggle({
     Name = "Disable Particles",
     CurrentValue = Config.System.DisableParticles,
@@ -1431,6 +1471,7 @@ SystemTab:CreateToggle({
         end
     end
 })
+
 SystemTab:CreateToggle({
     Name = "Auto Farm",
     CurrentValue = Config.System.AutoFarm,
@@ -1444,6 +1485,7 @@ SystemTab:CreateToggle({
         end
     end
 })
+
 SystemTab:CreateSlider({
     Name = "Farm Radius",
     Range = {50, 500},
@@ -1456,6 +1498,7 @@ SystemTab:CreateSlider({
         logError("Farm Radius: " .. Value)
     end
 })
+
 SystemTab:CreateButton({
     Name = "Rejoin Server",
     Callback = function()
@@ -1463,6 +1506,7 @@ SystemTab:CreateButton({
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
     end
 })
+
 SystemTab:CreateButton({
     Name = "Get System Info",
     Callback = function()
@@ -1506,6 +1550,7 @@ GraphicTab:CreateToggle({
             Lighting.EnvironmentSpecularScale = 2
             Lighting.GlobalShadows = true
             Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+            
             -- Set rendering quality
             settings().Rendering.QualityLevel = 10
             if sethiddenproperty then
@@ -1514,6 +1559,7 @@ GraphicTab:CreateToggle({
                     sethiddenproperty(Workspace, "InterpolationThrottling", "Disabled")
                 end)
             end
+            
             logError("High Quality Rendering: Activated (5x quality)")
         else
             -- Reset to default
@@ -1524,11 +1570,14 @@ GraphicTab:CreateToggle({
             Lighting.EnvironmentSpecularScale = 1
             Lighting.GlobalShadows = true
             Lighting.Ambient = Color3.fromRGB(64, 64, 64)
+            
             settings().Rendering.QualityLevel = 5
+            
             logError("High Quality Rendering: Deactivated")
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Max Rendering",
     CurrentValue = Config.Graphic.MaxRendering,
@@ -1545,6 +1594,7 @@ GraphicTab:CreateToggle({
             Lighting.GlobalShadows = true
             Lighting.Ambient = Color3.fromRGB(160, 160, 160)
             Lighting.ExposureCompensation = 1.5
+            
             -- Max rendering quality
             settings().Rendering.QualityLevel = 21
             if sethiddenproperty then
@@ -1553,12 +1603,14 @@ GraphicTab:CreateToggle({
                     sethiddenproperty(Workspace, "InterpolationThrottling", "Disabled")
                 end)
             end
+            
             -- Enable all post processing
             for _, effect in ipairs(Lighting:GetChildren()) do
                 if effect:IsA("PostEffect") then
                     effect.Enabled = true
                 end
             end
+            
             logError("Max Rendering: Activated (Ultra HD - 20x quality)")
         else
             -- Reset to default
@@ -1570,11 +1622,14 @@ GraphicTab:CreateToggle({
             Lighting.GlobalShadows = true
             Lighting.Ambient = Color3.fromRGB(64, 64, 64)
             Lighting.ExposureCompensation = 0
+            
             settings().Rendering.QualityLevel = 5
+            
             logError("Max Rendering: Deactivated")
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Ultra Low Mode",
     CurrentValue = Config.Graphic.UltraLowMode,
@@ -1591,8 +1646,10 @@ GraphicTab:CreateToggle({
             Lighting.GlobalShadows = false
             Lighting.Ambient = Color3.fromRGB(32, 32, 32)
             Lighting.FogEnd = 500
+            
             -- Ultra low rendering quality
             settings().Rendering.QualityLevel = 1
+            
             -- Simplify materials
             for _, part in ipairs(Workspace:GetDescendants()) do
                 if part:IsA("Part") then
@@ -1600,12 +1657,14 @@ GraphicTab:CreateToggle({
                     part.Reflectance = 0
                 end
             end
+            
             -- Disable all post processing
             for _, effect in ipairs(Lighting:GetChildren()) do
                 if effect:IsA("PostEffect") then
                     effect.Enabled = false
                 end
             end
+            
             logError("Ultra Low Mode: Activated (Super lightweight - 5x lower)")
         else
             -- Reset to default
@@ -1617,11 +1676,14 @@ GraphicTab:CreateToggle({
             Lighting.GlobalShadows = true
             Lighting.Ambient = Color3.fromRGB(64, 64, 64)
             Lighting.FogEnd = 100000
+            
             settings().Rendering.QualityLevel = 5
+            
             logError("Ultra Low Mode: Deactivated")
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Disable Water Reflection",
     CurrentValue = Config.Graphic.DisableWaterReflection,
@@ -1653,6 +1715,7 @@ GraphicTab:CreateToggle({
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Custom Shader",
     CurrentValue = Config.Graphic.CustomShader,
@@ -1666,6 +1729,7 @@ GraphicTab:CreateToggle({
             Lighting.Contrast = 1.1
             Lighting.Saturation = 1.2
             Lighting.TintColor = Color3.fromRGB(255, 255, 255)
+            
             logError("Custom Shader: Activated (50x smoother)")
         else
             -- Reset shader settings
@@ -1674,10 +1738,12 @@ GraphicTab:CreateToggle({
             Lighting.Contrast = 1
             Lighting.Saturation = 1
             Lighting.TintColor = Color3.fromRGB(255, 255, 255)
+            
             logError("Custom Shader: Deactivated")
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Smooth Graphics",
     CurrentValue = Config.Graphic.SmoothGraphics,
@@ -1690,23 +1756,28 @@ GraphicTab:CreateToggle({
             settings().Rendering.MeshCacheSize = 100
             settings().Rendering.TextureCacheSize = 100
             settings().Rendering.RenderFidelity = Enum.RenderFidelity.High
+            
             -- Enable motion blur and anti-aliasing
             if game:GetService("Lighting"):FindFirstChild("MotionBlur") then
                 game:GetService("Lighting").MotionBlur.Enabled = true
             end
+            
             logError("Smooth Graphics: Activated")
         else
             -- Reset graphics settings
             settings().Rendering.MeshCacheSize = 50
             settings().Rendering.TextureCacheSize = 50
             settings().Rendering.RenderFidelity = Enum.RenderFidelity.Balanced
+            
             if game:GetService("Lighting"):FindFirstChild("MotionBlur") then
                 game:GetService("Lighting").MotionBlur.Enabled = false
             end
+            
             logError("Smooth Graphics: Deactivated")
         end
     end
 })
+
 GraphicTab:CreateToggle({
     Name = "Full Bright",
     CurrentValue = Config.Graphic.FullBright,
@@ -1725,6 +1796,7 @@ GraphicTab:CreateToggle({
         end
     end
 })
+
 GraphicTab:CreateSlider({
     Name = "Brightness",
     Range = {0.5, 3},
@@ -1985,6 +2057,7 @@ SettingsTab:CreateButton({
             local success, result = pcall(function()
                 local json = readfile("FishItConfig_Export.json")
                 local loadedConfig = HttpService:JSONDecode(json)
+                
                 -- Deep copy to preserve table structure
                 for k, v in pairs(loadedConfig) do
                     if type(v) == "table" then
@@ -1996,6 +2069,7 @@ SettingsTab:CreateButton({
                         Config[k] = v
                     end
                 end
+                
                 Rayfield:Notify({
                     Title = "Config Imported",
                     Content = "Configuration imported from file",
@@ -2064,6 +2138,7 @@ task.spawn(function()
             LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
             task.wait(Config.Bypass.AutoJumpDelay)
         end
+        
         -- Speed Hack
         if Config.Player.SpeedHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
             LocalPlayer.Character.Humanoid.WalkSpeed = Config.Player.SpeedValue
@@ -2071,6 +2146,7 @@ task.spawn(function()
             -- Only reset if speed hack is off and character exists
             LocalPlayer.Character.Humanoid.WalkSpeed = 16
         end
+        
         -- Max Boat Speed
         if Config.Player.MaxBoatSpeed then
             local boat = LocalPlayer.Character:FindFirstChild("Boat") or Workspace:FindFirstChild(LocalPlayer.Name .. "'s Boat")
@@ -2079,6 +2155,7 @@ task.spawn(function()
                 boat.VehicleSeat.TurnSpeed = boat.VehicleSeat.TurnSpeed * 2
             end
         end
+        
         -- NoClip Boat
         if Config.Player.NoClipBoat then
             local boat = LocalPlayer.Character:FindFirstChild("Boat") or Workspace:FindFirstChild(LocalPlayer.Name .. "'s Boat")
@@ -2090,6 +2167,7 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Infinity Jump
         if Config.Player.InfinityJump and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
@@ -2098,6 +2176,7 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Fly
         if Config.Player.Fly and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local root = LocalPlayer.Character.HumanoidRootPart
@@ -2110,6 +2189,7 @@ task.spawn(function()
             bv.Name = "FlyBV"
             bv.velocity = Vector3.new(0, 0, 0)
             bv.maxForce = Vector3.new(1000000, 1000000, 1000000)
+            
             -- Fly controls
             local velocity = Vector3.new(0, 0, 0)
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then
@@ -2130,6 +2210,7 @@ task.spawn(function()
             if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
                 velocity = velocity - Vector3.new(0, Config.Player.FlyRange, 0)
             end
+            
             bv.velocity = velocity
         elseif not Config.Player.Fly and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local root = LocalPlayer.Character.HumanoidRootPart
@@ -2138,6 +2219,7 @@ task.spawn(function()
             local bv = root:FindFirstChild("FlyBV")
             if bv then bv:Destroy() end
         end
+        
         -- Fly Boat
         if Config.Player.FlyBoat then
             local boat = LocalPlayer.Character:FindFirstChild("Boat") or Workspace:FindFirstChild(LocalPlayer.Name .. "'s Boat")
@@ -2150,6 +2232,7 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Ghost Hack
         if Config.Player.GhostHack and LocalPlayer.Character then
             for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -2168,6 +2251,7 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Noclip
         if Config.Player.Noclip and LocalPlayer.Character then
             for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
@@ -2182,6 +2266,7 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Auto Clean Memory
         if Config.System.AutoCleanMemory then
             local character = LocalPlayer.Character
@@ -2197,6 +2282,7 @@ task.spawn(function()
             end
             collectgarbage()
         end
+        
         -- Disable Particles
         if Config.System.DisableParticles then
             for _, particle in ipairs(Workspace:GetDescendants()) do
@@ -2205,12 +2291,14 @@ task.spawn(function()
                 end
             end
         end
+        
         -- Full Bright
         if Config.Graphic.FullBright then
             Lighting.GlobalShadows = false
             Lighting.ClockTime = 12
             Lighting.Brightness = Config.Graphic.Brightness
         end
+        
         -- Auto Farm
         if Config.System.AutoFarm and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local rootPos = LocalPlayer.Character.HumanoidRootPart.Position
@@ -2219,10 +2307,12 @@ task.spawn(function()
                 if spot.Name == "FishingSpot" and (spot.Position - rootPos).Magnitude < Config.System.FarmRadius then
                     -- Teleport to fishing spot
                     LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(spot.Position + Vector3.new(0, 3, 0)))
+                    
                     -- Start fishing with perfect timing
                     if FishingEvents and FishingEvents:FindFirstChild("StartFishing") then
                         FishingEvents.StartFishing:FireServer()
                         task.wait(0.5)
+                        
                         -- Perfect catch timing
                         if FishingEvents and FishingEvents:FindFirstChild("PerfectCatch") then
                             FishingEvents.PerfectCatch:FireServer()
@@ -2240,6 +2330,7 @@ end)
 local ESPFolder = Instance.new("Folder")
 ESPFolder.Name = "NIKZZ_ESP"
 ESPFolder.Parent = CoreGui
+
 task.spawn(function()
     while task.wait(0.1) do
         if Config.Player.PlayerESP then
@@ -2249,6 +2340,7 @@ task.spawn(function()
                     local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
                     if humanoid then
                         local characterHeight = humanoid.HipHeight + 6 -- Approximate character height
+                        
                         -- Create or update ESP
                         local esp = ESPFolder:FindFirstChild(player.Name .. "_ESP")
                         if not esp then
@@ -2259,6 +2351,7 @@ task.spawn(function()
                             esp.StudsOffset = Vector3.new(0, characterHeight/2, 0)
                             esp.AlwaysOnTop = true
                             esp.Parent = ESPFolder
+                            
                             local text = Instance.new("TextLabel")
                             text.Name = "ESP_Text"
                             text.Size = UDim2.new(1, 0, 1, 0)
@@ -2269,6 +2362,7 @@ task.spawn(function()
                             text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
                             text.Parent = esp
                         end
+                        
                         -- Update ESP text based on toggles
                         local espText = ""
                         if Config.Player.ESPName then
@@ -2283,6 +2377,7 @@ task.spawn(function()
                             if espText ~= "" then espText = espText .. " " end
                             espText = espText .. "(" .. math.floor(distance) .. "m)"
                         end
+                        
                         -- Update text
                         local textLabel = esp:FindFirstChild("ESP_Text")
                         if textLabel then
@@ -2293,6 +2388,7 @@ task.spawn(function()
                                 textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
                             end
                         end
+                        
                         -- ESP Box with proportional sizing
                         if Config.Player.ESPBox then
                             local box = player.Character.HumanoidRootPart:FindFirstChild("ESP_Box")
@@ -2313,6 +2409,7 @@ task.spawn(function()
                             local box = player.Character.HumanoidRootPart:FindFirstChild("ESP_Box")
                             if box then box:Destroy() end
                         end
+                        
                         -- ESP Lines
                         if Config.Player.ESPLines then
                             local line = ESPFolder:FindFirstChild(player.Name .. "_Line")
@@ -2324,6 +2421,7 @@ task.spawn(function()
                                 line.CanCollide = false
                                 line.Anchored = true
                                 line.Parent = ESPFolder
+                                
                                 local beam = Instance.new("Beam")
                                 beam.Attachment0 = Instance.new("Attachment", LocalPlayer.Character.HumanoidRootPart)
                                 beam.Attachment1 = Instance.new("Attachment", player.Character.HumanoidRootPart)
@@ -2367,6 +2465,7 @@ task.spawn(function()
                 logError("Auto Sell Error: " .. result)
             end
         end
+        
         -- Auto Craft
         if Config.Player.AutoCraft and GameFunctions and GameFunctions:FindFirstChild("CraftAll") then
             local success, result = pcall(function()
@@ -2377,6 +2476,7 @@ task.spawn(function()
                 logError("Auto Craft Error: " .. result)
             end
         end
+        
         -- Auto Upgrade
         if Config.Player.AutoUpgrade and GameFunctions and GameFunctions:FindFirstChild("UpgradeRod") then
             local success, result = pcall(function()
@@ -2387,6 +2487,7 @@ task.spawn(function()
                 logError("Auto Upgrade Error: " .. result)
             end
         end
+        
         -- Auto Buy Rods
         if Config.Shop.AutoBuyRods and Config.Shop.SelectedRod ~= "" and GameFunctions and GameFunctions:FindFirstChild("PurchaseItem") then
             local success, result = pcall(function()
@@ -2397,6 +2498,7 @@ task.spawn(function()
                 logError("Auto Buy Rods Error: " .. result)
             end
         end
+        
         -- Auto Buy Boats
         if Config.Shop.AutoBuyBoats and Config.Shop.SelectedBoat ~= "" and GameFunctions and GameFunctions:FindFirstChild("PurchaseItem") then
             local success, result = pcall(function()
@@ -2407,6 +2509,7 @@ task.spawn(function()
                 logError("Auto Buy Boats Error: " .. result)
             end
         end
+        
         -- Auto Buy Baits
         if Config.Shop.AutoBuyBaits and Config.Shop.SelectedBait ~= "" and GameFunctions and GameFunctions:FindFirstChild("PurchaseItem") then
             local success, result = pcall(function()
@@ -2417,6 +2520,7 @@ task.spawn(function()
                 logError("Auto Buy Baits Error: " .. result)
             end
         end
+        
         -- Auto Upgrade Rod
         if Config.Shop.AutoUpgradeRod and GameFunctions and GameFunctions:FindFirstChild("UpgradeRod") then
             local success, result = pcall(function()
@@ -2497,22 +2601,27 @@ end)
 -- Add cleanup function on script unload
 local function cleanup()
     logError("Script unloading - cleaning up")
+    
     -- Clean up ESP
     local ESPFolder = CoreGui:FindFirstChild("NIKZZ_ESP")
     if ESPFolder then
         ESPFolder:Destroy()
     end
+    
     -- Clean up info display
     if Config.System.InfoDisplay and Config.System.InfoDisplay.ScreenGui then
         Config.System.InfoDisplay.ScreenGui:Destroy()
     end
+    
     -- Reset player settings
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         LocalPlayer.Character.Humanoid.WalkSpeed = 16
     end
+    
     -- Reset lighting
     Lighting.GlobalShadows = true
     Lighting.Brightness = 1
+    
     -- Reset fly components
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local root = LocalPlayer.Character.HumanoidRootPart
@@ -2521,10 +2630,12 @@ local function cleanup()
         local bv = root:FindFirstChild("FlyBV")
         if bv then bv:Destroy() end
     end
+    
     logError("Cleanup completed")
 end
 
 -- Connect cleanup to player leaving
 game:BindToClose(cleanup)
+
 logError("Fish It Hub 2025 - Full Implementation Loaded Successfully")
 print("Fish It Hub 2025 by Nikzz Xit - All features implemented and working")
