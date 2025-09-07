@@ -29,9 +29,19 @@ local PlayerData = LocalPlayer:FindFirstChild("PlayerData") or LocalPlayer:WaitF
 local Remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 10)
 local Modules = ReplicatedStorage:FindFirstChild("Modules") or ReplicatedStorage:WaitForChild("Modules", 10)
 
--- ESP Variables
-local ESP_Objects = {}
-local ESP_Connections = {}
+-- Create log directory if it doesn't exist
+local function ensureLogDirectory()
+    local success, err = pcall(function()
+        if not isfolder("/storage/emulated/0") then
+            makefolder("/storage/emulated/0")
+        end
+    end)
+    if not success then
+        warn("Failed to create log directory: " .. tostring(err))
+    end
+end
+
+ensureLogDirectory()
 
 -- Logging function
 local function logError(message)
@@ -52,28 +62,78 @@ local function logError(message)
     end
 end
 
+logError("Script started")
+
 -- Anti-AFK
-LocalPlayer.Idled:Connect(function()
-    if Config.Bypass.AntiAFK then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-        logError("Anti-AFK triggered")
+local antiAFKConnection
+local function setupAntiAFK()
+    if antiAFKConnection then
+        antiAFKConnection:Disconnect()
+        antiAFKConnection = nil
     end
-end)
+    
+    if Config.Bypass.AntiAFK then
+        antiAFKConnection = LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+            logError("Anti-AFK triggered")
+        end)
+        logError("Anti-AFK activated")
+    else
+        logError("Anti-AFK deactivated")
+    end
+end
 
 -- Anti-Kick
 local mt = getrawmetatable(game)
 local old = mt.__namecall
-setreadonly(mt, false)
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    if method == "Kick" or method == "kick" and Config.Bypass.AntiKick then
-        logError("Anti-Kick: Blocked kick attempt")
-        return nil
+local antiKickEnabled = true
+
+local function setupAntiKick()
+    if Config.Bypass.AntiKick and antiKickEnabled then
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "Kick" or method == "kick" then
+                logError("Anti-Kick: Blocked kick attempt")
+                return nil
+            end
+            return old(self, ...)
+        end)
+        setreadonly(mt, true)
+        logError("Anti-Kick activated")
+    elseif not Config.Bypass.AntiKick and antiKickEnabled then
+        setreadonly(mt, false)
+        mt.__namecall = old
+        setreadonly(mt, true)
+        logError("Anti-Kick deactivated")
     end
-    return old(self, ...)
-end)
-setreadonly(mt, true)
+end
+
+-- Auto Jump
+local autoJumpConnection
+local function setupAutoJump()
+    if autoJumpConnection then
+        autoJumpConnection:Disconnect()
+        autoJumpConnection = nil
+    end
+    
+    if Config.Bypass.AutoJump then
+        autoJumpConnection = RunService.Heartbeat:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                local humanoid = LocalPlayer.Character.Humanoid
+                if humanoid:GetState() == Enum.HumanoidStateType.Landed then
+                    wait(Config.Bypass.AutoJumpDelay)
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                    logError("Auto Jump triggered")
+                end
+            end
+        end)
+        logError("Auto Jump activated")
+    else
+        logError("Auto Jump deactivated")
+    end
+end
 
 -- Configuration
 local Config = {
@@ -115,8 +175,7 @@ local Config = {
         AutoCraft = false,
         AutoUpgrade = false,
         SpawnBoat = false,
-        NoClipBoat = false,
-        FavoriteFish = {}
+        NoClipBoat = false
     },
     Trader = {
         AutoAcceptTrade = false,
@@ -176,7 +235,8 @@ local Config = {
         Transparency = 0.5,
         ConfigName = "DefaultConfig",
         UIScale = 1,
-        Keybinds = {}
+        Keybinds = {},
+        AutoLogging = true
     }
 }
 
@@ -311,8 +371,7 @@ local function ResetConfig()
             AutoCraft = false,
             AutoUpgrade = false,
             SpawnBoat = false,
-            NoClipBoat = false,
-            FavoriteFish = {}
+            NoClipBoat = false
         },
         Trader = {
             AutoAcceptTrade = false,
@@ -372,7 +431,8 @@ local function ResetConfig()
             Transparency = 0.5,
             ConfigName = "DefaultConfig",
             UIScale = 1,
-            Keybinds = {}
+            Keybinds = {},
+            AutoLogging = true
         }
     }
     Rayfield:Notify({
@@ -406,6 +466,7 @@ BypassTab:CreateToggle({
     Flag = "AntiAFK",
     Callback = function(Value)
         Config.Bypass.AntiAFK = Value
+        setupAntiAFK()
         logError("Anti AFK: " .. tostring(Value))
     end
 })
@@ -416,19 +477,8 @@ BypassTab:CreateToggle({
     Flag = "AutoJump",
     Callback = function(Value)
         Config.Bypass.AutoJump = Value
+        setupAutoJump()
         logError("Auto Jump: " .. tostring(Value))
-        
-        -- Auto Jump Implementation
-        if Value then
-            spawn(function()
-                while Config.Bypass.AutoJump do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                        LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                    end
-                    wait(Config.Bypass.AutoJumpDelay)
-                end
-            end)
-        end
     end
 })
 
@@ -451,6 +501,7 @@ BypassTab:CreateToggle({
     Flag = "AntiKick",
     Callback = function(Value)
         Config.Bypass.AntiKick = Value
+        setupAntiKick()
         logError("Anti Kick: " .. tostring(Value))
     end
 })
@@ -471,7 +522,7 @@ BypassTab:CreateToggle({
     Flag = "BypassFishingRadar",
     Callback = function(Value)
         Config.Bypass.BypassFishingRadar = Value
-        if Value and FishingEvents and FishingEvents:FindFirstChild("RadarBypass") then
+        if Value then
             -- Check if player has radar in inventory
             local hasRadar = false
             if PlayerData and PlayerData:FindFirstChild("Inventory") then
@@ -483,7 +534,7 @@ BypassTab:CreateToggle({
                 end
             end
             
-            if hasRadar then
+            if hasRadar and FishingEvents and FishingEvents:FindFirstChild("RadarBypass") then
                 local success, result = pcall(function()
                     FishingEvents.RadarBypass:FireServer()
                     logError("Bypass Fishing Radar: Activated")
@@ -491,7 +542,7 @@ BypassTab:CreateToggle({
                 if not success then
                     logError("Bypass Fishing Radar Error: " .. result)
                 end
-            else
+            elseif not hasRadar then
                 Rayfield:Notify({
                     Title = "Radar Not Found",
                     Content = "You need a radar in your inventory to use this feature",
@@ -501,6 +552,8 @@ BypassTab:CreateToggle({
                 logError("Bypass Fishing Radar: No radar in inventory")
                 Config.Bypass.BypassFishingRadar = false
             end
+        else
+            logError("Bypass Fishing Radar: Deactivated")
         end
     end
 })
@@ -511,8 +564,8 @@ BypassTab:CreateToggle({
     Flag = "BypassDivingGear",
     Callback = function(Value)
         Config.Bypass.BypassDivingGear = Value
-        if Value and GameFunctions and GameFunctions:FindFirstChild("DivingBypass") then
-            -- Check if player has diving gear
+        if Value then
+            -- Check if player has diving gear in inventory
             local hasDivingGear = false
             if PlayerData and PlayerData:FindFirstChild("Inventory") then
                 for _, item in pairs(PlayerData.Inventory:GetChildren()) do
@@ -523,7 +576,7 @@ BypassTab:CreateToggle({
                 end
             end
             
-            if hasDivingGear then
+            if hasDivingGear and GameFunctions and GameFunctions:FindFirstChild("DivingBypass") then
                 local success, result = pcall(function()
                     GameFunctions.DivingBypass:InvokeServer()
                     logError("Bypass Diving Gear: Activated")
@@ -531,7 +584,7 @@ BypassTab:CreateToggle({
                 if not success then
                     logError("Bypass Diving Gear Error: " .. result)
                 end
-            else
+            elseif not hasDivingGear then
                 Rayfield:Notify({
                     Title = "Diving Gear Not Found",
                     Content = "You need diving gear in your inventory to use this feature",
@@ -541,6 +594,8 @@ BypassTab:CreateToggle({
                 logError("Bypass Diving Gear: No diving gear in inventory")
                 Config.Bypass.BypassDivingGear = false
             end
+        else
+            logError("Bypass Diving Gear: Deactivated")
         end
     end
 })
@@ -559,6 +614,8 @@ BypassTab:CreateToggle({
             if not success then
                 logError("Bypass Fishing Animation Error: " .. result)
             end
+        else
+            logError("Bypass Fishing Animation: Deactivated")
         end
     end
 })
@@ -577,6 +634,8 @@ BypassTab:CreateToggle({
             if not success then
                 logError("Bypass Fishing Delay Error: " .. result)
             end
+        else
+            logError("Bypass Fishing Delay: Deactivated")
         end
     end
 })
@@ -600,35 +659,49 @@ TeleportTab:CreateButton({
     Callback = function()
         if Config.Teleport.SelectedLocation ~= "" then
             local targetCFrame
-            if Config.Teleport.SelectedLocation == "Fisherman Island" then
-                targetCFrame = CFrame.new(-1200, 15, 800)
-            elseif Config.Teleport.SelectedLocation == "Ocean" then
-                targetCFrame = CFrame.new(2500, 10, -1500)
-            elseif Config.Teleport.SelectedLocation == "Kohana Island" then
-                targetCFrame = CFrame.new(1800, 20, 2200)
-            elseif Config.Teleport.SelectedLocation == "Kohana Volcano" then
-                targetCFrame = CFrame.new(2100, 150, 2500)
-            elseif Config.Teleport.SelectedLocation == "Coral Reefs" then
-                targetCFrame = CFrame.new(-800, -10, 1800)
-            elseif Config.Teleport.SelectedLocation == "Esoteric Depths" then
-                targetCFrame = CFrame.new(-2500, -50, 800)
-            elseif Config.Teleport.SelectedLocation == "Tropical Grove" then
-                targetCFrame = CFrame.new(1200, 25, -1800)
-            elseif Config.Teleport.SelectedLocation == "Crater Island" then
-                targetCFrame = CFrame.new(-1800, 100, -1200)
-            elseif Config.Teleport.SelectedLocation == "Lost Isle" then
-                targetCFrame = CFrame.new(3000, 30, 3000)
-            end
+            local success, err = pcall(function()
+                if Config.Teleport.SelectedLocation == "Fisherman Island" then
+                    targetCFrame = CFrame.new(-1200, 15, 800)
+                elseif Config.Teleport.SelectedLocation == "Ocean" then
+                    targetCFrame = CFrame.new(2500, 10, -1500)
+                elseif Config.Teleport.SelectedLocation == "Kohana Island" then
+                    targetCFrame = CFrame.new(1800, 20, 2200)
+                elseif Config.Teleport.SelectedLocation == "Kohana Volcano" then
+                    targetCFrame = CFrame.new(2100, 150, 2500)
+                elseif Config.Teleport.SelectedLocation == "Coral Reefs" then
+                    targetCFrame = CFrame.new(-800, -10, 1800)
+                elseif Config.Teleport.SelectedLocation == "Esoteric Depths" then
+                    targetCFrame = CFrame.new(-2500, -50, 800)
+                elseif Config.Teleport.SelectedLocation == "Tropical Grove" then
+                    targetCFrame = CFrame.new(1200, 25, -1800)
+                elseif Config.Teleport.SelectedLocation == "Crater Island" then
+                    targetCFrame = CFrame.new(-1800, 100, -1200)
+                elseif Config.Teleport.SelectedLocation == "Lost Isle" then
+                    targetCFrame = CFrame.new(3000, 30, 3000)
+                end
+                
+                if targetCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+                    Rayfield:Notify({
+                        Title = "Teleport",
+                        Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                    logError("Teleported to: " .. Config.Teleport.SelectedLocation)
+                else
+                    error("Character or HumanoidRootPart not found")
+                end
+            end)
             
-            if targetCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character:SetPrimaryPartCFrame(targetCFrame)
+            if not success then
                 Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Teleported to " .. Config.Teleport.SelectedLocation,
+                    Title = "Teleport Error",
+                    Content = "Failed to teleport: " .. tostring(err),
                     Duration = 3,
                     Image = 13047715178
                 })
-                logError("Teleported to: " .. Config.Teleport.SelectedLocation)
+                logError("Teleport Error: " .. tostring(err))
             end
         else
             Rayfield:Notify({
@@ -715,29 +788,43 @@ TeleportTab:CreateButton({
     Callback = function()
         if Config.Teleport.SelectedEvent ~= "" then
             local eventLocation
-            if Config.Teleport.SelectedEvent == "Fishing Frenzy" then
-                eventLocation = CFrame.new(1500, 15, 1500)
-            elseif Config.Teleport.SelectedEvent == "Boss Battle" then
-                eventLocation = CFrame.new(-1500, 20, -1500)
-            elseif Config.Teleport.SelectedEvent == "Treasure Hunt" then
-                eventLocation = CFrame.new(0, 10, 2500)
-            elseif Config.Teleport.SelectedEvent == "Mystery Island" then
-                eventLocation = CFrame.new(2500, 30, 0)
-            elseif Config.Teleport.SelectedEvent == "Double XP" then
-                eventLocation = CFrame.new(-2500, 15, 1500)
-            elseif Config.Teleport.SelectedEvent == "Rainbow Fish" then
-                eventLocation = CFrame.new(1500, 25, -2500)
-            end
+            local success, err = pcall(function()
+                if Config.Teleport.SelectedEvent == "Fishing Frenzy" then
+                    eventLocation = CFrame.new(1500, 15, 1500)
+                elseif Config.Teleport.SelectedEvent == "Boss Battle" then
+                    eventLocation = CFrame.new(-1500, 20, -1500)
+                elseif Config.Teleport.SelectedEvent == "Treasure Hunt" then
+                    eventLocation = CFrame.new(0, 10, 2500)
+                elseif Config.Teleport.SelectedEvent == "Mystery Island" then
+                    eventLocation = CFrame.new(2500, 30, 0)
+                elseif Config.Teleport.SelectedEvent == "Double XP" then
+                    eventLocation = CFrame.new(-2500, 15, 1500)
+                elseif Config.Teleport.SelectedEvent == "Rainbow Fish" then
+                    eventLocation = CFrame.new(1500, 25, -2500)
+                end
+                
+                if eventLocation and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character:SetPrimaryPartCFrame(eventLocation)
+                    Rayfield:Notify({
+                        Title = "Event Teleport",
+                        Content = "Teleported to " .. Config.Teleport.SelectedEvent,
+                        Duration = 3,
+                        Image = 13047715178
+                    })
+                    logError("Teleported to event: " .. Config.Teleport.SelectedEvent)
+                else
+                    error("Character or HumanoidRootPart not found")
+                end
+            end)
             
-            if eventLocation and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character:SetPrimaryPartCFrame(eventLocation)
+            if not success then
                 Rayfield:Notify({
-                    Title = "Event Teleport",
-                    Content = "Teleported to " .. Config.Teleport.SelectedEvent,
+                    Title = "Event Error",
+                    Content = "Failed to teleport to event: " .. tostring(err),
                     Duration = 3,
                     Image = 13047715178
                 })
-                logError("Teleported to event: " .. Config.Teleport.SelectedEvent)
+                logError("Event Teleport Error: " .. tostring(err))
             end
         else
             Rayfield:Notify({
@@ -818,21 +905,38 @@ TeleportTab:CreateInput({
 -- Player Tab
 local PlayerTab = Window:CreateTab("👤 Player", 13014546625)
 
+-- Speed Hack
+local speedHackConnection
+local function setupSpeedHack()
+    if speedHackConnection then
+        speedHackConnection:Disconnect()
+        speedHackConnection = nil
+    end
+    
+    if Config.Player.SpeedHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = Config.Player.SpeedValue
+        speedHackConnection = LocalPlayer.CharacterAdded:Connect(function(character)
+            if character:FindFirstChild("Humanoid") then
+                character.Humanoid.WalkSpeed = Config.Player.SpeedValue
+            end
+        end)
+        logError("Speed Hack activated: " .. Config.Player.SpeedValue)
+    else
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+        logError("Speed Hack deactivated")
+    end
+end
+
 PlayerTab:CreateToggle({
     Name = "Speed Hack",
     CurrentValue = Config.Player.SpeedHack,
     Flag = "SpeedHack",
     Callback = function(Value)
         Config.Player.SpeedHack = Value
+        setupSpeedHack()
         logError("Speed Hack: " .. tostring(Value))
-        
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            if Value then
-                LocalPlayer.Character.Humanoid.WalkSpeed = Config.Player.SpeedValue
-            else
-                LocalPlayer.Character.Humanoid.WalkSpeed = 16
-            end
-        end
     end
 })
 
@@ -852,36 +956,50 @@ PlayerTab:CreateSlider({
     end
 })
 
+-- Max Boat Speed
+local boatSpeedConnection
+local function setupMaxBoatSpeed()
+    if boatSpeedConnection then
+        boatSpeedConnection:Disconnect()
+        boatSpeedConnection = nil
+    end
+    
+    if Config.Player.MaxBoatSpeed then
+        boatSpeedConnection = Workspace.ChildAdded:Connect(function(child)
+            if child.Name:find("Boat") and child:FindFirstChild("Seat") then
+                local seat = child.Seat
+                if seat:FindFirstChild("Configuration") then
+                    seat.Configuration.MaxSpeed = 5 * (seat.Configuration.MaxSpeed or 50)
+                    logError("Max Boat Speed applied to: " .. child.Name)
+                end
+            end
+        end)
+        
+        -- Apply to existing boats
+        for _, child in ipairs(Workspace:GetChildren()) do
+            if child.Name:find("Boat") and child:FindFirstChild("Seat") then
+                local seat = child.Seat
+                if seat:FindFirstChild("Configuration") then
+                    seat.Configuration.MaxSpeed = 5 * (seat.Configuration.MaxSpeed or 50)
+                    logError("Max Boat Speed applied to: " .. child.Name)
+                end
+            end
+        end
+        
+        logError("Max Boat Speed activated")
+    else
+        logError("Max Boat Speed deactivated")
+    end
+end
+
 PlayerTab:CreateToggle({
     Name = "Max Boat Speed",
     CurrentValue = Config.Player.MaxBoatSpeed,
     Flag = "MaxBoatSpeed",
     Callback = function(Value)
         Config.Player.MaxBoatSpeed = Value
+        setupMaxBoatSpeed()
         logError("Max Boat Speed: " .. tostring(Value))
-        
-        -- Max Boat Speed Implementation (5x faster)
-        if Value then
-            spawn(function()
-                while Config.Player.MaxBoatSpeed do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        -- Find the boat
-                        for _, vehicle in ipairs(Workspace:GetChildren()) do
-                            if vehicle:IsA("Model") and vehicle.Name:find("Boat") and vehicle:FindFirstChild("Seat") then
-                                local seat = vehicle.Seat
-                                if seat.Occupant and seat.Occupant.Parent == LocalPlayer.Character then
-                                    -- Increase boat speed 5x
-                                    if vehicle:FindFirstChild("DriveSeat") then
-                                        vehicle.DriveSeat.MaxSpeed = vehicle.DriveSeat.MaxSpeed * 5
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    wait(1)
-                end
-            end)
-        end
     end
 })
 
@@ -895,24 +1013,6 @@ PlayerTab:CreateToggle({
             local success, result = pcall(function()
                 GameFunctions.SpawnBoat:InvokeServer()
                 logError("Boat spawned")
-                
-                -- Move boat to front of player
-                spawn(function()
-                    wait(1) -- Wait for boat to spawn
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        local playerPos = LocalPlayer.Character.HumanoidRootPart.Position
-                        local playerLook = LocalPlayer.Character.HumanoidRootPart.CFrame.lookVector
-                        
-                        -- Find the boat
-                        for _, vehicle in ipairs(Workspace:GetChildren()) do
-                            if vehicle:IsA("Model") and vehicle.Name:find("Boat") and vehicle:FindFirstChild("PrimaryPart") then
-                                -- Position boat in front of player
-                                vehicle:SetPrimaryPartCFrame(CFrame.new(playerPos + playerLook * 10, playerPos + Vector3.new(0, 2, 0)))
-                                break
-                            end
-                        end
-                    end
-                end)
             end)
             if not success then
                 logError("Boat spawn error: " .. result)
@@ -928,32 +1028,29 @@ PlayerTab:CreateToggle({
     Callback = function(Value)
         Config.Player.NoClipBoat = Value
         logError("NoClip Boat: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Player.NoClipBoat do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        -- Find the boat
-                        for _, vehicle in ipairs(Workspace:GetChildren()) do
-                            if vehicle:IsA("Model") and vehicle.Name:find("Boat") and vehicle:FindFirstChild("Seat") then
-                                local seat = vehicle.Seat
-                                if seat.Occupant and seat.Occupant.Parent == LocalPlayer.Character then
-                                    -- Make boat parts non-collidable
-                                    for _, part in ipairs(vehicle:GetDescendants()) do
-                                        if part:IsA("BasePart") then
-                                            part.CanCollide = false
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    wait(0.1)
-                end
-            end)
-        end
     end
 })
+
+-- Infinity Jump
+local infinityJumpConnection
+local function setupInfinityJump()
+    if infinityJumpConnection then
+        infinityJumpConnection:Disconnect()
+        infinityJumpConnection = nil
+    end
+    
+    if Config.Player.InfinityJump then
+        infinityJumpConnection = UserInputService.JumpRequest:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                logError("Infinity Jump triggered")
+            end
+        end)
+        logError("Infinity Jump activated")
+    else
+        logError("Infinity Jump deactivated")
+    end
+end
 
 PlayerTab:CreateToggle({
     Name = "Infinity Jump",
@@ -961,24 +1058,66 @@ PlayerTab:CreateToggle({
     Flag = "InfinityJump",
     Callback = function(Value)
         Config.Player.InfinityJump = Value
+        setupInfinityJump()
         logError("Infinity Jump: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Player.InfinityJump do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                        local humanoid = LocalPlayer.Character.Humanoid
-                        local state = humanoid:GetState()
-                        if state == Enum.HumanoidStateType.Freefall then
-                            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                        end
-                    end
-                    wait(0.1)
-                end
-            end)
-        end
     end
 })
+
+-- Fly
+local flyConnection
+local flyVelocity, flyGyro
+local function setupFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    if flyVelocity then
+        flyVelocity:Destroy()
+        flyVelocity = nil
+    end
+    
+    if flyGyro then
+        flyGyro:Destroy()
+        flyGyro = nil
+    end
+    
+    if Config.Player.Fly and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local humanoidRootPart = LocalPlayer.Character.HumanoidRootPart
+        
+        flyVelocity = Instance.new("BodyVelocity")
+        flyVelocity.Velocity = Vector3.new(0, 0, 0)
+        flyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        flyVelocity.Parent = humanoidRootPart
+        
+        flyGyro = Instance.new("BodyGyro")
+        flyGyro.P = 9e4
+        flyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        flyGyro.CFrame = humanoidRootPart.CFrame
+        flyGyro.Parent = humanoidRootPart
+        
+        flyConnection = RunService.Heartbeat:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local humanoidRootPart = LocalPlayer.Character.HumanoidRootPart
+                
+                if UserInputService:GetFocusedTextBox() then return end
+                
+                local moveDirection = LocalPlayer.Character.Humanoid.MoveDirection
+                local camera = Workspace.CurrentCamera
+                local cameraCFrame = camera.CFrame
+                
+                local flySpeed = Config.Player.FlyRange
+                
+                flyVelocity.Velocity = (cameraCFrame.LookVector * moveDirection.Z + cameraCFrame.RightVector * moveDirection.X) * flySpeed
+                flyGyro.CFrame = cameraCFrame
+            end
+        end)
+        
+        logError("Fly activated")
+    else
+        logError("Fly deactivated")
+    end
+end
 
 PlayerTab:CreateToggle({
     Name = "Fly",
@@ -986,85 +1125,8 @@ PlayerTab:CreateToggle({
     Flag = "Fly",
     Callback = function(Value)
         Config.Player.Fly = Value
+        setupFly()
         logError("Fly: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                local flySpeed = Config.Player.FlyRange
-                local flyControl = {f = 0, b = 0, l = 0, r = 0}
-                local lastCtrl = {f = 0, b = 0, l = 0, r = 0}
-                local maxSpeed = flySpeed
-                
-                local function Fly()
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        local humanoidRootPart = LocalPlayer.Character.HumanoidRootPart
-                        local bg = Instance.new("BodyGyro", humanoidRootPart)
-                        local bv = Instance.new("BodyVelocity", humanoidRootPart)
-                        bg.P = 9e4
-                        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-                        bg.cframe = humanoidRootPart.CFrame
-                        bv.velocity = Vector3.new(0, 0.2, 0)
-                        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-                        
-                        spawn(function()
-                            repeat wait()
-                                if not Config.Player.Fly then
-                                    break
-                                end
-                                
-                                if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-                                    speed = 1.0
-                                elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
-                                    speed = 0
-                                end
-                                
-                                if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-                                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f + ctrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0).p) - Workspace.CurrentCamera.CoordinateFrame.p)) * maxSpeed
-                                    lastCtrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-                                elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
-                                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastCtrl.f + lastCtrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastCtrl.l + lastCtrl.r, (lastCtrl.f + lastCtrl.b) * 0.2, 0).p) - Workspace.CurrentCamera.CoordinateFrame.p)) * maxSpeed
-                                else
-                                    bv.velocity = Vector3.new(0, 0.2, 0)
-                                end
-                                bg.cframe = Workspace.CurrentCamera.CoordinateFrame
-                            until not Config.Player.Fly
-                            
-                            ctrl = {f = 0, b = 0, l = 0, r = 0}
-                            speed = 0
-                            bg:Destroy()
-                            bv:Destroy()
-                        end)
-                    end
-                end
-                
-                local ctrl = {f = 0, b = 0, l = 0, r = 0}
-                UserInputService.InputBegan:Connect(function(input)
-                    if input.KeyCode == Enum.KeyCode.W then
-                        ctrl.f = 1
-                    elseif input.KeyCode == Enum.KeyCode.S then
-                        ctrl.b = -1
-                    elseif input.KeyCode == Enum.KeyCode.A then
-                        ctrl.l = -1
-                    elseif input.KeyCode == Enum.KeyCode.D then
-                        ctrl.r = 1
-                    end
-                end)
-                
-                UserInputService.InputEnded:Connect(function(input)
-                    if input.KeyCode == Enum.KeyCode.W then
-                        ctrl.f = 0
-                    elseif input.KeyCode == Enum.KeyCode.S then
-                        ctrl.b = 0
-                    elseif input.KeyCode == Enum.KeyCode.A then
-                        ctrl.l = 0
-                    elseif input.KeyCode == Enum.KeyCode.D then
-                        ctrl.r = 0
-                    end
-                end)
-                
-                Fly()
-            end)
-        end
     end
 })
 
@@ -1081,39 +1143,130 @@ PlayerTab:CreateSlider({
     end
 })
 
+-- Fly Boat
+local flyBoatConnection
+local function setupFlyBoat()
+    if flyBoatConnection then
+        flyBoatConnection:Disconnect()
+        flyBoatConnection = nil
+    end
+    
+    if Config.Player.FlyBoat then
+        flyBoatConnection = RunService.Heartbeat:Connect(function()
+            for _, child in ipairs(Workspace:GetChildren()) do
+                if child.Name:find("Boat") and child:FindFirstChild("Seat") and child.Seat:FindFirstChild("SeatWeld") then
+                    local seat = child.Seat
+                    if seat.Occupant and seat.Occupant.Parent == LocalPlayer.Character then
+                        local boatVelocity = seat:FindFirstChild("BoatVelocity")
+                        local boatGyro = seat:FindFirstChild("BoatGyro")
+                        
+                        if not boatVelocity then
+                            boatVelocity = Instance.new("BodyVelocity")
+                            boatVelocity.Name = "BoatVelocity"
+                            boatVelocity.Velocity = Vector3.new(0, 0, 0)
+                            boatVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                            boatVelocity.Parent = seat
+                        end
+                        
+                        if not boatGyro then
+                            boatGyro = Instance.new("BodyGyro")
+                            boatGyro.Name = "BoatGyro"
+                            boatGyro.P = 9e4
+                            boatGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                            boatGyro.CFrame = seat.CFrame
+                            boatGyro.Parent = seat
+                        end
+                        
+                        if UserInputService:GetFocusedTextBox() then return end
+                        
+                        local moveDirection = LocalPlayer.Character.Humanoid.MoveDirection
+                        local camera = Workspace.CurrentCamera
+                        local cameraCFrame = camera.CFrame
+                        
+                        local flySpeed = Config.Player.FlyRange * 2
+                        
+                        boatVelocity.Velocity = (cameraCFrame.LookVector * moveDirection.Z + cameraCFrame.RightVector * moveDirection.X) * flySpeed + Vector3.new(0, 10, 0)
+                        boatGyro.CFrame = cameraCFrame
+                        
+                        logError("Fly Boat triggered")
+                    end
+                end
+            end
+        end)
+        
+        logError("Fly Boat activated")
+    else
+        -- Remove fly boat components
+        for _, child in ipairs(Workspace:GetChildren()) do
+            if child.Name:find("Boat") and child:FindFirstChild("Seat") then
+                local seat = child.Seat
+                local boatVelocity = seat:FindFirstChild("BoatVelocity")
+                local boatGyro = seat:FindFirstChild("BoatGyro")
+                
+                if boatVelocity then
+                    boatVelocity:Destroy()
+                end
+                
+                if boatGyro then
+                    boatGyro:Destroy()
+                end
+            end
+        end
+        
+        logError("Fly Boat deactivated")
+    end
+end
+
 PlayerTab:CreateToggle({
     Name = "Fly Boat",
     CurrentValue = Config.Player.FlyBoat,
     Flag = "FlyBoat",
     Callback = function(Value)
         Config.Player.FlyBoat = Value
+        setupFlyBoat()
         logError("Fly Boat: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Player.FlyBoat do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        -- Find the boat
-                        for _, vehicle in ipairs(Workspace:GetChildren()) do
-                            if vehicle:IsA("Model") and vehicle.Name:find("Boat") and vehicle:FindFirstChild("Seat") then
-                                local seat = vehicle.Seat
-                                if seat.Occupant and seat.Occupant.Parent == LocalPlayer.Character then
-                                    -- Make boat fly
-                                    if vehicle:FindFirstChild("PrimaryPart") then
-                                        local boatPart = vehicle.PrimaryPart
-                                        local currentPos = boatPart.Position
-                                        boatPart.CFrame = CFrame.new(currentPos.X, currentPos.Y + 0.5, currentPos.Z)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    wait(0.1)
-                end
-            end)
-        end
     end
 })
+
+-- Ghost Hack
+local ghostHackConnection
+local function setupGhostHack()
+    if ghostHackConnection then
+        ghostHackConnection:Disconnect()
+        ghostHackConnection = nil
+    end
+    
+    if Config.Player.GhostHack and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Transparency = 0.5
+            end
+        end
+        
+        ghostHackConnection = LocalPlayer.CharacterAdded:Connect(function(character)
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                    part.Transparency = 0.5
+                end
+            end
+        end)
+        
+        logError("Ghost Hack activated")
+    else
+        if LocalPlayer.Character then
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                    part.Transparency = 0
+                end
+            end
+        end
+        
+        logError("Ghost Hack deactivated")
+    end
+end
 
 PlayerTab:CreateToggle({
     Name = "Ghost Hack",
@@ -1121,23 +1274,232 @@ PlayerTab:CreateToggle({
     Flag = "GhostHack",
     Callback = function(Value)
         Config.Player.GhostHack = Value
+        setupGhostHack()
         logError("Ghost Hack: " .. tostring(Value))
-        
-        if LocalPlayer.Character then
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    if Value then
-                        part.Transparency = 0.5
-                        part.CanCollide = false
-                    else
-                        part.Transparency = 0
-                        part.CanCollide = true
-                    end
-                end
-            end
-        end
     end
 })
+
+-- ESP System
+local espConnections = {}
+local espObjects = {}
+
+local function clearESP()
+    for _, connection in ipairs(espConnections) do
+        connection:Disconnect()
+    end
+    espConnections = {}
+    
+    for _, object in ipairs(espObjects) do
+        object:Destroy()
+    end
+    espObjects = {}
+end
+
+local function setupESP()
+    clearESP()
+    
+    if not Config.Player.PlayerESP then
+        return
+    end
+    
+    local function createESP(player)
+        if player == LocalPlayer then return end
+        
+        local character = player.Character
+        if not character then return end
+        
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return end
+        
+        -- ESP Box
+        if Config.Player.ESPBox then
+            local espBox = Instance.new("BoxHandleAdornment")
+            espBox.Name = "ESPBox_" .. player.Name
+            espBox.Adornee = humanoidRootPart
+            espBox.Size = humanoidRootPart.Size + Vector3.new(0.5, 1, 0.5)
+            espBox.Color3 = Color3.new(1, 0, 0)
+            espBox.Transparency = 0.7
+            espBox.ZIndex = 10
+            espBox.AlwaysOnTop = true
+            espBox.Visible = true
+            espBox.Parent = CoreGui
+            
+            table.insert(espObjects, espBox)
+        end
+        
+        -- ESP Lines
+        if Config.Player.ESPLines then
+            local espLine = Drawing.new("Line")
+            espLine.Visible = true
+            espLine.From = Vector2.new(0, 0)
+            espLine.To = Vector2.new(0, 0)
+            espLine.Color = Color3.new(1, 0, 0)
+            espLine.Thickness = 2
+            espLine.Transparency = 1
+            
+            table.insert(espObjects, espLine)
+            
+            local updateLine
+            updateLine = RunService.RenderStepped:Connect(function()
+                if not character or not character:FindFirstChild("HumanoidRootPart") or not Config.Player.ESPLines then
+                    espLine:Remove()
+                    return
+                end
+                
+                local vector, onScreen = Workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
+                if onScreen then
+                    espLine.From = Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y)
+                    espLine.To = Vector2.new(vector.X, vector.Y)
+                    espLine.Visible = true
+                else
+                    espLine.Visible = false
+                end
+            end)
+            
+            table.insert(espConnections, updateLine)
+        end
+        
+        -- ESP Name
+        if Config.Player.ESPName then
+            local espName = Instance.new("BillboardGui")
+            espName.Name = "ESPName_" .. player.Name
+            espName.Adornee = humanoidRootPart
+            espName.Size = UDim2.new(0, 200, 0, 50)
+            espName.StudsOffset = Vector3.new(0, 3, 0)
+            espName.AlwaysOnTop = true
+            espName.Parent = CoreGui
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, 0, 1, 0)
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Text = player.Name
+            nameLabel.TextColor3 = Color3.new(1, 1, 1)
+            nameLabel.TextStrokeTransparency = 0
+            nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+            nameLabel.TextScaled = true
+            nameLabel.Font = Enum.Font.SourceSansBold
+            nameLabel.Parent = espName
+            
+            table.insert(espObjects, espName)
+        end
+        
+        -- ESP Level
+        if Config.Player.ESPLevel then
+            local playerLevel = 1
+            if PlayerData and PlayerData:FindFirstChild("Level") then
+                playerLevel = PlayerData.Level.Value
+            end
+            
+            local espLevel = Instance.new("BillboardGui")
+            espLevel.Name = "ESPLevel_" .. player.Name
+            espLevel.Adornee = humanoidRootPart
+            espLevel.Size = UDim2.new(0, 200, 0, 50)
+            espLevel.StudsOffset = Vector3.new(0, 2, 0)
+            espLevel.AlwaysOnTop = true
+            espLevel.Parent = CoreGui
+            
+            local levelLabel = Instance.new("TextLabel")
+            levelLabel.Size = UDim2.new(1, 0, 1, 0)
+            levelLabel.BackgroundTransparency = 1
+            levelLabel.Text = "Level: " .. playerLevel
+            levelLabel.TextColor3 = Color3.new(1, 1, 0)
+            levelLabel.TextStrokeTransparency = 0
+            levelLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+            levelLabel.TextScaled = true
+            levelLabel.Font = Enum.Font.SourceSansBold
+            levelLabel.Parent = espLevel
+            
+            table.insert(espObjects, espLevel)
+        end
+        
+        -- ESP Range
+        if Config.Player.ESPRange then
+            local espRange = Instance.new("BillboardGui")
+            espRange.Name = "ESPRange_" .. player.Name
+            espRange.Adornee = humanoidRootPart
+            espRange.Size = UDim2.new(0, 200, 0, 50)
+            espRange.StudsOffset = Vector3.new(0, 1, 0)
+            espRange.AlwaysOnTop = true
+            espRange.Parent = CoreGui
+            
+            local rangeLabel = Instance.new("TextLabel")
+            rangeLabel.Size = UDim2.new(1, 0, 1, 0)
+            rangeLabel.BackgroundTransparency = 1
+            rangeLabel.Text = "Range: 0"
+            rangeLabel.TextColor3 = Color3.new(0, 1, 0)
+            rangeLabel.TextStrokeTransparency = 0
+            rangeLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+            rangeLabel.TextScaled = true
+            rangeLabel.Font = Enum.Font.SourceSansBold
+            rangeLabel.Parent = espRange
+            
+            table.insert(espObjects, espRange)
+            
+            local updateRange
+            updateRange = RunService.RenderStepped:Connect(function()
+                if not character or not character:FindFirstChild("HumanoidRootPart") or not Config.Player.ESPRange then
+                    espRange:Destroy()
+                    return
+                end
+                
+                local distance = (LocalPlayer.Character.HumanoidRootPart.Position - humanoidRootPart.Position).Magnitude
+                rangeLabel.Text = "Range: " .. math.floor(distance)
+            end)
+            
+            table.insert(espConnections, updateRange)
+        end
+        
+        -- ESP Hologram
+        if Config.Player.ESPHologram then
+            local espHologram = Instance.new("Part")
+            espHologram.Name = "ESPHologram_" .. player.Name
+            espHologram.Size = Vector3.new(2, 4, 2)
+            espHologram.Transparency = 0.7
+            espHologram.BrickColor = BrickColor.new("Cyan")
+            espHologram.Anchored = true
+            espHologram.CanCollide = false
+            espHologram.CFrame = humanoidRootPart.CFrame
+            espHologram.Parent = Workspace
+            
+            table.insert(espObjects, espHologram)
+            
+            local updateHologram
+            updateHologram = RunService.RenderStepped:Connect(function()
+                if not character or not character:FindFirstChild("HumanoidRootPart") or not Config.Player.ESPHologram then
+                    espHologram:Destroy()
+                    return
+                end
+                
+                espHologram.CFrame = humanoidRootPart.CFrame
+            end)
+            
+            table.insert(espConnections, updateHologram)
+        end
+    end
+    
+    -- Create ESP for existing players
+    for _, player in ipairs(Players:GetPlayers()) do
+        createESP(player)
+    end
+    
+    -- Create ESP for new players
+    local playerAddedConnection
+    playerAddedConnection = Players.PlayerAdded:Connect(function(player)
+        createESP(player)
+    end)
+    table.insert(espConnections, playerAddedConnection)
+    
+    -- Create ESP when character loads
+    local characterAddedConnection
+    characterAddedConnection = Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            createESP(player)
+        end)
+    end)
+    table.insert(espConnections, characterAddedConnection)
+    
+    logError("ESP activated")
+end
 
 PlayerTab:CreateToggle({
     Name = "Player ESP",
@@ -1145,39 +1507,8 @@ PlayerTab:CreateToggle({
     Flag = "PlayerESP",
     Callback = function(Value)
         Config.Player.PlayerESP = Value
+        setupESP()
         logError("Player ESP: " .. tostring(Value))
-        
-        if Value then
-            -- Create ESP for all players
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer then
-                    CreateESP(player)
-                end
-            end
-            
-            -- Connect to player added event
-            table.insert(ESP_Connections, Players.PlayerAdded:Connect(function(player)
-                if Config.Player.PlayerESP then
-                    CreateESP(player)
-                end
-            end))
-        else
-            -- Remove all ESP
-            for _, espTable in pairs(ESP_Objects) do
-                for _, object in pairs(espTable) do
-                    if object then
-                        object:Destroy()
-                    end
-                end
-            end
-            ESP_Objects = {}
-            
-            -- Disconnect connections
-            for _, connection in ipairs(ESP_Connections) do
-                connection:Disconnect()
-            end
-            ESP_Connections = {}
-        end
     end
 })
 
@@ -1187,14 +1518,8 @@ PlayerTab:CreateToggle({
     Flag = "ESPBox",
     Callback = function(Value)
         Config.Player.ESPBox = Value
+        setupESP()
         logError("ESP Box: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Box then
-                espTable.Box.Enabled = Value
-            end
-        end
     end
 })
 
@@ -1204,14 +1529,8 @@ PlayerTab:CreateToggle({
     Flag = "ESPLines",
     Callback = function(Value)
         Config.Player.ESPLines = Value
+        setupESP()
         logError("ESP Lines: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Line then
-                espTable.Line.Enabled = Value
-            end
-        end
     end
 })
 
@@ -1221,14 +1540,8 @@ PlayerTab:CreateToggle({
     Flag = "ESPName",
     Callback = function(Value)
         Config.Player.ESPName = Value
+        setupESP()
         logError("ESP Name: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Name then
-                espTable.Name.Enabled = Value
-            end
-        end
     end
 })
 
@@ -1238,14 +1551,8 @@ PlayerTab:CreateToggle({
     Flag = "ESPLevel",
     Callback = function(Value)
         Config.Player.ESPLevel = Value
+        setupESP()
         logError("ESP Level: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Level then
-                espTable.Level.Enabled = Value
-            end
-        end
     end
 })
 
@@ -1255,14 +1562,8 @@ PlayerTab:CreateToggle({
     Flag = "ESPRange",
     Callback = function(Value)
         Config.Player.ESPRange = Value
+        setupESP()
         logError("ESP Range: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Range then
-                espTable.Range.Enabled = Value
-            end
-        end
     end
 })
 
@@ -1272,16 +1573,41 @@ PlayerTab:CreateToggle({
     Flag = "ESPHologram",
     Callback = function(Value)
         Config.Player.ESPHologram = Value
+        setupESP()
         logError("ESP Hologram: " .. tostring(Value))
-        
-        -- Update existing ESP
-        for _, espTable in pairs(ESP_Objects) do
-            if espTable.Hologram then
-                espTable.Hologram.Enabled = Value
-            end
-        end
     end
 })
+
+-- Noclip
+local noclipConnection
+local function setupNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    
+    if Config.Player.Noclip then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+        logError("Noclip activated")
+    else
+        if LocalPlayer.Character then
+            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+        logError("Noclip deactivated")
+    end
+end
 
 PlayerTab:CreateToggle({
     Name = "Noclip",
@@ -1289,33 +1615,53 @@ PlayerTab:CreateToggle({
     Flag = "Noclip",
     Callback = function(Value)
         Config.Player.Noclip = Value
+        setupNoclip()
         logError("Noclip: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Player.Noclip do
-                    if LocalPlayer.Character then
-                        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
+    end
+})
+
+-- Auto Sell
+local autoSellConnection
+local function setupAutoSell()
+    if autoSellConnection then
+        autoSellConnection:Disconnect()
+        autoSellConnection = nil
+    end
+    
+    if Config.Player.AutoSell then
+        autoSellConnection = RunService.Heartbeat:Connect(function()
+            if PlayerData and PlayerData:FindFirstChild("Inventory") then
+                for _, item in pairs(PlayerData.Inventory:GetChildren()) do
+                    if item:IsA("Folder") or item:IsA("Configuration") then
+                        -- Check if fish is not in favorites
+                        local isFavorite = false
+                        if PlayerData:FindFirstChild("Favorites") then
+                            for _, favorite in pairs(PlayerData.Favorites:GetChildren()) do
+                                if favorite.Name == item.Name then
+                                    isFavorite = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if not isFavorite and GameFunctions and GameFunctions:FindFirstChild("SellFish") then
+                            local success, result = pcall(function()
+                                GameFunctions.SellFish:InvokeServer(item.Name)
+                                logError("Auto sold fish: " .. item.Name)
+                            end)
+                            if not success then
+                                logError("Auto sell error: " .. result)
                             end
                         end
                     end
-                    wait(0.1)
                 end
-                
-                -- Re-enable collision when turned off
-                if LocalPlayer.Character then
-                    for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = true
-                        end
-                    end
-                end
-            end)
-        end
+            end
+        end)
+        logError("Auto Sell activated")
+    else
+        logError("Auto Sell deactivated")
     end
-})
+end
 
 PlayerTab:CreateToggle({
     Name = "Auto Sell",
@@ -1323,37 +1669,8 @@ PlayerTab:CreateToggle({
     Flag = "AutoSell",
     Callback = function(Value)
         Config.Player.AutoSell = Value
+        setupAutoSell()
         logError("Auto Sell: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Player.AutoSell do
-                    if GameFunctions and GameFunctions:FindFirstChild("SellFish") then
-                        local success, result = pcall(function()
-                            -- Sell all fish except favorites
-                            local fishToSell = {}
-                            
-                            if PlayerData and PlayerData:FindFirstChild("Inventory") then
-                                for _, item in pairs(PlayerData.Inventory:GetChildren()) do
-                                    if not Config.Player.FavoriteFish[item.Name] then
-                                        table.insert(fishToSell, item.Name)
-                                    end
-                                end
-                            end
-                            
-                            if #fishToSell > 0 then
-                                GameFunctions.SellFish:InvokeServer(fishToSell)
-                                logError("Auto-sold " .. #fishToSell .. " fish")
-                            end
-                        end)
-                        if not success then
-                            logError("Auto Sell Error: " .. result)
-                        end
-                    end
-                    wait(5) -- Check every 5 seconds
-                end
-            end)
-        end
     end
 })
 
@@ -1377,192 +1694,6 @@ PlayerTab:CreateToggle({
     end
 })
 
--- ESP Creation Function
-function CreateESP(player)
-    if ESP_Objects[player] then return end
-    
-    ESP_Objects[player] = {}
-    
-    local character = player.Character or player.CharacterAdded:Wait()
-    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-    
-    -- Create ESP objects
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "ESPBox"
-    box.Size = Vector3.new(4, 5, 2)  -- Properly sized box
-    box.Color3 = Color3.new(1, 0, 0)
-    box.Transparency = 0.7
-    box.ZIndex = 10
-    box.AlwaysOnTop = true
-    box.Visible = Config.Player.ESPBox
-    box.Adornee = humanoidRootPart
-    box.Parent = CoreGui
-    
-    local line = Instance.new("LineHandleAdornment")
-    line.Name = "ESPLine"
-    line.Color3 = Color3.new(1, 0, 0)
-    line.Thickness = 1
-    line.Transparency = 0.5
-    line.Visible = Config.Player.ESPLines
-    line.Parent = CoreGui
-    
-    local name = Instance.new("BillboardGui")
-    name.Name = "ESPName"
-    name.Size = UDim2.new(0, 100, 0, 20)
-    name.StudsOffset = Vector3.new(0, 2, 0)
-    name.AlwaysOnTop = true
-    name.Enabled = Config.Player.ESPName
-    name.Parent = CoreGui
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.new(1, 1, 1)
-    nameLabel.TextStrokeTransparency = 0
-    nameLabel.TextScaled = true
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-    nameLabel.Parent = name
-    
-    local level = Instance.new("BillboardGui")
-    level.Name = "ESPLevel"
-    level.Size = UDim2.new(0, 100, 0, 20)
-    level.StudsOffset = Vector3.new(0, 3.5, 0)
-    level.AlwaysOnTop = true
-    level.Enabled = Config.Player.ESPLevel
-    level.Parent = CoreGui
-    
-    local levelLabel = Instance.new("TextLabel")
-    levelLabel.BackgroundTransparency = 1
-    levelLabel.Text = "Lv. " .. (player:FindFirstChild("Level") and player.Level.Value or "1")
-    levelLabel.TextColor3 = Color3.new(1, 1, 0)
-    levelLabel.TextStrokeTransparency = 0
-    levelLabel.TextScaled = true
-    levelLabel.Size = UDim2.new(1, 0, 1, 0)
-    levelLabel.Parent = level
-    
-    local range = Instance.new("BillboardGui")
-    range.Name = "ESPRange"
-    range.Size = UDim2.new(0, 100, 0, 20)
-    range.StudsOffset = Vector3.new(0, 5, 0)
-    range.AlwaysOnTop = true
-    range.Enabled = Config.Player.ESPRange
-    range.Parent = CoreGui
-    
-    local rangeLabel = Instance.new("TextLabel")
-    rangeLabel.BackgroundTransparency = 1
-    rangeLabel.Text = "0 studs"
-    rangeLabel.TextColor3 = Color3.new(0, 1, 0)
-    rangeLabel.TextStrokeTransparency = 0
-    rangeLabel.TextScaled = true
-    rangeLabel.Size = UDim2.new(1, 0, 1, 0)
-    rangeLabel.Parent = range
-    
-    local hologram = Instance.new("Highlight")
-    hologram.Name = "ESPHologram"
-    hologram.FillColor = Color3.new(1, 0, 0)
-    hologram.FillTransparency = 0.5
-    hologram.OutlineColor = Color3.new(1, 1, 1)
-    hologram.OutlineTransparency = 0
-    hologram.Enabled = Config.Player.ESPHologram
-    hologram.Parent = character
-    
-    -- Store references
-    ESP_Objects[player].Box = box
-    ESP_Objects[player].Line = line
-    ESP_Objects[player].Name = name
-    ESP_Objects[player].Level = level
-    ESP_Objects[player].Range = range
-    ESP_Objects[player].Hologram = hologram
-    
-    -- Update ESP
-    local updateConnection
-    updateConnection = RunService.RenderStepped:Connect(function()
-        if not Config.Player.PlayerESP or not player or not player.Character then
-            if ESP_Objects[player] then
-                for _, object in pairs(ESP_Objects[player]) do
-                    if object then
-                        object:Destroy()
-                    end
-                end
-                ESP_Objects[player] = nil
-            end
-            updateConnection:Disconnect()
-            return
-        end
-        
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local playerRoot = player.Character.HumanoidRootPart
-            local localRoot = LocalPlayer.Character.HumanoidRootPart
-            
-            -- Update line
-            if line and line.Adornee ~= playerRoot then
-                line.Adornee = playerRoot
-            end
-            
-            if line then
-                line.From = localRoot.Position
-                line.To = playerRoot.Position
-            end
-            
-            -- Update range
-            local distance = (playerRoot.Position - localRoot.Position).Magnitude
-            if rangeLabel then
-                rangeLabel.Text = math.floor(distance) .. " studs"
-            end
-            
-            -- Update adornee for box
-            if box and box.Adornee ~= playerRoot then
-                box.Adornee = playerRoot
-            end
-            
-            -- Update billboard positions
-            if name and name.Adornee ~= playerRoot then
-                name.Adornee = playerRoot
-            end
-            
-            if level and level.Adornee ~= playerRoot then
-                level.Adornee = playerRoot
-            end
-            
-            if range and range.Adornee ~= playerRoot then
-                range.Adornee = playerRoot
-            end
-        end
-    end)
-    
-    -- Handle character respawning
-    player.CharacterAdded:Connect(function(newCharacter)
-        if ESP_Objects[player] then
-            local humanoidRootPart = newCharacter:WaitForChild("HumanoidRootPart")
-            
-            -- Update adornees
-            if ESP_Objects[player].Box then
-                ESP_Objects[player].Box.Adornee = humanoidRootPart
-            end
-            
-            if ESP_Objects[player].Line then
-                ESP_Objects[player].Line.Adornee = humanoidRootPart
-            end
-            
-            if ESP_Objects[player].Name then
-                ESP_Objects[player].Name.Adornee = humanoidRootPart
-            end
-            
-            if ESP_Objects[player].Level then
-                ESP_Objects[player].Level.Adornee = humanoidRootPart
-            end
-            
-            if ESP_Objects[player].Range then
-                ESP_Objects[player].Range.Adornee = humanoidRootPart
-            end
-            
-            if ESP_Objects[player].Hologram then
-                ESP_Objects[player].Hologram.Parent = newCharacter
-            end
-        end
-    end)
-end
-
 -- Trader Tab
 local TraderTab = Window:CreateTab("💱 Trader", 13014546625)
 
@@ -1573,43 +1704,22 @@ TraderTab:CreateToggle({
     Callback = function(Value)
         Config.Trader.AutoAcceptTrade = Value
         logError("Auto Accept Trade: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.Trader.AutoAcceptTrade do
-                    -- Auto accept trade logic
-                    if TradeEvents and TradeEvents:FindFirstChild("AcceptTrade") then
-                        local success, result = pcall(function()
-                            TradeEvents.AcceptTrade:FireServer()
-                            logError("Auto accepted trade")
-                        end)
-                        if not success then
-                            logError("Auto Accept Trade Error: " .. result)
-                        end
-                    end
-                    wait(1)
-                end
-            end)
-        end
     end
 })
 
 -- Get player's fish inventory
-local function updateFishInventory()
-    local fishInventory = {}
-    if PlayerData and PlayerData:FindFirstChild("Inventory") then
-        for _, item in pairs(PlayerData.Inventory:GetChildren()) do
-            if item:IsA("Folder") or item:IsA("Configuration") then
-                table.insert(fishInventory, item.Name)
-            end
+local fishInventory = {}
+if PlayerData and PlayerData:FindFirstChild("Inventory") then
+    for _, item in pairs(PlayerData.Inventory:GetChildren()) do
+        if item:IsA("Folder") or item:IsA("Configuration") then
+            table.insert(fishInventory, item.Name)
         end
     end
-    return fishInventory
 end
 
 TraderTab:CreateDropdown({
     Name = "Select Fish",
-    Options = updateFishInventory(),
+    Options = fishInventory,
     CurrentOption = "",
     Flag = "SelectedFish",
     Callback = function(Value)
@@ -1707,16 +1817,16 @@ ServerTab:CreateToggle({
     Flag = "LuckBoost",
     Callback = function(Value)
         Config.Server.LuckBoost = Value
-        logError("Luck Boost: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("LuckBoost") then
+        if Value and GameFunctions and GameFunctions:FindFirstChild("LuckBoost") then
             local success, result = pcall(function()
-                FishingEvents.LuckBoost:FireServer()
+                GameFunctions.LuckBoost:FireServer()
                 logError("Luck Boost activated")
             end)
             if not success then
-                logError("Luck Boost Error: " .. result)
+                logError("Luck Boost error: " .. result)
             end
+        else
+            logError("Luck Boost deactivated")
         end
     end
 })
@@ -1738,16 +1848,6 @@ ServerTab:CreateToggle({
     Callback = function(Value)
         Config.Server.ForceEvent = Value
         logError("Force Event: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("ForceEvent") then
-            local success, result = pcall(function()
-                FishingEvents.ForceEvent:FireServer(Config.Teleport.SelectedEvent)
-                logError("Forced event: " .. Config.Teleport.SelectedEvent)
-            end)
-            if not success then
-                logError("Force Event Error: " .. result)
-            end
-        end
     end
 })
 
@@ -1758,10 +1858,6 @@ ServerTab:CreateToggle({
     Callback = function(Value)
         Config.Server.RejoinSameServer = Value
         logError("Rejoin Same Server: " .. tostring(Value))
-        
-        if Value then
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-        end
     end
 })
 
@@ -1772,50 +1868,6 @@ ServerTab:CreateToggle({
     Callback = function(Value)
         Config.Server.ServerHop = Value
         logError("Server Hop: " .. tostring(Value))
-        
-        if Value then
-            local servers = {}
-            local req = request or http_request or http.request or syn.request
-            if req then
-                local success, result = pcall(function()
-                    local response = req({
-                        Url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-                    })
-                    
-                    if response and response.Body then
-                        local data = HttpService:JSONDecode(response.Body)
-                        if data and data.data then
-                            for _, server in pairs(data.data) do
-                                if server.playing and server.playing < server.maxPlayers and server.id ~= game.JobId then
-                                    table.insert(servers, server.id)
-                                end
-                            end
-                        end
-                    end
-                end)
-                
-                if success and #servers > 0 then
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
-                    logError("Server hopped to a new server")
-                else
-                    Rayfield:Notify({
-                        Title = "Server Hop Error",
-                        Content = "Failed to find available servers",
-                        Duration = 5,
-                        Image = 13047715178
-                    })
-                    logError("Server Hop Error: No available servers")
-                end
-            else
-                Rayfield:Notify({
-                    Title = "Server Hop Error",
-                    Content = "HTTP request not supported",
-                    Duration = 5,
-                    Image = 13047715178
-                })
-                logError("Server Hop Error: HTTP request not supported")
-            end
-        end
     end
 })
 
@@ -1832,29 +1884,96 @@ ServerTab:CreateToggle({
 ServerTab:CreateButton({
     Name = "Get Server Info",
     Callback = function()
-        local playerCount = #Players:GetPlayers()
-        local serverInfo = "Players: " .. playerCount
+        local success, result = pcall(function()
+            local playerCount = #Players:GetPlayers()
+            local serverInfo = "Players: " .. playerCount
+            
+            if Config.Server.LuckBoost then
+                serverInfo = serverInfo .. " | Luck: Boosted"
+            end
+            
+            if Config.Server.SeedViewer then
+                serverInfo = serverInfo .. " | Seed: " .. tostring(math.random(10000, 99999))
+            end
+            
+            Rayfield:Notify({
+                Title = "Server Info",
+                Content = serverInfo,
+                Duration = 5,
+                Image = 13047715178
+            })
+            logError("Server Info: " .. serverInfo)
+        end)
         
-        if Config.Server.LuckBoost then
-            serverInfo = serverInfo .. " | Luck: Boosted"
+        if not success then
+            logError("Get Server Info error: " .. result)
         end
-        
-        if Config.Server.SeedViewer then
-            serverInfo = serverInfo .. " | Seed: " .. tostring(math.random(10000, 99999))
-        end
-        
-        Rayfield:Notify({
-            Title = "Server Info",
-            Content = serverInfo,
-            Duration = 5,
-            Image = 13047715178
-        })
-        logError("Server Info: " .. serverInfo)
     end
 })
 
 -- System Tab
 local SystemTab = Window:CreateTab("⚙️ System", 13014546625)
+
+-- Show Info
+local infoGui
+local infoFrame
+local infoLabel
+
+local function setupShowInfo()
+    if infoGui then
+        infoGui:Destroy()
+        infoGui = nil
+    end
+    
+    if Config.System.ShowInfo then
+        infoGui = Instance.new("ScreenGui")
+        infoGui.Name = "InfoGui"
+        infoGui.ResetOnSpawn = false
+        infoGui.Parent = CoreGui
+        
+        infoFrame = Instance.new("Frame")
+        infoFrame.Name = "InfoFrame"
+        infoFrame.Size = UDim2.new(0, 200, 0, 100)
+        infoFrame.Position = UDim2.new(0, 10, 0, 10)
+        infoFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+        infoFrame.BackgroundTransparency = 0.5
+        infoFrame.BorderSizePixel = 0
+        infoFrame.Parent = infoGui
+        
+        infoLabel = Instance.new("TextLabel")
+        infoLabel.Name = "InfoLabel"
+        infoLabel.Size = UDim2.new(1, 0, 1, 0)
+        infoLabel.BackgroundTransparency = 1
+        infoLabel.TextColor3 = Color3.new(1, 1, 1)
+        infoLabel.TextScaled = true
+        infoLabel.Font = Enum.Font.SourceSansBold
+        infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+        infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+        infoLabel.Parent = infoFrame
+        
+        local updateInfo
+        updateInfo = RunService.RenderStepped:Connect(function()
+            if not Config.System.ShowInfo then
+                infoGui:Destroy()
+                return
+            end
+            
+            local fps = math.floor(1 / RunService.RenderStepped:Wait())
+            local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            local battery = math.floor((UserInputService:GetBatteryLevel() or 1) * 100)
+            local time = os.date("%H:%M:%S")
+            
+            local infoText = string.format("FPS: %d\nPing: %dms\nBattery: %d%%\nTime: %s", 
+                fps, ping, battery, time)
+            
+            infoLabel.Text = infoText
+        end)
+        
+        logError("Show Info activated")
+    else
+        logError("Show Info deactivated")
+    end
+end
 
 SystemTab:CreateToggle({
     Name = "Show Info",
@@ -1862,56 +1981,51 @@ SystemTab:CreateToggle({
     Flag = "ShowInfo",
     Callback = function(Value)
         Config.System.ShowInfo = Value
+        setupShowInfo()
         logError("Show Info: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                local infoGui = Instance.new("ScreenGui")
-                infoGui.Name = "SystemInfo"
-                infoGui.ResetOnSpawn = false
-                infoGui.Parent = CoreGui
-                
-                local infoFrame = Instance.new("Frame")
-                infoFrame.Size = UDim2.new(0, 200, 0, 100)
-                infoFrame.Position = UDim2.new(0, 10, 0, 10)
-                infoFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-                infoFrame.BackgroundTransparency = 0.3
-                infoFrame.BorderSizePixel = 0
-                infoFrame.Parent = infoGui
-                
-                local infoLabel = Instance.new("TextLabel")
-                infoLabel.Size = UDim2.new(1, 0, 1, 0)
-                infoLabel.BackgroundTransparency = 1
-                infoLabel.TextColor3 = Color3.new(1, 1, 1)
-                infoLabel.TextScaled = true
-                infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-                infoLabel.TextYAlignment = Enum.TextYAlignment.Top
-                infoLabel.Font = Enum.Font.SourceSans
-                infoLabel.Parent = infoFrame
-                
-                local updateConnection
-                updateConnection = RunService.RenderStepped:Connect(function()
-                    if not Config.System.ShowInfo then
-                        infoGui:Destroy()
-                        updateConnection:Disconnect()
-                        return
-                    end
-                    
-                    local fps = math.floor(1 / RunService.RenderStepped:Wait())
-                    local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-                    local memory = math.floor(Stats:GetTotalMemoryUsageMb())
-                    local battery = math.floor((UserInputService:GetBatteryLevel() or 1) * 100)
-                    local time = os.date("%H:%M:%S")
-                    
-                    local systemInfo = string.format("FPS: %d\nPing: %dms\nMemory: %dMB\nBattery: %d%%\nTime: %s", 
-                        fps, ping, memory, battery, time)
-                    
-                    infoLabel.Text = systemInfo
-                end)
-            end)
-        end
     end
 })
+
+-- Boost FPS
+local function setupBoostFPS()
+    if Config.System.BoostFPS then
+        -- Reduce graphics quality
+        settings().Rendering.QualityLevel = 1
+        
+        -- Disable shadows
+        Lighting.GlobalShadows = false
+        
+        -- Disable fog
+        Lighting.FogEnd = 100000
+        
+        -- Disable particles
+        for _, particle in ipairs(Workspace:GetDescendants()) do
+            if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") then
+                particle.Enabled = false
+            end
+        end
+        
+        logError("Boost FPS activated")
+    else
+        -- Reset graphics quality
+        settings().Rendering.QualityLevel = 10
+        
+        -- Enable shadows
+        Lighting.GlobalShadows = true
+        
+        -- Reset fog
+        Lighting.FogEnd = 1000
+        
+        -- Enable particles
+        for _, particle in ipairs(Workspace:GetDescendants()) do
+            if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") then
+                particle.Enabled = true
+            end
+        end
+        
+        logError("Boost FPS deactivated")
+    end
+end
 
 SystemTab:CreateToggle({
     Name = "Boost FPS",
@@ -1919,36 +2033,48 @@ SystemTab:CreateToggle({
     Flag = "BoostFPS",
     Callback = function(Value)
         Config.System.BoostFPS = Value
+        setupBoostFPS()
         logError("Boost FPS: " .. tostring(Value))
-        
-        if Value then
-            settings().Rendering.QualityLevel = 1
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 9e9
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("BasePart") and not obj.Parent:FindFirstChild("Humanoid") then
-                    obj.Material = Enum.Material.Plastic
-                end
-            end
-        else
-            settings().Rendering.QualityLevel = 10
-            Lighting.GlobalShadows = true
-            Lighting.FogEnd = 1000
-        end
     end
 })
 
-SystemTab:CreateDropdown({
+SystemTab:CreateSlider({
     Name = "FPS Limit",
-    Options = {"30", "60", "120", "144", "240", "360"},
-    CurrentOption = tostring(Config.System.FPSLimit),
+    Range = {0, 360},
+    Increment = 5,
+    Suffix = "FPS",
+    CurrentValue = Config.System.FPSLimit,
     Flag = "FPSLimit",
     Callback = function(Value)
-        Config.System.FPSLimit = tonumber(Value)
-        setfpscap(Config.System.FPSLimit)
+        Config.System.FPSLimit = Value
+        setfpscap(Value)
         logError("FPS Limit: " .. Value)
     end
 })
+
+-- Auto Clean Memory
+local autoCleanMemoryConnection
+local function setupAutoCleanMemory()
+    if autoCleanMemoryConnection then
+        autoCleanMemoryConnection:Disconnect()
+        autoCleanMemoryConnection = nil
+    end
+    
+    if Config.System.AutoCleanMemory then
+        autoCleanMemoryConnection = RunService.Heartbeat:Connect(function()
+            -- Clean up memory
+            for i = 1, 10 do
+                game:FindFirstChildWhichIsA("Folder", true)
+            end
+            
+            -- Collect garbage
+            collectgarbage("collect")
+        end)
+        logError("Auto Clean Memory activated")
+    else
+        logError("Auto Clean Memory deactivated")
+    end
+end
 
 SystemTab:CreateToggle({
     Name = "Auto Clean Memory",
@@ -1956,18 +2082,29 @@ SystemTab:CreateToggle({
     Flag = "AutoCleanMemory",
     Callback = function(Value)
         Config.System.AutoCleanMemory = Value
+        setupAutoCleanMemory()
         logError("Auto Clean Memory: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.System.AutoCleanMemory do
-                    collectgarbage("collect")
-                    wait(30) -- Clean every 30 seconds
-                end
-            end)
-        end
     end
 })
+
+-- Disable Particles
+local function setupDisableParticles()
+    if Config.System.DisableParticles then
+        for _, particle in ipairs(Workspace:GetDescendants()) do
+            if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") then
+                particle.Enabled = false
+            end
+        end
+        logError("Disable Particles activated")
+    else
+        for _, particle in ipairs(Workspace:GetDescendants()) do
+            if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") then
+                particle.Enabled = true
+            end
+        end
+        logError("Disable Particles deactivated")
+    end
+end
 
 SystemTab:CreateToggle({
     Name = "Disable Particles",
@@ -1975,23 +2112,69 @@ SystemTab:CreateToggle({
     Flag = "DisableParticles",
     Callback = function(Value)
         Config.System.DisableParticles = Value
+        setupDisableParticles()
         logError("Disable Particles: " .. tostring(Value))
-        
-        if Value then
-            for _, particle in ipairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") or particle:IsA("Sparkles") then
-                    particle.Enabled = false
-                end
-            end
-        else
-            for _, particle in ipairs(Workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") or particle:IsA("Fire") or particle:IsA("Smoke") or particle:IsA("Sparkles") then
-                    particle.Enabled = true
-                end
-            end
-        end
     end
 })
+
+-- Auto Farm
+local autoFarmConnection
+local function setupAutoFarm()
+    if autoFarmConnection then
+        autoFarmConnection:Disconnect()
+        autoFarmConnection = nil
+    end
+    
+    if Config.System.AutoFarm then
+        autoFarmConnection = RunService.Heartbeat:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                -- Find nearest fishing spot
+                local nearestSpot = nil
+                local nearestDistance = math.huge
+                
+                for _, spot in ipairs(Workspace:GetChildren()) do
+                    if spot.Name:find("Fishing") or spot.Name:find("Water") then
+                        local distance = (LocalPlayer.Character.HumanoidRootPart.Position - spot.Position).Magnitude
+                        if distance < nearestDistance and distance <= Config.System.FarmRadius then
+                            nearestDistance = distance
+                            nearestSpot = spot
+                        end
+                    end
+                end
+                
+                if nearestSpot then
+                    -- Move to fishing spot
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(nearestSpot.Position + Vector3.new(0, 5, 0))
+                    
+                    -- Check if player has a rod
+                    local hasRod = false
+                    if PlayerData and PlayerData:FindFirstChild("Inventory") then
+                        for _, item in pairs(PlayerData.Inventory:GetChildren()) do
+                            if item.Name:find("Rod") then
+                                hasRod = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if hasRod and FishingEvents and FishingEvents:FindFirstChild("Fish") then
+                        -- Cast rod
+                        local success, result = pcall(function()
+                            FishingEvents.Fish:FireServer()
+                            logError("Auto Farm: Cast rod")
+                        end)
+                        if not success then
+                            logError("Auto Farm error: " .. result)
+                        end
+                    end
+                end
+            end
+        end)
+        logError("Auto Farm activated")
+    else
+        logError("Auto Farm deactivated")
+    end
+end
 
 SystemTab:CreateToggle({
     Name = "Auto Farm",
@@ -1999,61 +2182,8 @@ SystemTab:CreateToggle({
     Flag = "AutoFarm",
     Callback = function(Value)
         Config.System.AutoFarm = Value
+        setupAutoFarm()
         logError("Auto Farm: " .. tostring(Value))
-        
-        if Value then
-            spawn(function()
-                while Config.System.AutoFarm do
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        local playerPos = LocalPlayer.Character.HumanoidRootPart.Position
-                        
-                        -- Find fishing spots within radius
-                        for _, spot in ipairs(Workspace:GetDescendants()) do
-                            if spot.Name:find("Fishing") or spot.Name:find("Spot") then
-                                if spot:IsA("BasePart") then
-                                    local distance = (spot.Position - playerPos).Magnitude
-                                    if distance <= Config.System.FarmRadius then
-                                        -- Move to fishing spot
-                                        LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(spot.Position + Vector3.new(0, 5, 0)))
-                                        
-                                        -- Wait to arrive
-                                        wait(1)
-                                        
-                                        -- Start fishing
-                                        if FishingEvents and FishingEvents:FindFirstChild("StartFishing") then
-                                            local success, result = pcall(function()
-                                                FishingEvents.StartFishing:FireServer(spot)
-                                                logError("Started auto-fishing at spot")
-                                            end)
-                                            if not success then
-                                                logError("Auto Farm Error: " .. result)
-                                            end
-                                        end
-                                        
-                                        -- Wait for fishing to complete
-                                        wait(5)
-                                        
-                                        -- Perfect catch
-                                        if FishingEvents and FishingEvents:FindFirstChild("PerfectCatch") then
-                                            local success, result = pcall(function()
-                                                FishingEvents.PerfectCatch:FireServer()
-                                                logError("Perfect catch executed")
-                                            end)
-                                            if not success then
-                                                logError("Perfect Catch Error: " .. result)
-                                            end
-                                        end
-                                        
-                                        break
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    wait(1)
-                end
-            end)
-        end
     end
 })
 
@@ -2081,22 +2211,28 @@ SystemTab:CreateButton({
 SystemTab:CreateButton({
     Name = "Get System Info",
     Callback = function()
-        local fps = math.floor(1 / RunService.RenderStepped:Wait())
-        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        local memory = math.floor(Stats:GetTotalMemoryUsageMb())
-        local battery = math.floor((UserInputService:GetBatteryLevel() or 1) * 100)
-        local time = os.date("%H:%M:%S")
+        local success, result = pcall(function()
+            local fps = math.floor(1 / RunService.RenderStepped:Wait())
+            local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            local memory = math.floor(Stats:GetTotalMemoryUsageMb())
+            local battery = math.floor((UserInputService:GetBatteryLevel() or 1) * 100)
+            local time = os.date("%H:%M:%S")
+            
+            local systemInfo = string.format("FPS: %d | Ping: %dms | Memory: %dMB | Battery: %d%% | Time: %s", 
+                fps, ping, memory, battery, time)
+            
+            Rayfield:Notify({
+                Title = "System Info",
+                Content = systemInfo,
+                Duration = 5,
+                Image = 13047715178
+            })
+            logError("System Info: " .. systemInfo)
+        end)
         
-        local systemInfo = string.format("FPS: %d | Ping: %dms | Memory: %dMB | Battery: %d%% | Time: %s", 
-            fps, ping, memory, battery, time)
-        
-        Rayfield:Notify({
-            Title = "System Info",
-            Content = systemInfo,
-            Duration = 5,
-            Image = 13047715178
-        })
-        logError("System Info: " .. systemInfo)
+        if not success then
+            logError("Get System Info error: " .. result)
+        end
     end
 })
 
@@ -2112,11 +2248,14 @@ GraphicTab:CreateToggle({
         if Value then
             sethiddenproperty(Lighting, "Technology", "Future")
             sethiddenproperty(Workspace, "InterpolationThrottling", "Disabled")
-            settings().Rendering.QualityLevel = 10  -- 5x better than standard (2)
+            settings().Rendering.QualityLevel = 15
+            logError("High Quality Rendering activated")
         else
-            settings().Rendering.QualityLevel = 2
+            sethiddenproperty(Lighting, "Technology", "Compatibility")
+            sethiddenproperty(Workspace, "InterpolationThrottling", "Default")
+            settings().Rendering.QualityLevel = 10
+            logError("High Quality Rendering deactivated")
         end
-        logError("High Quality Rendering: " .. tostring(Value))
     end
 })
 
@@ -2127,11 +2266,12 @@ GraphicTab:CreateToggle({
     Callback = function(Value)
         Config.Graphic.MaxRendering = Value
         if Value then
-            settings().Rendering.QualityLevel = 21  -- 20x better than standard (1)
+            settings().Rendering.QualityLevel = 21
+            logError("Max Rendering activated")
         else
-            settings().Rendering.QualityLevel = 1
+            settings().Rendering.QualityLevel = 10
+            logError("Max Rendering deactivated")
         end
-        logError("Max Rendering: " .. tostring(Value))
     end
 })
 
@@ -2142,16 +2282,22 @@ GraphicTab:CreateToggle({
     Callback = function(Value)
         Config.Graphic.UltraLowMode = Value
         if Value then
-            settings().Rendering.QualityLevel = 1  -- 5x lower than standard (5)
+            settings().Rendering.QualityLevel = 1
             for _, part in ipairs(Workspace:GetDescendants()) do
                 if part:IsA("Part") then
                     part.Material = Enum.Material.Plastic
                 end
             end
+            logError("Ultra Low Mode activated")
         else
-            settings().Rendering.QualityLevel = 5
+            settings().Rendering.QualityLevel = 10
+            for _, part in ipairs(Workspace:GetDescendants()) do
+                if part:IsA("Part") then
+                    part.Material = Enum.Material.SmoothPlastic
+                end
+            end
+            logError("Ultra Low Mode deactivated")
         end
-        logError("Ultra Low Mode: " .. tostring(Value))
     end
 })
 
@@ -2167,14 +2313,15 @@ GraphicTab:CreateToggle({
                     water.Transparency = 1
                 end
             end
+            logError("Disable Water Reflection activated")
         else
             for _, water in ipairs(Workspace:GetDescendants()) do
                 if water:IsA("Part") and (water.Name == "Water" or water.Material == Enum.Material.Water) then
                     water.Transparency = 0.5
                 end
             end
+            logError("Disable Water Reflection deactivated")
         end
-        logError("Disable Water Reflection: " .. tostring(Value))
     end
 })
 
@@ -2196,13 +2343,15 @@ GraphicTab:CreateToggle({
         Config.Graphic.SmoothGraphics = Value
         if Value then
             RunService:Set3dRenderingEnabled(true)
-            settings().Rendering.MeshCacheSize = 100  -- 50x better than standard (2)
-            settings().Rendering.TextureCacheSize = 100  -- 50x better than standard (2)
+            settings().Rendering.MeshCacheSize = 100
+            settings().Rendering.TextureCacheSize = 100
+            logError("Smooth Graphics activated")
         else
-            settings().Rendering.MeshCacheSize = 2
-            settings().Rendering.TextureCacheSize = 2
+            RunService:Set3dRenderingEnabled(true)
+            settings().Rendering.MeshCacheSize = 50
+            settings().Rendering.TextureCacheSize = 50
+            logError("Smooth Graphics deactivated")
         end
-        logError("Smooth Graphics: " .. tostring(Value))
     end
 })
 
@@ -2215,28 +2364,28 @@ GraphicTab:CreateToggle({
         if Value then
             Lighting.GlobalShadows = false
             Lighting.ClockTime = 12
-            Lighting.Brightness = Config.Graphic.BrightnessValue
+            Lighting.Ambient = Color3.new(1, 1, 1)
+            logError("Full Bright activated")
         else
             Lighting.GlobalShadows = true
-            Lighting.Brightness = 1
+            Lighting.ClockTime = 14
+            Lighting.Ambient = Color3.new(0.5, 0.5, 0.5)
+            logError("Full Bright deactivated")
         end
-        logError("Full Bright: " .. tostring(Value))
     end
 })
 
 GraphicTab:CreateSlider({
-    Name = "Brightness",
-    Range = {0.1, 5},
+    Name = "Brightness Value",
+    Range = {0.1, 2},
     Increment = 0.1,
-    Suffix = "x",
+    Suffix = "",
     CurrentValue = Config.Graphic.BrightnessValue,
     Flag = "BrightnessValue",
     Callback = function(Value)
         Config.Graphic.BrightnessValue = Value
-        if Config.Graphic.FullBright then
-            Lighting.Brightness = Value
-        end
-        logError("Brightness: " .. Value)
+        Lighting.Ambient = Color3.new(Value, Value, Value)
+        logError("Brightness Value: " .. Value)
     end
 })
 
@@ -2250,16 +2399,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.RNGReducer = Value
         logError("RNG Reducer: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("RNGReducer") then
-            local success, result = pcall(function()
-                FishingEvents.RNGReducer:FireServer()
-                logError("RNG Reducer activated")
-            end)
-            if not success then
-                logError("RNG Reducer Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2270,16 +2409,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.ForceLegendary = Value
         logError("Force Legendary Catch: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("ForceLegendary") then
-            local success, result = pcall(function()
-                FishingEvents.ForceLegendary:FireServer()
-                logError("Force Legendary activated")
-            end)
-            if not success then
-                logError("Force Legendary Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2290,16 +2419,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.SecretFishBoost = Value
         logError("Secret Fish Boost: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("SecretFishBoost") then
-            local success, result = pcall(function()
-                FishingEvents.SecretFishBoost:FireServer()
-                logError("Secret Fish Boost activated")
-            end)
-            if not success then
-                logError("Secret Fish Boost Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2310,16 +2429,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.MythicalChanceBoost = Value
         logError("Mythical Chance Boost: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("MythicalChanceBoost") then
-            local success, result = pcall(function()
-                FishingEvents.MythicalChanceBoost:FireServer()
-                logError("Mythical Chance Boost activated")
-            end)
-            if not success then
-                logError("Mythical Chance Boost Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2330,16 +2439,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.AntiBadLuck = Value
         logError("Anti-Bad Luck: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("AntiBadLuck") then
-            local success, result = pcall(function()
-                FishingEvents.AntiBadLuck:FireServer()
-                logError("Anti-Bad Luck activated")
-            end)
-            if not success then
-                logError("Anti-Bad Luck Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2350,16 +2449,6 @@ RNGKillTab:CreateToggle({
     Callback = function(Value)
         Config.RNGKill.GuaranteedCatch = Value
         logError("Guaranteed Catch: " .. tostring(Value))
-        
-        if Value and FishingEvents and FishingEvents:FindFirstChild("GuaranteedCatch") then
-            local success, result = pcall(function()
-                FishingEvents.GuaranteedCatch:FireServer()
-                logError("Guaranteed Catch activated")
-            end)
-            if not success then
-                logError("Guaranteed Catch Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2401,16 +2490,6 @@ ShopTab:CreateToggle({
     Callback = function(Value)
         Config.Shop.AutoBuyRods = Value
         logError("Auto Buy Rods: " .. tostring(Value))
-        
-        if Value and Config.Shop.SelectedRod ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyRod") then
-            local success, result = pcall(function()
-                GameFunctions.BuyRod:InvokeServer(Config.Shop.SelectedRod)
-                logError("Auto bought rod: " .. Config.Shop.SelectedRod)
-            end)
-            if not success then
-                logError("Auto Buy Rods Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2432,16 +2511,6 @@ ShopTab:CreateToggle({
     Callback = function(Value)
         Config.Shop.AutoBuyBoats = Value
         logError("Auto Buy Boats: " .. tostring(Value))
-        
-        if Value and Config.Shop.SelectedBoat ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBoat") then
-            local success, result = pcall(function()
-                GameFunctions.BuyBoat:InvokeServer(Config.Shop.SelectedBoat)
-                logError("Auto bought boat: " .. Config.Shop.SelectedBoat)
-            end)
-            if not success then
-                logError("Auto Buy Boats Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2463,16 +2532,6 @@ ShopTab:CreateToggle({
     Callback = function(Value)
         Config.Shop.AutoBuyBaits = Value
         logError("Auto Buy Baits: " .. tostring(Value))
-        
-        if Value and Config.Shop.SelectedBait ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBait") then
-            local success, result = pcall(function()
-                GameFunctions.BuyBait:InvokeServer(Config.Shop.SelectedBait)
-                logError("Auto bought bait: " .. Config.Shop.SelectedBait)
-            end)
-            if not success then
-                logError("Auto Buy Baits Error: " .. result)
-            end
-        end
     end
 })
 
@@ -2494,72 +2553,53 @@ ShopTab:CreateToggle({
     Callback = function(Value)
         Config.Shop.AutoUpgradeRod = Value
         logError("Auto Upgrade Rod: " .. tostring(Value))
-        
-        if Value and GameFunctions and GameFunctions:FindFirstChild("UpgradeRod") then
-            local success, result = pcall(function()
-                GameFunctions.UpgradeRod:InvokeServer()
-                logError("Auto upgraded rod")
-            end)
-            if not success then
-                logError("Auto Upgrade Rod Error: " .. result)
-            end
-        end
     end
 })
 
 ShopTab:CreateButton({
     Name = "Buy Selected Item",
     Callback = function()
-        if Config.Shop.SelectedRod ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyRod") then
-            local success, result = pcall(function()
+        local success, result = pcall(function()
+            if Config.Shop.SelectedRod ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyRod") then
                 GameFunctions.BuyRod:InvokeServer(Config.Shop.SelectedRod)
                 Rayfield:Notify({
                     Title = "Item Purchased",
-                    Content = "Successfully bought: " .. Config.Shop.SelectedRod,
+                    Content = "Bought rod: " .. Config.Shop.SelectedRod,
                     Duration = 3,
                     Image = 13047715178
                 })
                 logError("Bought rod: " .. Config.Shop.SelectedRod)
-            end)
-            if not success then
-                logError("Buy Rod Error: " .. result)
-            end
-        elseif Config.Shop.SelectedBoat ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBoat") then
-            local success, result = pcall(function()
+            elseif Config.Shop.SelectedBoat ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBoat") then
                 GameFunctions.BuyBoat:InvokeServer(Config.Shop.SelectedBoat)
                 Rayfield:Notify({
                     Title = "Item Purchased",
-                    Content = "Successfully bought: " .. Config.Shop.SelectedBoat,
+                    Content = "Bought boat: " .. Config.Shop.SelectedBoat,
                     Duration = 3,
                     Image = 13047715178
                 })
                 logError("Bought boat: " .. Config.Shop.SelectedBoat)
-            end)
-            if not success then
-                logError("Buy Boat Error: " .. result)
-            end
-        elseif Config.Shop.SelectedBait ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBait") then
-            local success, result = pcall(function()
+            elseif Config.Shop.SelectedBait ~= "" and GameFunctions and GameFunctions:FindFirstChild("BuyBait") then
                 GameFunctions.BuyBait:InvokeServer(Config.Shop.SelectedBait)
                 Rayfield:Notify({
                     Title = "Item Purchased",
-                    Content = "Successfully bought: " .. Config.Shop.SelectedBait,
+                    Content = "Bought bait: " .. Config.Shop.SelectedBait,
                     Duration = 3,
                     Image = 13047715178
                 })
                 logError("Bought bait: " .. Config.Shop.SelectedBait)
-            end)
-            if not success then
-                logError("Buy Bait Error: " .. result)
+            else
+                error("No item selected or function not found")
             end
-        else
+        end)
+        
+        if not success then
             Rayfield:Notify({
                 Title = "Purchase Error",
-                Content = "Please select an item first",
-                Duration = 3,
+                Content = "Failed to buy item: " .. tostring(result),
+                Duration = 5,
                 Image = 13047715178
             })
-            logError("Purchase Error: No item selected")
+            logError("Purchase Error: " .. result)
         end
     end
 })
@@ -2569,32 +2609,19 @@ local SettingsTab = Window:CreateTab("⚙️ Settings", 13014546625)
 
 SettingsTab:CreateDropdown({
     Name = "Select Theme",
-    Options = {"Dark", "Light", "Blue", "Red", "Green", "Purple"},
+    Options = {"Dark", "Light", "Darker", "Blue", "Red", "Green"},
     CurrentOption = Config.Settings.SelectedTheme,
     Flag = "SelectedTheme",
     Callback = function(Value)
         Config.Settings.SelectedTheme = Value
-        -- Apply theme
-        if Value == "Dark" then
-            Window:SetTheme("Dark")
-        elseif Value == "Light" then
-            Window:SetTheme("Light")
-        elseif Value == "Blue" then
-            Window:SetTheme("Blue")
-        elseif Value == "Red" then
-            Window:SetTheme("Red")
-        elseif Value == "Green" then
-            Window:SetTheme("Green")
-        elseif Value == "Purple" then
-            Window:SetTheme("Purple")
-        end
+        Rayfield:UpdateTheme(Value)
         logError("Theme changed to: " .. Value)
     end
 })
 
 SettingsTab:CreateSlider({
     Name = "UI Transparency",
-    Range = {0.1, 1},
+    Range = {0, 1},
     Increment = 0.1,
     Suffix = "",
     CurrentValue = Config.Settings.Transparency,
@@ -2613,7 +2640,7 @@ SettingsTab:CreateInput({
     Callback = function(Text)
         if Text ~= "" then
             Config.Settings.ConfigName = Text
-            logError("Config name set to: " .. Text)
+            logError("Config Name: " .. Text)
         end
     end
 })
@@ -2622,13 +2649,23 @@ SettingsTab:CreateSlider({
     Name = "UI Scale",
     Range = {0.5, 2},
     Increment = 0.1,
-    Suffix = "x",
+    Suffix = "",
     CurrentValue = Config.Settings.UIScale,
     Flag = "UIScale",
     Callback = function(Value)
         Config.Settings.UIScale = Value
         Window:SetScale(Value)
         logError("UI Scale: " .. Value)
+    end
+})
+
+SettingsTab:CreateToggle({
+    Name = "Auto Logging",
+    CurrentValue = Config.Settings.AutoLogging,
+    Flag = "AutoLogging",
+    Callback = function(Value)
+        Config.Settings.AutoLogging = Value
+        logError("Auto Logging: " .. tostring(Value))
     end
 })
 
@@ -2653,48 +2690,62 @@ SettingsTab:CreateButton({
     end
 })
 
--- Favorite Fish Management
-PlayerTab:CreateInput({
-    Name = "Add Favorite Fish",
-    PlaceholderText = "Enter fish name",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        if Text ~= "" then
-            Config.Player.FavoriteFish[Text] = true
-            Rayfield:Notify({
-                Title = "Favorite Fish Added",
-                Content = "Added " .. Text .. " to favorites",
-                Duration = 3,
-                Image = 13047715178
-            })
-            logError("Added favorite fish: " .. Text)
+SettingsTab:CreateButton({
+    Name = "Clear Log",
+    Callback = function()
+        local success, err = pcall(function()
+            local logPath = "/storage/emulated/0/logscript.txt"
+            if isfile(logPath) then
+                delfile(logPath)
+                writefile(logPath, "Log cleared at " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n")
+                logError("Log cleared")
+            end
+        end)
+        
+        if not success then
+            logError("Clear Log Error: " .. err)
         end
     end
 })
 
-PlayerTab:CreateInput({
-    Name = "Remove Favorite Fish",
-    PlaceholderText = "Enter fish name",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        if Text ~= "" and Config.Player.FavoriteFish[Text] then
-            Config.Player.FavoriteFish[Text] = nil
-            Rayfield:Notify({
-                Title = "Favorite Fish Removed",
-                Content = "Removed " .. Text .. " from favorites",
-                Duration = 3,
-                Image = 13047715178
-            })
-            logError("Removed favorite fish: " .. Text)
-        end
-    end
-})
+-- Initialize features
+setupAntiAFK()
+setupAntiKick()
+setupAutoJump()
 
--- Initialize script
-logError("Fish It Hub 2025 script initialized")
-Rayfield:Notify({
-    Title = "Script Loaded",
-    Content = "Fish It Hub 2025 has been loaded successfully!",
-    Duration = 5,
-    Image = 13047715178
-})
+-- Character added handler
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if Config.Player.SpeedHack then
+        setupSpeedHack()
+    end
+    
+    if Config.Player.GhostHack then
+        setupGhostHack()
+    end
+    
+    if Config.Player.PlayerESP then
+        setupESP()
+    end
+    
+    if Config.Player.Noclip then
+        setupNoclip()
+    end
+end)
+
+-- Initialize all connections
+setupSpeedHack()
+setupMaxBoatSpeed()
+setupInfinityJump()
+setupFly()
+setupFlyBoat()
+setupGhostHack()
+setupESP()
+setupNoclip()
+setupAutoSell()
+setupShowInfo()
+setupBoostFPS()
+setupAutoCleanMemory()
+setupDisableParticles()
+setupAutoFarm()
+
+logError("Script initialized successfully")
