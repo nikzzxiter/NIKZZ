@@ -2,20 +2,20 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Fish It Hub | Nikzz",
-   LoadingTitle = "Fish It Logger",
+   Name = "Fish It Scanner | Nikzz",
+   LoadingTitle = "Fish It Dump Tool",
    LoadingSubtitle = "By Nikzz",
-   ConfigurationSaving = {
-      Enabled = false
-   }
+   ConfigurationSaving = { Enabled = false }
 })
+
+local MainTab = Window:CreateTab("Scanner", 4483362458)
 
 -- // Vars
 local logFile = "NikzzLog.txt"
-local autoFishEnabled = false
+local scanEnabled = false
 local spyEnabled = false
 
--- // Logging System
+-- // Logging Function
 local function log(msg)
    local time = os.date("%Y-%m-%d %H:%M:%S")
    local line = "["..time.."] "..tostring(msg).."\n"
@@ -26,23 +26,52 @@ local function log(msg)
    end
 end
 
--- // Tabs
-local MainTab = Window:CreateTab("Main", 4483362458)
-local SpyTab  = Window:CreateTab("RemoteSpy", 4483362458)
-
--- // Auto Fish Toggle
+-- // Toggles
 MainTab:CreateToggle({
-   Name = "Auto Fish",
+   Name = "Scan Assets (Remotes + Modules + GC)",
    CurrentValue = false,
-   Flag = "AutoFish",
+   Flag = "Scan",
    Callback = function(state)
-      autoFishEnabled = state
-      log("AutoFish set to: "..tostring(state))
+      scanEnabled = state
+      if state then
+         log("==== SCAN DIMULAI ====")
+
+         -- Remote Finder
+         log("[RemoteEvent / RemoteFunction]")
+         for _,v in pairs(game:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+               log("Remote: "..v.Name.." | Path: "..v:GetFullName())
+            end
+         end
+
+         -- Loaded Modules
+         log("[Loaded Modules]")
+         for _,v in pairs(getloadedmodules()) do
+            pcall(function()
+               log("Module: "..v.Name.." | Path: "..v:GetFullName())
+            end)
+         end
+
+         -- GC Functions
+         log("[getgc Dump]")
+         for _,v in pairs(getgc(true)) do
+            if type(v) == "function" and islclosure(v) then
+               local info = debug.getinfo(v)
+               if info and info.source then
+                  log("Function @ "..info.source.." | "..(info.name or "anonymous"))
+               end
+            end
+         end
+
+         log("==== SCAN SELESAI ====")
+      else
+         log("SCAN dimatikan.")
+      end
    end,
 })
 
 -- // Remote Spy Toggle
-SpyTab:CreateToggle({
+MainTab:CreateToggle({
    Name = "Enable Remote Spy",
    CurrentValue = false,
    Flag = "Spy",
@@ -61,33 +90,13 @@ mt.__namecall = newcclosure(function(self, ...)
    local args = {...}
    local method = getnamecallmethod()
 
-   if spyEnabled and method == "FireServer" then
-      log("Remote Fired: "..self.Name.." | Args: "..table.concat(args, ", "))
+   if spyEnabled and (method == "FireServer" or method == "InvokeServer") then
+      local argStr = ""
+      for i,v in ipairs(args) do
+         argStr = argStr.."["..i.."]="..tostring(v).." "
+      end
+      log("Remote Called: "..self.Name.." | Method: "..method.." | Args: "..argStr)
    end
 
    return old(self, unpack(args))
-end)
-
--- // AutoFish Core Loop
-task.spawn(function()
-   while task.wait(1) do
-      if autoFishEnabled then
-         local player = game.Players.LocalPlayer
-         local rs = game:GetService("ReplicatedStorage")
-
-         -- Cek remote casting
-         local cast = rs:FindFirstChild("Cast")
-         local reel = rs:FindFirstChild("Reel")
-
-         if cast and reel then
-            log("Casting line...")
-            pcall(function() cast:FireServer() end)
-            task.wait(3) -- tunggu ikan
-            log("Reeling...")
-            pcall(function() reel:FireServer() end)
-         else
-            log("Remote Cast/Reel tidak ditemukan!")
-         end
-      end
-   end
 end)
