@@ -3,7 +3,7 @@
 -- Catatan: Sesuaikan path remote jika game memperbarui paket. Ada banyak pencegahan pcall agar tidak error.
 
 -- == Dependencies: Rayfield UI ==
-local Rayfield = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/shlexware/Rayfield/main/source.lua"))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- jika kamu punya versi lokal Rayfield, ganti source di atas
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
