@@ -1502,27 +1502,32 @@ end
 local Window = nil
 local function createUI()
     local success, result = pcall(function()
-        Window = Rayfield:CreateWindow({
-            Name = "NIKZZ - FISH IT SCRIPT SEPTEMBER 2025",
-            LoadingTitle = "NIKZZ SCRIPT",
-            LoadingSubtitle = "by Nikzz Xit",
-            ConfigurationSaving = {
-                Enabled = false
-            },
-            Discord = {
-                Enabled = false
-            }
-        })
-        Rayfield:ChangeTheme(Config.Settings.SelectedTheme)
-        Rayfield:SetTransparency(Config.Settings.Transparency)
-        Rayfield:SetScale(Config.Settings.UIScale)
-        logError("UI created successfully")
+        if not Rayfield then
+            Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+        end
+
+        -- Pastikan Rayfield sudah terinisialisasi sebelum memanggil metode lainnya
+        if Rayfield then
+            Window = Rayfield:CreateWindow({
+                Name = "NIKZZ - FISH IT SCRIPT SEPTEMBER 2025",
+                LoadingTitle = "NIKZZ SCRIPT",
+                LoadingSubtitle = "by Nikzz Xit",
+                ConfigurationSaving = { Enabled = false },
+                Discord = { Enabled = false }
+            })
+            Rayfield:ChangeTheme(Config.Settings.SelectedTheme)
+            Rayfield:SetTransparency(Config.Settings.Transparency)
+            Rayfield:SetScale(Config.Settings.UIScale)
+            logError("UI berhasil dibuat")
+        else
+            logError("Rayfield belum terinisialisasi dengan benar")
+        end
     end)
+    
     if not success then
-        logError("Failed to create UI: " .. result)
-        warn("Failed to create UI: " .. result)
+        logError("Gagal membuat UI: " .. result)
+        warn("Gagal membuat UI: " .. result)
     end
-    return success
 end
 
 -- Create main UI
