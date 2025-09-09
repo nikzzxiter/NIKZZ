@@ -1,21 +1,24 @@
 -- // Rayfield Loader
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source"))()
 
 local Window = Rayfield:CreateWindow({
     Name = "Fish It | AutoFarm Hub",
     LoadingTitle = "Nikzz Hub",
-    LoadingSubtitle = "AutoFarm Core",
+    LoadingSubtitle = "AutoFarm Core Fixed",
     ConfigurationSaving = { Enabled = false }
 })
 
--- // Vars
+-- // Ambil service
 local rs = game:GetService("ReplicatedStorage")
-local cast = rs.Remotes:FindFirstChild("CastLine")
-local reel = rs.Remotes:FindFirstChild("ReelFish")
-local sell = rs.Remotes:FindFirstChild("SellFish")
-local upgrade = rs.Remotes:FindFirstChild("UpgradeRod")
-local equip = rs.Remotes:FindFirstChild("EquipRod")
 
+-- // Remote (langsung di ReplicatedStorage, bukan di folder Remotes)
+local cast = rs:WaitForChild("CastLine", 10)
+local reel = rs:WaitForChild("ReelFish", 10)
+local sell = rs:FindFirstChild("SellFish")
+local upgrade = rs:FindFirstChild("UpgradeRod")
+local equip = rs:FindFirstChild("EquipRod")
+
+-- // Vars
 getgenv().AutoFish = false
 getgenv().AutoEquip = false
 getgenv().AutoSell = false
@@ -74,12 +77,13 @@ task.spawn(function()
         if getgenv().AutoFish then
             pcall(function()
                 if cast then
-                    cast:FireServer("Perfect") -- argumen Perfect
+                    -- Argumen "Perfect" contoh → cek di RemoteSpy log kamu
+                    cast:FireServer("Perfect")
                     print("Casting Perfect...")
                 end
             end)
 
-            task.wait(4) -- tunggu ikan (atur sesuai delay game)
+            task.wait(4) -- tunggu ikan
 
             pcall(function()
                 if reel then
@@ -96,7 +100,8 @@ task.spawn(function()
     while task.wait(5) do
         if getgenv().AutoEquip and equip then
             pcall(function()
-                equip:FireServer("BasicRod") -- ganti arg sesuai rod yang ada di log kamu
+                -- ganti "BasicRod" sesuai log (contoh: "WoodenRod", "IronRod")
+                equip:FireServer("BasicRod")
                 print("Equipped Rod.")
             end)
         end
