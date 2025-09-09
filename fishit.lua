@@ -1,8 +1,5 @@
--- Fish It Hub 2025 by Nikzz Xit
--- RayfieldLib Script for Fish It September 2025
--- Full Implementation - All Features 100% Working
-
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
