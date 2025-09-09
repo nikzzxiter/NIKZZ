@@ -1498,16 +1498,19 @@ local function ResetConfig()
     end)
 end
 
--- UI Library with error handling
 local Window = nil
+
+-- Fungsi untuk membuat UI dengan penanganan error
 local function createUI()
     local success, result = pcall(function()
+        -- Pastikan Rayfield sudah terinisialisasi
         if not Rayfield then
             Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
         end
 
-        -- Pastikan Rayfield sudah terinisialisasi sebelum memanggil metode lainnya
+        -- Pastikan Rayfield sudah terinisialisasi dengan benar
         if Rayfield then
+            -- Membuat jendela UI
             Window = Rayfield:CreateWindow({
                 Name = "NIKZZ - FISH IT SCRIPT SEPTEMBER 2025",
                 LoadingTitle = "NIKZZ SCRIPT",
@@ -1515,30 +1518,44 @@ local function createUI()
                 ConfigurationSaving = { Enabled = false },
                 Discord = { Enabled = false }
             })
-            Rayfield:ChangeTheme(Config.Settings.SelectedTheme)
-            Rayfield:SetTransparency(Config.Settings.Transparency)
-            Rayfield:SetScale(Config.Settings.UIScale)
+
+            -- Pastikan pengaturan tema dan UI diterapkan
+            if Config.Settings.SelectedTheme then
+                Rayfield:ChangeTheme(Config.Settings.SelectedTheme)
+            else
+                Rayfield:ChangeTheme("Dark")  -- Tema default jika belum diatur
+            end
+
+            -- Mengatur transparansi dan skala UI
+            Rayfield:SetTransparency(Config.Settings.Transparency or 0.5)
+            Rayfield:SetScale(Config.Settings.UIScale or 1)
+            
             logError("UI berhasil dibuat")
         else
+            -- Menangani kasus jika Rayfield gagal dimuat
             logError("Rayfield belum terinisialisasi dengan benar")
         end
     end)
-    
+
+    -- Menangani error jika pcall gagal
     if not success then
         logError("Gagal membuat UI: " .. result)
         warn("Gagal membuat UI: " .. result)
+        return false  -- Mengembalikan false jika gagal
     end
+
+    return true  -- Mengembalikan true jika berhasil
 end
 
--- Create main UI
+-- Membuat UI utama, jika gagal coba dengan pengaturan default
 if not createUI() then
-    -- Retry with default settings
+    -- Coba lagi dengan pengaturan default
     Config.Settings.SelectedTheme = "Dark"
     Config.Settings.Transparency = 0.5
     Config.Settings.UIScale = 1
     if not createUI() then
-        logError("Failed to create UI even with default settings")
-        return
+        logError("Gagal membuat UI bahkan dengan pengaturan default")
+        return  -- Keluar jika gagal
     end
 end
 
