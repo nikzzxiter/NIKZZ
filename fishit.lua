@@ -1,137 +1,70 @@
--- Fish It AutoFarm (No Error Edition)
--- Profesor Modder
+local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/ohyesyoucan/Rayfield/main/Library.lua"))()
 
--- ========== Load Rayfield UI ==========
-local Rayfield
-local ok, err = pcall(function()
-    Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Rayfield/main/source.lua"))()
-end)
-if not ok or not Rayfield then
-    warn("Rayfield gagal dimuat: "..tostring(err))
-    -- fallback UI dummy (biar nggak error)
-    Rayfield = {
-        CreateWindow = function() return {
-            CreateTab = function() return {
-                CreateSection=function()end,
-                CreateToggle=function()end,
-                CreateButton=function()end,
-            } end
-        } end
+local window = Rayfield:CreateWindow({
+    Name = "Fish It UI",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "by YourName",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = nil,
+        FileName = "FishIt_Config"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "",
+        RememberJoins = false
+    },
+    KeySystem = false, -- Set to true if you want a key system
+    KeySettings = {
+        Title = "Key System",
+        Subtitle = "Enter your key",
+        Note = "You can set your key system if you want",
+        FileName = "Rayfield_Key",
+        SaveKey = true,
+        GrabKeyFromWebsite = false
     }
-end
-
--- ========== Service & Player ==========
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-
--- ========== Helper: Cari Remote ==========
-local function getRemote(name)
-    local found = ReplicatedStorage:FindFirstChild(name, true)
-    if not found then
-        warn("Remote tidak ketemu:", name)
-    end
-    return found
-end
-
-local RF_RequestFishing = getRemote("RequestFishingMinigameStarted")
-local RF_ChargeRod = getRemote("ChargeFishingRod")
-local RF_SellItem = getRemote("SellItem")
-local RF_SellAll = getRemote("SellAllItems")
-
--- ========== Fungsi Dasar ==========
-local function findBestRod()
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then return end
-    for _,tool in pairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            return tool
-        end
-    end
-end
-
-local function equipRod()
-    local rod = findBestRod()
-    if rod then pcall(function() Humanoid:EquipTool(rod) end) end
-end
-
-local function throwPerfect()
-    if RF_ChargeRod and RF_ChargeRod.InvokeServer then
-        pcall(function() RF_ChargeRod:InvokeServer(1) end)
-    else
-        local rod = Character:FindFirstChildOfClass("Tool")
-        if rod then pcall(function() rod:Activate() end) end
-    end
-end
-
-local function pullInstant()
-    if RF_RequestFishing and RF_RequestFishing.InvokeServer then
-        pcall(function() RF_RequestFishing:InvokeServer() end)
-    end
-end
-
-local function sellFish()
-    if RF_SellAll and RF_SellAll.InvokeServer then
-        pcall(function() RF_SellAll:InvokeServer() end)
-    elseif RF_SellItem and RF_SellItem.InvokeServer then
-        pcall(function() RF_SellItem:InvokeServer("all_non_favorites") end)
-    end
-end
-
--- ========== Loop ==========
-local autoFarm, autoSell, autoJump = false,false,false
-
-task.spawn(function()
-    while task.wait(0.6) do
-        if autoFarm then
-            equipRod()
-            throwPerfect()
-            task.wait(0.15)
-            pullInstant()
-            if autoSell then sellFish() end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.9) do
-        if autoJump and Humanoid then
-            pcall(function() Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end)
-        end
-    end
-end)
-
--- ========== UI ==========
-local Window = Rayfield:CreateWindow({
-    Name = "Fish It AutoFarm",
-    LoadingTitle = "Profesor Modder",
-    LoadingSubtitle = "No Error",
 })
 
-local Tab = Window:CreateTab("Auto Farm", 4483362458)
-Tab:CreateSection("Core")
+local tab = window:CreateTab("Fitur", 4483362458) -- Tab with name "Fitur" and an icon ID
 
-Tab:CreateToggle({
-    Name = "Auto Farm",
-    CurrentValue = false,
-    Callback = function(v) autoFarm = v end
+tab:CreateButton({
+    Name = "Fitur 1",
+    Callback = function()
+        print("Fitur 1 activated!")
+        -- Tambahkan fungsi untuk Fitur 1 di sini
+    end
 })
 
-Tab:CreateToggle({
-    Name = "Auto Sell",
-    CurrentValue = false,
-    Callback = function(v) autoSell = v end
+tab:CreateButton({
+    Name = "Fitur 2",
+    Callback = function()
+        print("Fitur 2 activated!")
+        -- Tambahkan fungsi untuk Fitur 2 di sini
+    end
 })
 
-Tab:CreateToggle({
-    Name = "Auto Jump",
-    CurrentValue = false,
-    Callback = function(v) autoJump = v end
+tab:CreateButton({
+    Name = "Fitur 3",
+    Callback = function()
+        print("Fitur 3 activated!")
+        -- Tambahkan fungsi untuk Fitur 3 di sini
+    end
 })
 
-Tab:CreateButton({
-    Name = "Force Sell Now",
-    Callback = sellFish
+tab:CreateButton({
+    Name = "Fitur 4",
+    Callback = function()
+        print("Fitur 4 activated!")
+        -- Tambahkan fungsi untuk Fitur 4 di sini
+    end
 })
+
+tab:CreateButton({
+    Name = "Fitur 5",
+    Callback = function()
+        print("Fitur 5 activated!")
+        -- Tambahkan fungsi untuk Fitur 5 di sini
+    end
+})
+
+Rayfield:Load()
