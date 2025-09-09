@@ -1500,14 +1500,36 @@ end
 
 local Window = nil
 
--- Fungsi untuk membuat UI dengan penanganan error
-local function createUI()
+-- Fungsi untuk memastikan Rayfield terinisialisasi dengan baik
+local function initializeRayfield()
     local success, result = pcall(function()
-        -- Pastikan Rayfield sudah terinisialisasi
         if not Rayfield then
+            -- Memuat Rayfield dengan aman menggunakan loadstring
             Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
         end
+        
+        -- Mengecek apakah Rayfield berhasil dimuat
+        if not Rayfield then
+            error("Rayfield tidak terinisialisasi dengan benar.")
+        end
+    end)
+    
+    if not success then
+        warn("Gagal memuat Rayfield: " .. result)
+        return false
+    end
+    
+    return true
+end
 
+-- Fungsi untuk membuat UI dengan pengaturan yang lebih aman
+local function createUI()
+    -- Memastikan Rayfield terinisialisasi
+    if not initializeRayfield() then
+        return false
+    end
+
+    local success, result = pcall(function()
         -- Pastikan Rayfield sudah terinisialisasi dengan benar
         if Rayfield then
             -- Membuat jendela UI
@@ -1520,16 +1542,16 @@ local function createUI()
             })
 
             -- Pastikan pengaturan tema dan UI diterapkan
-            if Config.Settings.SelectedTheme then
-                Rayfield:ChangeTheme(Config.Settings.SelectedTheme)
-            else
-                Rayfield:ChangeTheme("Dark")  -- Tema default jika belum diatur
-            end
+            local selectedTheme = Config.Settings.SelectedTheme or "Dark"  -- Default jika tidak ada
+            Rayfield:ChangeTheme(selectedTheme)
 
             -- Mengatur transparansi dan skala UI
-            Rayfield:SetTransparency(Config.Settings.Transparency or 0.5)
-            Rayfield:SetScale(Config.Settings.UIScale or 1)
-            
+            local transparency = Config.Settings.Transparency or 0.5  -- Default transparansi jika tidak ada
+            local uiScale = Config.Settings.UIScale or 1  -- Default skala UI jika tidak ada
+
+            Rayfield:SetTransparency(transparency)
+            Rayfield:SetScale(uiScale)
+
             logError("UI berhasil dibuat")
         else
             -- Menangani kasus jika Rayfield gagal dimuat
