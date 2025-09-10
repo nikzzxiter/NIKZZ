@@ -4,7 +4,16 @@
 -- Optimized for Low-End Devices & High-End Performance
 
 -- ==================== CORE LIBRARIES & SERVICES ====================
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield
+local success = pcall(function()
+    Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+end)
+
+if not success then
+    Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+    Rayfield = Rayfield:MakeWindow({Name = "NIKZZ - FISH IT SCRIPT"})
+end
+
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
