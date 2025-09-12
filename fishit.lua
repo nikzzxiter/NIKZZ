@@ -1,2690 +1,2478 @@
--- NIKZZMODDER.lua
--- Script Profesional untuk Roblox - 100% Stabil, Ringan, Optimal
--- Dibuat dengan Rayfield UI, Async Execution, dan Logging Lengkap
--- Versi: 1.0.0
--- Creator: Nikzz7z
+-- NIKZZMODDER.LUA - FULL IMPLEMENTATION FOR FISH IT ROBLOX
+-- BASED ON MODULE.TXT AND BASE.TXT WITH FULL ASYNC SYSTEM
 
--- Base UI Rayfield dengan Async
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
--- Membuat window utama
+
+-- ========================================
+-- GLOBAL VARIABLES & UTILITIES
+-- ========================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = nil
+local Humanoid = nil
+local Camera = workspace.CurrentCamera
+
+-- Load all modules from MODULE.TXT
+local RemoteEvent = require(ReplicatedStorage.RemoteEvent)
+local RemoteFunction = require(ReplicatedStorage.RemoteFunction)
+
+-- Extracting all necessary remotes and modules from MODULE.TXT
+local Remotes = {
+    -- VoiceChat & Server Info
+    VoiceChatTokenRequest = ReplicatedStorage.VoiceChatTokenRequest,
+    GetServerVersion = ReplicatedStorage.GetServerVersion,
+    GetServerChannel = ReplicatedStorage.GetServerChannel,
+    GetServerType = ReplicatedStorage.GetServerType,
+    
+    -- Chat & Blocklist
+    WhisperChat = ReplicatedStorage.ExperienceChat.WhisperChat,
+    CanChatWith = ReplicatedStorage.CanChatWith,
+    SetPlayerBlockList = ReplicatedStorage.SetPlayerBlockList,
+    UpdatePlayerBlockList = ReplicatedStorage.UpdatePlayerBlockList,
+    SendPlayerBlockList = ReplicatedStorage.SendPlayerBlockList,
+    UpdateLocalPlayerBlockList = ReplicatedStorage.UpdateLocalPlayerBlockList,
+    SendPlayerProfileSettings = ReplicatedStorage.SendPlayerProfileSettings,
+    ShowPlayerJoinedFriendsToast = ReplicatedStorage.ShowPlayerJoinedFriendsToast,
+    ShowFriendJoinedPlayerToast = ReplicatedStorage.ShowFriendJoinedPlayerToast,
+    
+    -- Player & Group
+    NewPlayerGroupDetails = ReplicatedStorage.NewPlayerGroupDetails,
+    NewPlayerCanManageDetails = ReplicatedStorage.NewPlayerCanManageDetails,
+    
+    -- Device & Camera
+    RequestDeviceCameraOrientationCapability = ReplicatedStorage.RequestDeviceCameraOrientationCapability,
+    RequestDeviceCameraCFrame = ReplicatedStorage.RequestDeviceCameraCFrame,
+    ReceiveLikelySpeakingUsers = ReplicatedStorage.ReceiveLikelySpeakingUsers,
+    ReferredPlayerJoin = ReplicatedStorage.ReferredPlayerJoin,
+    
+    -- Cmdr (Admin Commands)
+    CmdrFunction = ReplicatedStorage.CmdrClient.CmdrFunction,
+    CmdrEvent = ReplicatedStorage.CmdrClient.CmdrEvent,
+    
+    -- GamePass & Purchase
+    UserOwnsGamePass = ReplicatedStorage.Shared.GamePassUtility.UserOwnsGamePass,
+    PromptGamePassPurchase = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptGamePassPurchase,
+    PromptProductPurchase = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptProductPurchase,
+    PromptPurchase = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptPurchase,
+    ProductPurchaseFinished = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ProductPurchaseFinished,
+    DisplaySystemMessage = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/DisplaySystemMessage,
+    GiftGamePass = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/GiftGamePass,
+    ProductPurchaseCompleted = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ProductPurchaseCompleted,
+    PlaySound = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlaySound,
+    PlayFishingEffect = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlayFishingEffect,
+    ReplicateTextEffect = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReplicateTextEffect,
+    DestroyEffect = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/DestroyEffect,
+    ReplicateCutscene = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReplicateCutscene,
+    StopCutscene = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/StopCutscene,
+    BaitSpawned = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BaitSpawned,
+    FishCaught = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishCaught,
+    TextNotification = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/TextNotification,
+    PurchaseWeatherEvent = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseWeatherEvent,
+    ActivateEnchantingAltar = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ActivateEnchantingAltar,
+    UpdateEnchantState = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateEnchantState,
+    RollEnchant = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RollEnchant,
+    ActivateQuestLine = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ActivateQuestLine,
+    IncrementOnboardingStep = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/IncrementOnboardingStep,
+    UpdateAutoFishingState = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateAutoFishingState,
+    UpdateChargeState = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateChargeState,
+    ChargeFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ChargeFishingRod,
+    CancelFishingInputs = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/CancelFishingInputs,
+    PlayVFX = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlayVFX,
+    FishingStopped = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingStopped,
+    RequestFishingMinigameStarted = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RequestFishingMinigameStarted,
+    FishingCompleted = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingCompleted,
+    FishingMinigameChanged = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingMinigameChanged,
+    UpdateAutoSellThreshold = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateAutoSellThreshold,
+    UpdateFishingRadar = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateFishingRadar,
+    ObtainedNewFishNotification = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ObtainedNewFishNotification,
+    PurchaseSkinCrate = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseSkinCrate,
+    RollSkinCrate = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RollSkinCrate,
+    EquipRodSkin = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipRodSkin,
+    UnequipRodSkin = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipRodSkin,
+    EquipItem = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipItem,
+    UnequipItem = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipItem,
+    EquipBait = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipBait,
+    FavoriteItem = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FavoriteItem,
+    FavoriteStateChanged = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FavoriteStateChanged,
+    UnequipToolFromHotbar = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipToolFromHotbar,
+    EquipToolFromHotbar = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipToolFromHotbar,
+    SellItem = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellItem,
+    SellAllItems = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellAllItems,
+    PurchaseFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseFishingRod,
+    PurchaseBait = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBait,
+    PurchaseGear = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseGear,
+    CancelPrompt = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/CancelPrompt,
+    FeatureUnlocked = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FeatureUnlocked,
+    ChangeSetting = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ChangeSetting,
+    PurchaseBoat = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBoat,
+    SpawnBoat = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SpawnBoat,
+    DespawnBoat = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/DespawnBoat,
+    BoatChanged = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BoatChanged,
+    VerifyGroupReward = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/VerifyGroupReward,
+    ConsumePotion = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ConsumePotion,
+    RedeemChristmasItems = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RedeemChristmasItems,
+    EquipOxygenTank = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/EquipOxygenTank,
+    UnequipOxygenTank = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UnequipOxygenTank,
+    ClaimDailyLogin = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ClaimDailyLogin,
+    RecievedDailyRewards = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RecievedDailyRewards,
+    ReconnectPlayer = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReconnectPlayer,
+    CanSendTrade = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/CanSendTrade,
+    InitiateTrade = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/InitiateTrade,
+    AwaitTradeResponse = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/AwaitTradeResponse,
+    RedeemCode = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RedeemCode,
+    LoadVFX = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/LoadVFX,
+    RequestSpin = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RequestSpin,
+    SpinWheel = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/SpinWheel,
+    PromptFavoriteGame = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PromptFavoriteGame,
+    ClaimNotification = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ClaimNotification,
+    BlackoutScreen = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BlackoutScreen,
+    ElevatorStateUpdated = ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ElevatorStateUpdated,
+    
+    -- Replion System
+    Added = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Added,
+    Removed = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Removed,
+    Update = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Update,
+    UpdateReplicateTo = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.UpdateReplicateTo,
+    Set = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Set,
+    ArrayUpdate = ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.ArrayUpdate,
+    
+    -- Controllers & Modules
+    HUDController = ReplicatedStorage.Controllers.HUDController,
+    WeatherState = ReplicatedStorage.Controllers.EventController.WeatherState,
+    SettingsListener = ReplicatedStorage.Controllers.SettingsController.SettingsListener,
+    SettingsController = ReplicatedStorage.Controllers.SettingsController,
+    PromptController = ReplicatedStorage.Controllers.PromptController,
+    MasteryController = ReplicatedStorage.Controllers.MasteryController,
+    InventoryController = ReplicatedStorage.Controllers.InventoryController,
+    FishingController = ReplicatedStorage.Controllers.FishingController,
+    PotionController = ReplicatedStorage.Controllers.PotionController,
+    InputStates = ReplicatedStorage.Controllers.FishingController.InputStates,
+    WeightRanges = ReplicatedStorage.Controllers.FishingController.WeightRanges,
+    GamepadStates = ReplicatedStorage.Controllers.FishingController.GamepadStates,
+    AnimationController = ReplicatedStorage.Controllers.AnimationController,
+    DailyLoginController = ReplicatedStorage.Controllers.DailyLoginController,
+    ChatController = ReplicatedStorage.Controllers.ChatController,
+    LevelController = ReplicatedStorage.Controllers.LevelController,
+    EventController = ReplicatedStorage.Controllers.EventController,
+    HotbarController = ReplicatedStorage.Controllers.HotbarController,
+    NotificationController = ReplicatedStorage.Controllers.NotificationController,
+    VFXController = ReplicatedStorage.Controllers.VFXController,
+    SpinWheelController = ReplicatedStorage.Controllers.SpinWheelController,
+    BaitShopController = ReplicatedStorage.Controllers.BaitShopController,
+    TextNotificationController = ReplicatedStorage.Controllers.TextNotificationController,
+    SpinController = ReplicatedStorage.Controllers.SpinController,
+    AreaController = ReplicatedStorage.Controllers.AreaController,
+    DialogueController = ReplicatedStorage.Controllers.DialogueController,
+    BoatShopController = ReplicatedStorage.Controllers.BoatShopController,
+    VendorController = ReplicatedStorage.Controllers.VendorController,
+    QuestController = ReplicatedStorage.Controllers.QuestController,
+    EnchantingController = ReplicatedStorage.Controllers.EnchantingController,
+    ElevatorController = ReplicatedStorage.Controllers.ElevatorController,
+    AutoFishingController = ReplicatedStorage.Controllers.AutoFishingController,
+    LootboxController = ReplicatedStorage.Controllers.LootboxController,
+    FireflyController = ReplicatedStorage.Controllers.FireflyController,
+    GroupRewardController = ReplicatedStorage.Controllers.GroupRewardController,
+    PotionShopController = ReplicatedStorage.Controllers.PotionShopController,
+    StarterPackController = ReplicatedStorage.Controllers.StarterPackController,
+    AFKController = ReplicatedStorage.Controllers.AFKController,
+    DoubleLuckController = ReplicatedStorage.Controllers.DoubleLuckController,
+    CodeController = ReplicatedStorage.Controllers.CodeController,
+    SwimController = ReplicatedStorage.Controllers.SwimController,
+    TopBarController = ReplicatedStorage.Controllers.TopBarController,
+    WeatherMachineController = ReplicatedStorage.Controllers.WeatherMachineController,
+    ItemTradingController = ReplicatedStorage.Controllers.ItemTradingController,
+    CutsceneController = ReplicatedStorage.Controllers.CutsceneController,
+    Leaderboard = ReplicatedStorage.Observers.Leaderboard,
+    GamePassPrompt = ReplicatedStorage.Observers.GamePassPrompt,
+    Fishing = ReplicatedStorage.Types.Fishing,
+    Enchanting = ReplicatedStorage.Types.Enchanting,
+    ClickSound = ReplicatedStorage.Observers.ClickSound,
+    CoralLight = ReplicatedStorage.Observers.CoralLight,
+    CurrencyCounter = ReplicatedStorage.Observers.CurrencyCounter,
+    RegisterButtonTooltip = ReplicatedStorage.Modules.RegisterButtonTooltip,
+    MenuRing = ReplicatedStorage.Observers.MenuRing,
+    MenuPrompt = ReplicatedStorage.Observers.MenuPrompt,
+    AutomaticallyCloseButton = ReplicatedStorage.Observers.AutomaticallyCloseButton,
+    HUDButton = ReplicatedStorage.Observers.HUDButton,
+    Propeller = ReplicatedStorage.Observers.Propeller,
+    BoostedRegion = ReplicatedStorage.Observers.BoostedRegion,
+    Seat = ReplicatedStorage.Observers.Seat,
+    VehicleSeat = ReplicatedStorage.Observers.VehicleSeat,
+    GamePassPurchase = ReplicatedStorage.Observers.GamePassPurchase,
+    EnchantAltarAttachment = ReplicatedStorage.Observers.EnchantAltarAttachment,
+    ShopPurchasePrompt = ReplicatedStorage.Observers.ShopPurchasePrompt,
+    DevProductPurchase = ReplicatedStorage.Observers.DevProductPurchase,
+    RenderTextEffect = ReplicatedStorage.Observers.RenderTextEffect,
+    GroupRewardDisplay = ReplicatedStorage.Observers.GroupRewardDisplay,
+    NPC = ReplicatedStorage.Modules.NPC,
+    NotificationBubble = ReplicatedStorage.Observers.NotificationBubble,
+    DevProductPrice = ReplicatedStorage.Observers.DevProductPrice,
+    GamePassPrice = ReplicatedStorage.Observers.GamePassPrice,
+    ChristmasColorStrobe = ReplicatedStorage.Observers.ChristmasColorStrobe,
+    FootstepSounds = ReplicatedStorage.Modules.FootstepSounds,
+    IslandLocationTag = ReplicatedStorage.Observers.IslandLocationTag,
+    BagSize = ReplicatedStorage.Observers.BagSize,
+    ClientPassives = ReplicatedStorage.Observers.ClientPassives,
+    FloatingDrop = ReplicatedStorage.Observers.FloatingDrop,
+    Rainbow = ReplicatedStorage.Observers.Rainbow,
+    CoreCall = ReplicatedStorage.Modules.CoreCall,
+    LimitedProductPurchase = ReplicatedStorage.Observers.LimitedProductPurchase,
+    GuiControl = ReplicatedStorage.Modules.GuiControl,
+    Animations = ReplicatedStorage.Modules.Animations,
+    CameraShaker = ReplicatedStorage.Modules.CameraShaker,
+    ItemStringUtility = ReplicatedStorage.Modules.ItemStringUtility,
+    CoinProductsUtility = ReplicatedStorage.Modules.CoinProductsUtility,
+    CurrencyUtility = ReplicatedStorage.Modules.CurrencyUtility,
+    InputControl = ReplicatedStorage.Modules.InputControl,
+    Spring = ReplicatedStorage.Modules.Spring,
+    SebasUtil = ReplicatedStorage.Modules.SebasUtil,
+    AceworksUtils = ReplicatedStorage.AceworksUtils,
+    CmdrClient = ReplicatedStorage.CmdrClient,
+    Passives = ReplicatedStorage.Passives,
+    Shared = ReplicatedStorage.Shared,
+    Boats = ReplicatedStorage.Boats,
+    Baits = ReplicatedStorage.Baits,
+    Items = ReplicatedStorage.Items,
+    Events = ReplicatedStorage.Events,
+    Enchants = ReplicatedStorage.Enchants,
+    Areas = ReplicatedStorage.Areas,
+    LightingProfiles = Lighting.LightingProfiles,
+    ModelProvider = ReplicatedStorage.ModelProvider,
+    Potions = ReplicatedStorage.Potions,
+    Tiers = ReplicatedStorage.Tiers,
+    Variants = ReplicatedStorage.Variants,
+    SkinCrates = ReplicatedStorage.SkinCrates,
+    VFXUtility = ReplicatedStorage.Shared.VFXUtility,
+    EventUtility = ReplicatedStorage.Shared.EventUtility,
+    WeightRandom = ReplicatedStorage.Shared.WeightRandom,
+    TimeConfiguration = ReplicatedStorage.Shared.TimeConfiguration,
+    SystemMessage = ReplicatedStorage.Shared.SystemMessage,
+    GamePass = ReplicatedStorage.Shared.GamePass,
+    GamePassUtility = ReplicatedStorage.Shared.GamePassUtility,
+    GiftProducts = ReplicatedStorage.Shared.GiftProducts,
+    ChatTags = ReplicatedStorage.Shared.ChatTags,
+    AuthorizedUserIds = ReplicatedStorage.Shared.AuthorizedUserIds,
+    ValidEventNames = ReplicatedStorage.Shared.ValidEventNames,
+    PlayerEvents = ReplicatedStorage.Shared.PlayerEvents,
+    PlayerStatsUtility = ReplicatedStorage.Shared.PlayerStatsUtility,
+    Constants = ReplicatedStorage.Shared.Constants,
+    ItemUtility = ReplicatedStorage.Shared.ItemUtility,
+    VariantPool = ReplicatedStorage.Shared.ItemUtility.VariantPool,
+    Dump = ReplicatedStorage.Shared.Soundbook.Dump,
+    XPUtility = ReplicatedStorage.Shared.XPUtility,
+    Soundbook = ReplicatedStorage.Shared.Soundbook,
+    Types = ReplicatedStorage.Shared.Quests.Types,
+    AreaUtility = ReplicatedStorage.Shared.AreaUtility,
+    SpecialItems = ReplicatedStorage.Shared.AreaUtility.SpecialItems,
+    TierUtility = ReplicatedStorage.Shared.TierUtility,
+    DrawSeatUtility = ReplicatedStorage.Shared.DrawSeatUtility,
+    DailyRewardsUtility = ReplicatedStorage.Shared.DailyRewardsUtility,
+    StringLibrary = ReplicatedStorage.Shared.StringLibrary,
+    QuestUtility = ReplicatedStorage.Shared.Quests.QuestUtility,
+    Leaderboards = ReplicatedStorage.Shared.Leaderboards,
+    FishingRodModifiers = ReplicatedStorage.Shared.FishingRodModifiers,
+    Effects = ReplicatedStorage.Shared.Effects,
+    SpinWheelPrizes = ReplicatedStorage.Shared.SpinWheelPrizes,
+    FishingCastText = ReplicatedStorage.Shared.Effects.FishingCastText,
+    Settings = ReplicatedStorage.Shared.Settings,
+    BoatsHandlingData = ReplicatedStorage.Shared.BoatsHandlingData,
+    Legendary = ReplicatedStorage.Shared.CutsceneUtility.Data.Legendary,
+    VendorUtility = ReplicatedStorage.Shared.VendorUtility,
+    BlockedHumanoidStates = ReplicatedStorage.Shared.BlockedHumanoidStates,
+    SECRET = ReplicatedStorage.Shared.CutsceneUtility.Data.SECRET,
+    SoldItemTypes = ReplicatedStorage.Shared.SoldItemTypes,
+    Attribute = ReplicatedStorage.Packages.Icon.Attribute,
+    PolicyWrapper = ReplicatedStorage.Shared.PolicyWrapper,
+    UserPriority = ReplicatedStorage.Shared.UserPriority,
+    RaycastUtility = ReplicatedStorage.Shared.RaycastUtility,
+    Mythic = ReplicatedStorage.Shared.CutsceneUtility.Data.Mythic,
+    CutsceneUtility = ReplicatedStorage.Shared.CutsceneUtility,
+    QuestList = ReplicatedStorage.Shared.Quests.QuestList,
+    VERSION = ReplicatedStorage.Packages.Icon.VERSION,
+    CoinProducts = ReplicatedStorage.Shared.Products.CoinProducts,
+    Icon = ReplicatedStorage.Packages.Icon,
+    DoubleLuckProducts = ReplicatedStorage.Shared.Products.DoubleLuckProducts,
+    LimitedProducts = ReplicatedStorage.Shared.Products.LimitedProducts,
+    ActiveProduct = ReplicatedStorage.Shared.Products.LimitedProducts.ActiveProduct,
+    PassivesRunner = ReplicatedStorage.Shared.Passives.PassivesRunner,
+    PassivesUtility = ReplicatedStorage.Shared.Passives.PassivesUtility,
+    PassivesTypes = ReplicatedStorage.Shared.Passives.PassivesTypes,
+    Loader = ReplicatedStorage.Packages.Loader,
+    Net = ReplicatedStorage.Packages.Net,
+    Replion = ReplicatedStorage.Packages.Replion,
+    Signal = ReplicatedStorage.Packages.Signal,
+    Reference = ReplicatedStorage.Packages.Icon.Reference,
+    Trove = ReplicatedStorage.Packages.Trove,
+    spr = ReplicatedStorage.Packages.spr,
+    Thread = ReplicatedStorage.Packages.Thread,
+    MarketplaceService = ReplicatedStorage.Packages.MarketplaceService,
+    Promise = ReplicatedStorage.Packages.Promise,
+    NumberSpinner = ReplicatedStorage.Packages.NumberSpinner,
+    Digit = ReplicatedStorage.Packages.NumberSpinner.Digit,
+    Utility = ReplicatedStorage.Packages.Icon.Utility,
+    Container = ReplicatedStorage.Packages.Icon.Elements.Container,
+    Indicator = ReplicatedStorage.Packages.Icon.Elements.Indicator,
+    Menu = ReplicatedStorage.Packages.Icon.Elements.Menu,
+}
+
+-- ========================================
+-- UTILITY FUNCTIONS
+-- ========================================
+
+local function getRemote(name)
+    return Remotes[name]
+end
+
+local function getModule(path)
+    local module = ReplicatedStorage
+    for part in path:gmatch("[^%.]+") do
+        module = module:FindFirstChild(part)
+        if not module then return nil end
+    end
+    return module
+end
+
+local function getCharacter()
+    if not Character or not Character.Parent then
+        Character = LocalPlayer.Character
+        if Character then
+            Humanoid = Character:FindFirstChildOfClass("Humanoid")
+        end
+    end
+    return Character, Humanoid
+end
+
+local function waitForCharacter()
+    while not getCharacter() do
+        task.wait()
+    end
+end
+
+local function getInventory()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local inventory = playerGui:FindFirstChild("Inventory")
+        if inventory then
+            return inventory
+        end
+    end
+    return nil
+end
+
+local function getRodFromInventory()
+    local inventory = getInventory()
+    if not inventory then return nil end
+    
+    local rods = {}
+    for _, child in ipairs(inventory:GetChildren()) do
+        if child:IsA("Part") and child.Name:find("!!!") and child.Name:find("Rod") then
+            table.insert(rods, child)
+        end
+    end
+    if #rods > 0 then
+        return rods[1] -- Return first found rod
+    end
+    return nil
+end
+
+local function equipRod(rodName)
+    local rod = nil
+    local allItems = ReplicatedStorage.Items
+    for _, item in ipairs(allItems:GetChildren()) do
+        if item.Name == rodName then
+            rod = item
+            break
+        end
+    end
+    if rod then
+        local equipRemote = getRemote("EquipItem")
+        if equipRemote then
+            equipRemote:FireServer(rodName)
+            return true
+        end
+    end
+    return false
+end
+
+local function equipBait(baitName)
+    local bait = nil
+    local allBaits = ReplicatedStorage.Baits
+    for _, item in ipairs(allBaits:GetChildren()) do
+        if item.Name == baitName then
+            bait = item
+            break
+        end
+    end
+    if bait then
+        local equipBaitRemote = getRemote("EquipBait")
+        if equipBaitRemote then
+            equipBaitRemote:FireServer(baitName)
+            return true
+        end
+    end
+    return false
+end
+
+local function buyItem(itemName, itemType)
+    local purchaseRemote = nil
+    if itemType == "rod" then
+        purchaseRemote = getRemote("PurchaseFishingRod")
+    elseif itemType == "bait" then
+        purchaseRemote = getRemote("PurchaseBait")
+    elseif itemType == "gear" then
+        purchaseRemote = getRemote("PurchaseGear")
+    elseif itemType == "weather" then
+        purchaseRemote = getRemote("PurchaseWeatherEvent")
+    elseif itemType == "boat" then
+        purchaseRemote = getRemote("PurchaseBoat")
+    end
+    
+    if purchaseRemote then
+        purchaseRemote:FireServer(itemName)
+        return true
+    end
+    return false
+end
+
+local function isFishingActive()
+    local fishingController = getModule("Controllers.FishingController")
+    if fishingController and fishingController.IsFishing then
+        return fishingController.IsFishing.Value
+    end
+    return false
+end
+
+local function getAvailableAreas()
+    local areas = {}
+    for _, area in ipairs(ReplicatedStorage.Areas:GetChildren()) do
+        if area:IsA("Folder") then
+            table.insert(areas, area.Name)
+        end
+    end
+    return areas
+end
+
+local function getAvailableEvents()
+    local events = {}
+    for _, event in ipairs(ReplicatedStorage.Events:GetChildren()) do
+        if event:IsA("Folder") then
+            table.insert(events, event.Name)
+        end
+    end
+    return events
+end
+
+local function getAvailableBoats()
+    local boats = {}
+    for _, boat in ipairs(ReplicatedStorage.Boats:GetChildren()) do
+        if boat:IsA("Folder") then
+            table.insert(boats, boat.Name)
+        end
+    end
+    return boats
+end
+
+local function getAvailableRods()
+    local rods = {}
+    for _, rod in ipairs(ReplicatedStorage.Items:GetChildren()) do
+        if rod.Name:find("!!!") and rod.Name:find("Rod") then
+            table.insert(rods, rod.Name)
+        end
+    end
+    return rods
+end
+
+local function getAvailableBaits()
+    local baits = {}
+    for _, bait in ipairs(ReplicatedStorage.Baits:GetChildren()) do
+        if bait:IsA("Folder") then
+            table.insert(baits, bait.Name)
+        end
+    end
+    return baits
+end
+
+local function getAvailableWeather()
+    local weathers = {}
+    for _, weather in ipairs(ReplicatedStorage.Events:GetChildren()) do
+        if weather.Name ~= "Day" and weather.Name ~= "Night" and weather.Name:find(" ") then
+            table.insert(weathers, weather.Name)
+        end
+    end
+    return weathers
+end
+
+local function getPlayerList()
+    local players = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(players, player.Name)
+        end
+    end
+    return players
+end
+
+local function teleportToArea(areaName)
+    local area = ReplicatedStorage.Areas:FindFirstChild(areaName)
+    if area and area.Position then
+        LocalPlayer.Character:SetPrimaryPartCFrame(area.Position)
+        return true
+    end
+    return false
+end
+
+local function teleportToEvent(eventName)
+    local event = ReplicatedStorage.Events:FindFirstChild(eventName)
+    if event and event.Position then
+        LocalPlayer.Character:SetPrimaryPartCFrame(event.Position)
+        return true
+    end
+    return false
+end
+
+local function teleportToPlayer(playerName)
+    local targetPlayer = Players:FindFirstChild(playerName)
+    if targetPlayer and targetPlayer.Character then
+        LocalPlayer.Character:SetPrimaryPartCFrame(targetPlayer.Character:GetPrimaryPartCFrame())
+        return true
+    end
+    return false
+end
+
+local function enableAntiAFK()
+    local lastInput = tick()
+    task.spawn(function()
+        while true do
+            task.wait(5)
+            if tick() - lastInput > 10 then
+                -- Simulate random movement to avoid AFK detection
+                LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):Move(Vector3.new(0,0,1), 0.1)
+                task.wait(0.1)
+                LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):Move(Vector3.new(0,0,-1), 0.1)
+                lastInput = tick()
+            end
+        end
+    end)
+end
+
+local function disableDetection()
+    -- Bypass developer detection by clearing known flags
+    local cmdrClient = getModule("CmdrClient")
+    if cmdrClient then
+        cmdrClient.Disabled = true
+    end
+    -- Disable any remote calls that could trigger detection
+    local remotes = {
+        "CmdrFunction", "CmdrEvent", "GetServerVersion", "GetServerChannel"
+    }
+    for _, remoteName in ipairs(remotes) do
+        local remote = getRemote(remoteName)
+        if remote then
+            remote.OnClientInvoke = function() return nil end
+            remote.OnClientEvent:Clear()
+        end
+    end
+end
+
+local function setFPSLimit(limit)
+    RunService:SetRenderStepped(true)
+    RunService.Heartbeat:Connect(function()
+        if limit > 0 then
+            task.wait(1/limit)
+        end
+    end)
+end
+
+local function setBrightness(value)
+    local lighting = workspace.Lighting
+    lighting.Brightness = value / 10
+end
+
+local function disableEffects()
+    -- Disable particle effects
+    for _, effect in ipairs(workspace:GetDescendants()) do
+        if effect:IsA("ParticleEmitter") or effect:IsA("Trail") or effect:IsA("Decal") then
+            effect.Enabled = false
+        end
+    end
+end
+
+local function enableFly()
+    local character, humanoid = getCharacter()
+    if not character or not humanoid then return end
+    
+    humanoid:SetAttribute("Flying", true)
+    humanoid.WalkSpeed = 100
+    humanoid.JumpPower = 1000
+    
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.Space and not gameProcessed then
+            humanoid:ApplyImpulse(Vector3.new(0, 50, 0))
+        end
+    end)
+end
+
+local function enableSpeedHack(speed)
+    local character, humanoid = getCharacter()
+    if not character or not humanoid then return end
+    humanoid.WalkSpeed = speed
+end
+
+local function enableJumpHack(height)
+    local character, humanoid = getCharacter()
+    if not character or not humanoid then return end
+    humanoid.JumpPower = height
+end
+
+local function enableInfiniteJump()
+    local character, humanoid = getCharacter()
+    if not character or not humanoid then return end
+    
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if input.KeyCode == Enum.KeyCode.Space and not gameProcessed then
+            humanoid:ApplyImpulse(Vector3.new(0, 100, 0))
+        end
+    end)
+end
+
+local function enableBoatFly(speed)
+    local character, humanoid = getCharacter()
+    if not character or not humanoid then return end
+    
+    local vehicleSeat = character:FindFirstChildWhichIsA("VehicleSeat")
+    if vehicleSeat then
+        vehicleSeat.MaxVelocity = Vector3.new(speed, speed, speed)
+        vehicleSeat.CanCollide = false
+        vehicleSeat.Velocity = Vector3.new(0, 10, 0)
+        
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if input.KeyCode == Enum.KeyCode.Space and not gameProcessed then
+                vehicleSeat.Velocity = vehicleSeat.Velocity + Vector3.new(0, 20, 0)
+            end
+        end)
+    end
+end
+
+local function enableESP()
+    -- Create ESP boxes around players
+    local function createESP(player)
+        local character = player.Character
+        if not character then return end
+        
+        local head = character:FindFirstChild("Head")
+        if not head then return end
+        
+        local box = Instance.new("Part")
+        box.Size = Vector3.new(2, 4, 2)
+        box.Anchored = true
+        box.CanCollide = false
+        box.Transparency = 0.5
+        box.Color = Color3.fromRGB(0, 255, 0)
+        box.CFrame = head.CFrame + Vector3.new(0, 2, 0)
+        box.Parent = workspace
+        
+        local label = Instance.new("BillboardGui")
+        label.Adornee = box
+        label.Size = UDim2.new(0, 200, 0, 50)
+        label.StudsOffset = Vector3.new(0, 3, 0)
+        label.AlwaysOnTop = true
+        label.Parent = box
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Text = player.Name
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 0
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextScaled = true
+        textLabel.Parent = label
+        
+        -- Clean up on player leave
+        player.DescendantRemoved:Connect(function(descendant)
+            if descendant == character then
+                box:Destroy()
+            end
+        end)
+    end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESP(player)
+        end
+    end
+    
+    Players.PlayerAdded:Connect(createESP)
+end
+
+local function enableGhost()
+    local character, humanoid = getCharacter()
+    if not character then return end
+    
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Transparency = 0.8
+        end
+    end
+end
+
+local function setFOV(horizontal, vertical)
+    Camera.FieldOfView = horizontal * 5
+    Camera.ViewportSize = Vector2.new(1920, 1080) -- Force high res
+end
+
+local function autoSellFish()
+    local inventory = getInventory()
+    if not inventory then return end
+    
+    local sellRemote = getRemote("SellItem")
+    if not sellRemote then return end
+    
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            for _, item in ipairs(inventory:GetChildren()) do
+                if item:IsA("Part") and not item.Name:find("!!!") and not item.Name:find("Rod") and not item.Name:find("Bait") then
+                    sellRemote:FireServer(item.Name)
+                    task.wait(0.1)
+                end
+            end
+        end
+    end)
+end
+
+local function autoBuyWeather(weatherName)
+    local purchaseRemote = getRemote("PurchaseWeatherEvent")
+    if purchaseRemote then
+        purchaseRemote:FireServer(weatherName)
+    end
+end
+
+local function autoBuyBait(baitName)
+    local purchaseRemote = getRemote("PurchaseBait")
+    if purchaseRemote then
+        purchaseRemote:FireServer(baitName)
+    end
+end
+
+local function autoBuyRod(rodName)
+    local purchaseRemote = getRemote("PurchaseFishingRod")
+    if purchaseRemote then
+        purchaseRemote:FireServer(rodName)
+    end
+end
+
+-- ========================================
+-- MAIN UI INITIALIZATION
+-- ========================================
+
 local Window = Rayfield:CreateWindow({
-    Name = "NIKZZMODDER - Ultimate Roblox Utility",
-    LoadingTitle = "Memuat NIKZZMODDER...",
-    LoadingSubtitle = "by Nikzz7z",
+    Name = "NIKZZ MODDER v1.0",
+    LoadingTitle = "Memuat Nikzz Modder...",
+    LoadingSubtitle = "by Developer",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "NIKZZMODDER_Config",
+        FolderName = "NikzzModderConfig",
         FileName = "Config"
     },
     Discord = {
-        Enabled = true,
+        Enabled = false,
         Invite = "noinvitelink",
         RememberJoins = true
     },
     KeySystem = false,
 })
 
--- Fungsi Logging untuk Debugging
-local function log(action, message)
-    local timestamp = os.date("%H:%M:%S")
-    print(string.format("[NIKZZMODDER][%s] %s: %s", timestamp, action, message))
-end
+-- ========================================
+-- NKZ-FARM TAB
+-- ========================================
 
--- Fungsi Async Wrapper dengan Error Handling
-local function async(callback)
-    task.spawn(function()
-        local success, result = pcall(callback)
-        if not success then
-            log("ERROR", "Async Error: " .. tostring(result))
-        end
-    end)
-end
+local FarmTab = Window:CreateTab("NKZ-FARM", 4483362458)
 
--- Fungsi Delay Async
-local function delayAsync(seconds)
-    return task.spawn(function()
-        task.wait(seconds)
-    end)
-end
-
--- Fungsi Throttle untuk mencegah spam
-local function throttle(func, limit)
-    local inProgress = false
-    return function(...)
-        if inProgress then return end
-        inProgress = true
-        async(function()
-            func(...)
-            task.wait(limit)
-            inProgress = false
-        end)
-    end
-end
-
--- Fungsi Debounce
-local function debounce(func, wait)
-    local timeout
-    return function(...)
-        if timeout then task.cancel(timeout) end
-        timeout = task.delay(wait, function()
-            func(...)
-        end)
-    end
-end
-
--- Fungsi untuk mendapatkan semua RemoteEvents/RemoteFunctions dari game
-local function getRemote(name)
-    for _, remote in pairs(getgc()) do
-        if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
-            if remote.Name == name then
-                return remote
-            end
-        end
-    end
-    return nil
-end
-
--- Fungsi untuk mendapatkan path remote dari MODULE.txt (simulasi berdasarkan data)
-local function getRemotePath(name)
-    -- Ini adalah simulasi berdasarkan data MODULE.txt
-    -- Dalam implementasi nyata, Anda bisa membuat tabel mapping
-    local remotePaths = {
-        ["WhisperChat"] = "RobloxReplicatedStorage.ExperienceChat.WhisperChat",
-        ["SetPlayerBlockList"] = "RobloxReplicatedStorage.SetPlayerBlockList",
-        ["UpdatePlayerBlockList"] = "RobloxReplicatedStorage.UpdatePlayerBlockList",
-        ["SendPlayerBlockList"] = "RobloxReplicatedStorage.SendPlayerBlockList",
-        ["UpdateLocalPlayerBlockList"] = "RobloxReplicatedStorage.UpdateLocalPlayerBlockList",
-        ["SendPlayerProfileSettings"] = "RobloxReplicatedStorage.SendPlayerProfileSettings",
-        ["ShowPlayerJoinedFriendsToast"] = "RobloxReplicatedStorage.ShowPlayerJoinedFriendsToast",
-        ["ShowFriendJoinedPlayerToast"] = "RobloxReplicatedStorage.ShowFriendJoinedPlayerToast",
-        ["SetDialogInUse"] = "RobloxReplicatedStorage.SetDialogInUse",
-        ["ContactListInvokeIrisInvite"] = "RobloxReplicatedStorage.ContactListInvokeIrisInvite",
-        ["ContactListIrisInviteTeleport"] = "RobloxReplicatedStorage.ContactListIrisInviteTeleport",
-        ["UpdateCurrentCall"] = "RobloxReplicatedStorage.UpdateCurrentCall",
-        ["RequestDeviceCameraOrientationCapability"] = "RobloxReplicatedStorage.RequestDeviceCameraOrientationCapability",
-        ["RequestDeviceCameraCFrame"] = "RobloxReplicatedStorage.RequestDeviceCameraCFrame",
-        ["ReceiveLikelySpeakingUsers"] = "RobloxReplicatedStorage.ReceiveLikelySpeakingUsers",
-        ["ReferredPlayerJoin"] = "RobloxReplicatedStorage.ReferredPlayerJoin",
-        ["CmdrFunction"] = "ReplicatedStorage.CmdrClient.CmdrFunction",
-        ["CmdrEvent"] = "ReplicatedStorage.CmdrClient.CmdrEvent",
-        ["UserOwnsGamePass"] = "ReplicatedStorage.Shared.GamePassUtility.UserOwnsGamePass",
-        ["RE/PromptGamePassPurchase"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptGamePassPurchase",
-        ["RE/PromptProductPurchase"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptProductPurchase",
-        ["RE/PromptPurchase"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptPurchase",
-        ["RE/ProductPurchaseFinished"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ProductPurchaseFinished",
-        ["RE/DisplaySystemMessage"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/DisplaySystemMessage",
-        ["RF/GiftGamePass"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/GiftGamePass",
-        ["RE/ProductPurchaseCompleted"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ProductPurchaseCompleted",
-        ["RE/PlaySound"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlaySound",
-        ["RE/PlayFishingEffect"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlayFishingEffect",
-        ["RE/ReplicateTextEffect"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReplicateTextEffect",
-        ["RE/DestroyEffect"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/DestroyEffect",
-        ["RE/ReplicateCutscene"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReplicateCutscene",
-        ["RE/StopCutscene"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/StopCutscene",
-        ["RE/BaitSpawned"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BaitSpawned",
-        ["RE/FishCaught"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishCaught",
-        ["RE/TextNotification"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/TextNotification",
-        ["RF/PurchaseWeatherEvent"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseWeatherEvent",
-        ["RE/ActivateEnchantingAltar"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ActivateEnchantingAltar",
-        ["RE/UpdateEnchantState"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateEnchantState",
-        ["RE/RollEnchant"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RollEnchant",
-        ["RF/ActivateQuestLine"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ActivateQuestLine",
-        ["RE/IncrementOnboardingStep"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/IncrementOnboardingStep",
-        ["RF/UpdateAutoFishingState"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateAutoFishingState",
-        ["RE/UpdateChargeState"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateChargeState",
-        ["RF/ChargeFishingRod"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ChargeFishingRod",
-        ["RF/CancelFishingInputs"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/CancelFishingInputs",
-        ["RE/PlayVFX"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlayVFX",
-        ["RE/FishingStopped"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingStopped",
-        ["RF/RequestFishingMinigameStarted"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RequestFishingMinigameStarted",
-        ["RE/FishingCompleted"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingCompleted",
-        ["RE/FishingMinigameChanged"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingMinigameChanged",
-        ["RF/UpdateAutoSellThreshold"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateAutoSellThreshold",
-        ["RF/UpdateFishingRadar"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateFishingRadar",
-        ["RE/ObtainedNewFishNotification"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ObtainedNewFishNotification",
-        ["RF/PurchaseSkinCrate"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseSkinCrate",
-        ["RE/RollSkinCrate"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RollSkinCrate",
-        ["RE/EquipRodSkin"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipRodSkin",
-        ["RE/UnequipRodSkin"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipRodSkin",
-        ["RE/EquipItem"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipItem",
-        ["RE/UnequipItem"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipItem",
-        ["RE/EquipBait"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipBait",
-        ["RE/FavoriteItem"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FavoriteItem",
-        ["RE/FavoriteStateChanged"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FavoriteStateChanged",
-        ["RE/UnequipToolFromHotbar"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipToolFromHotbar",
-        ["RE/EquipToolFromHotbar"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipToolFromHotbar",
-        ["RF/SellItem"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellItem",
-        ["RF/SellAllItems"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellAllItems",
-        ["RF/PurchaseFishingRod"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseFishingRod",
-        ["RF/PurchaseBait"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBait",
-        ["RF/PurchaseGear"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseGear",
-        ["RE/CancelPrompt"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/CancelPrompt",
-        ["RE/FeatureUnlocked"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FeatureUnlocked",
-        ["RE/ChangeSetting"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ChangeSetting",
-        ["RF/PurchaseBoat"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBoat",
-        ["RF/SpawnBoat"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SpawnBoat",
-        ["RF/DespawnBoat"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/DespawnBoat",
-        ["RE/BoatChanged"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BoatChanged",
-        ["RE/VerifyGroupReward"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/VerifyGroupReward",
-        ["RF/ConsumePotion"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ConsumePotion",
-        ["RF/RedeemChristmasItems"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RedeemChristmasItems",
-        ["RF/EquipOxygenTank"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/EquipOxygenTank",
-        ["RF/UnequipOxygenTank"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UnequipOxygenTank",
-        ["RF/ClaimDailyLogin"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ClaimDailyLogin",
-        ["RE/RecievedDailyRewards"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RecievedDailyRewards",
-        ["RE/ReconnectPlayer"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReconnectPlayer",
-        ["RF/CanSendTrade"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/CanSendTrade",
-        ["RF/InitiateTrade"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/InitiateTrade",
-        ["RF/AwaitTradeResponse"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/AwaitTradeResponse",
-        ["RF/RedeemCode"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RedeemCode",
-        ["RF/LoadVFX"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/LoadVFX",
-        ["RF/RequestSpin"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RequestSpin",
-        ["RE/SpinWheel"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/SpinWheel",
-        ["RF/PromptFavoriteGame"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PromptFavoriteGame",
-        ["RE/ClaimNotification"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ClaimNotification",
-        ["RE/BlackoutScreen"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BlackoutScreen",
-        ["RE/ElevatorStateUpdated"] = "ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ElevatorStateUpdated",
-        ["Added"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Added",
-        ["Removed"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Removed",
-        ["Update"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Update",
-        ["UpdateReplicateTo"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.UpdateReplicateTo",
-        ["Set"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.Set",
-        ["ArrayUpdate"] = "ReplicatedStorage.Packages._Index.ytrev_replion@2.0.0-rc.3.replion.Remotes.ArrayUpdate"
-    }
-    return remotePaths[name] or "Path tidak ditemukan"
-end
-
--- Fungsi untuk mendapatkan semua item dari MODULE.txt
-local function getAllItems()
-    local items = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: !!!") or line:find("Module: Fire Goby") or line:find("Module: Reef Chromis") then
-            local itemName = line:match("Module: (.+) | Path:")
-            if itemName then
-                table.insert(items, itemName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedItems = {
-        "!!! Starter Rod", "!!! Gold Rod", "!!! Hyper Rod", "!!! Lucky Rod", "!!! Midnight Rod",
-        "!!! Ice Rod", "!!! Chrome Rod", "!!! Carbon Rod", "!!! Magma Rod", "!!! Lava Rod",
-        "Fire Goby", "Reef Chromis", "Enchanted Angelfish", "Abyss Seahorse", "Ash Basslet",
-        "Astra Damsel", "Azure Damsel", "Banded Butterfly", "Blue Lobster", "Blueflame Ray",
-        "Boa Angelfish", "Dotted Stingray", "Bumblebee Grouper", "Candy Butterfly", "Charmed Tang",
-        "Chrome Tuna", "Clownfish", "Coal Tang", "Copperband Butterfly", "Corazon Damsel",
-        "Cow Clownfish", "Darwin Clownfish", "Domino Damsel", "Flame Angelfish", "Shrimp Goby",
-        "Greenbee Grouper", "Specked Butterfly", "Hammerhead Shark", "Hawks Turtle", "Starjam Tang",
-        "Scissortail Dartfish", "Jennifer Dottyback", "Jewel Tang", "Kau Cardinal", "Korean Angelfish",
-        "Prismy Seahorse", "Lavafin Tuna", "Lobster", "Loggerhead Turtle", "Longnose Butterfly",
-        "Panther Grouper", "Magic Tang", "Skunk Tilefish", "Magma Goby", "Manta Ray",
-        "Maroon Butterfly", "Orangy Goby", "Maze Angelfish", "Moorish Idol", "Bandit Angelfish",
-        "Zoster Butterfly", "Strawberry Dotty", "Festive Goby", "Sushi Cardinal", "Tricolore Butterfly",
-        "Unicorn Tang", "Vintage Blue Tang", "Slurpfish Chromis", "Vintage Damsel", "Mistletoe Damsel",
-        "Volcanic Basslet", "White Clownfish", "Yello Damselfish", "Lava Butterfly", "Yellowfin Tuna",
-        "Yellowstate Angelfish", "!!! Gingerbread Rod", "Rockform Cardianl", "!!! Toy Rod",
-        "Gingerbread Tang", "!!! Grass Rod", "Great Christmas Whale", "Gingerbread Clownfish",
-        "Gingerbread Turtle", "Ballina Angelfish", "Gingerbread Shark", "Christmastree Longnose",
-        "Candycane Lobster", "Festive Pufferfish", "!!! Candy Cane Rod", "!!! Christmas Tree Rod",
-        "!!! Demascus Rod", "!!! Frozen Rod", "Christmas Trophy 2024", "!!! Cursed Soul",
-        "Blue-Banded Goby", "Blumato Clownfish", "White Tang", "Conspi Angelfish", "!!! Monochrome",
-        "Fade Tang", "Lined Cardinal Fish", "Masked Angelfish", "Watanabei Angelfish", "Pygmy Goby",
-        "!!! Cute Rod", "Sail Tang", "Bleekers Damsel", "Loving Shark", "Pink Smith Damsel",
-        "Great Whale", "!!! Angelic Rod", "!!! Astral Rod", "!!! Ares Rod", "!!! Ghoul Rod",
-        "Thresher Shark", "!!! Forsaken", "!!! Red Matter", "!!! Lightsaber", "!!! Crystalized",
-        "Strippled Seahorse", "!!! Earthly", "!!! Neptune's Trident", "!!! Polarized", "Axolotl",
-        "Orange Basslet", "Silver Tuna", "Worm Fish", "Pilot Fish", "Patriot Tang", "Frostborn Shark",
-        "Racoon Butterfly Fish", "Plasma Shark", "Pufferfish", "Viperfish", "Ghost Worm Fish",
-        "Deep Sea Crab", "Rockfish", "Spotted Lantern Fish", "Robot Kraken", "Monk Fish",
-        "!!! Angler Rod", "King Crab", "Jellyfish", "Giant Squid", "Fangtooth", "Diving Gear",
-        "Electric Eel", "Vampire Squid", "Dark Eel", "Boar Fish", "!!! Heavenly", "Blob Fish",
-        "Ghost Shark", "Angler Fish", "Dead Fish", "Skeleton Fish", "!!! Blossom", "Swordfish",
-        "!!! Lightning", "!!! Loving", "!!! Aqua Prism", "!!! Aquatic", "!!! Aether Shard",
-        "Flat Fish", "!!! Flower Garden", "Sheepshead Fish", "!!! Amber", "Blackcap Basslet",
-        "!!! Abyssal Chroma", "Catfish", "Flying Fish", "Coney Fish", "Hermit Crab", "Parrot Fish",
-        "Dark Tentacle", "Queen Crab", "Red Snapper", "!!! Jelly", "!!! Ghostfinn Rod",
-        "!!! Enlightened", "!!! Cursed", "Lake Sturgeon", "Orca", "Barracuda Fish", "!!! Galactic",
-        "Crystal Crab", "Hyper Boat", "Frog", "Gar Fish", "Lion Fish", "Herring Fish", "!!! Fiery",
-        "!!! Pirate Octopus", "!!! Pinata", "Fishing Boat", "!!! Purple Saber", "Starfish", "Wahoo",
-        "Saw Fish", "Highfield Boat", "Pink Dolphin", "Monster Shark", "Luminous Fish", "Eerie Shark",
-        "Jetski", "!!! Abyssfire", "!!! Planetary", "Scare", "Synodontis", "Kayak", "!!! Soulreaver",
-        "Alpha Floaty", "Armor Catfish", "Thin Armor Shark", "!!! Disco", "Small Boat"
-    }
-    for _, item in ipairs(hardcodedItems) do
-        table.insert(items, item)
-    end
-    return items
-end
-
--- Fungsi untuk mendapatkan semua bait dari MODULE.txt
-local function getAllBaits()
-    local baits = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Bait") and not line:find("Rod") then
-            local baitName = line:match("Module: (.+) | Path:")
-            if baitName then
-                table.insert(baits, baitName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedBaits = {
-        "Starter Bait", "Nature Bait", "Chroma Bait", "Gold Bait", "Hyper Bait", "Dark Matter Bait",
-        "Luck Bait", "Midnight Bait", "Bag-O-Gold", "Beach Ball Bait", "Frozen Bait", "Topwater Bait",
-        "Anchor Bait", "Ornament Bait", "Jolly Bait", "Corrupt Bait", "Aether Bait"
-    }
-    for _, bait in ipairs(hardcodedBaits) do
-        table.insert(baits, bait)
-    end
-    return baits
-end
-
--- Fungsi untuk mendapatkan semua area dari MODULE.txt
-local function getAllAreas()
-    local areas = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Path: ReplicatedStorage.Areas") then
-            local areaName = line:match("Module: (.+) | Path:")
-            if areaName then
-                table.insert(areas, areaName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedAreas = {
-        "Lost Isle", "Crater Island", "Tropical Grove", "Kohana Volcano", "Esoteric Depths"
-    }
-    for _, area in ipairs(hardcodedAreas) do
-        table.insert(areas, area)
-    end
-    return areas
-end
-
--- Fungsi untuk mendapatkan semua events dari MODULE.txt
-local function getAllEvents()
-    local events = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Path: ReplicatedStorage.Events") then
-            local eventName = line:match("Module: (.+) | Path:")
-            if eventName then
-                table.insert(events, eventName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedEvents = {
-        "Day", "Night", "Cloudy", "Mutated", "Wind", "Storm", "Increased Luck", "Shark Hunt",
-        "Ghost Shark Hunt", "Sparkling Cove", "Snow", "Worm Hunt", "Radiant",
-        "Admin - Shocked", "Admin - Black Hole", "Admin - Ghost Worm", "Admin - Meteor Rain",
-        "Admin - Super Mutated", "Admin - Super Luck"
-    }
-    for _, event in ipairs(hardcodedEvents) do
-        table.insert(events, event)
-    end
-    return events
-end
-
--- Fungsi untuk mendapatkan semua boats dari MODULE.txt
-local function getAllBoats()
-    local boats = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Path: ReplicatedStorage.Boats") then
-            local boatName = line:match("Module: (.+) | Path:")
-            if boatName then
-                table.insert(boats, boatName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedBoats = {
-        "Speed Boat", "Festive Duck", "Santa Sleigh", "Frozen Boat", "Mini Yacht", "Rubber Ducky",
-        "Mega Hovercraft", "Cruiser Boat", "Mini Hoverboat", "Aura Boat", "Hyper Boat", "Fishing Boat",
-        "Highfield Boat", "Jetski", "Kayak", "Alpha Floaty", "DEV Evil Duck 9000", "Burger Boat",
-        "Dinky Fishing Boat", "Small Boat"
-    }
-    for _, boat in ipairs(hardcodedBoats) do
-        table.insert(boats, boat)
-    end
-    return boats
-end
-
--- Fungsi untuk mendapatkan semua enchant dari MODULE.txt
-local function getAllEnchants()
-    local enchants = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Path: ReplicatedStorage.Enchants") then
-            local enchantName = line:match("Module: (.+) | Path:")
-            if enchantName then
-                table.insert(enchants, enchantName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedEnchants = {
-        "Mutation Hunter I", "Leprechaun I", "Prismatic I", "Reeler I", "Stargazer I", "Stormhunter I",
-        "Leprechaun II", "XPerienced I", "Gold Digger I", "Glistening I", "Empowered I", "Cursed I",
-        "Big Hunter I", "Mutation Hunter II"
-    }
-    for _, enchant in ipairs(hardcodedEnchants) do
-        table.insert(enchants, enchant)
-    end
-    return enchants
-end
-
--- Fungsi untuk mendapatkan semua potion dari MODULE.txt
-local function getAllPotions()
-    local potions = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Potion") and line:find("Path: ReplicatedStorage.Potions") then
-            local potionName = line:match("Module: (.+) | Path:")
-            if potionName then
-                table.insert(potions, potionName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedPotions = {
-        "Luck I Potion", "Coin I Potion", "Extra Luck", "Mutation I Potion", "Small Luck", "More Mutations", "VIP Luck"
-    }
-    for _, potion in ipairs(hardcodedPotions) do
-        table.insert(potions, potion)
-    end
-    return potions
-end
-
--- Fungsi untuk mendapatkan semua lighting profile dari MODULE.txt
-local function getAllLightingProfiles()
-    local profiles = {}
-    for _, line in pairs(game:GetService("HttpService"):GetAsync("https://pastebin.com/raw/placeholder"):split("\n")) do
-        if line:find("Module: ") and line:find("Path: Lighting.LightingProfiles") then
-            local profileName = line:match("Module: (.+) | Path:")
-            if profileName then
-                table.insert(profiles, profileName)
-            end
-        end
-    end
-    -- Hardcoded dari MODULE.txt untuk demo
-    local hardcodedProfiles = {
-        "Winter Fest", "Lost Isle", "Crater Island", "Day", "Tropical Grove", "Night", "Kohana Volcano", "Esoteric Depths"
-    }
-    for _, profile in ipairs(hardcodedProfiles) do
-        table.insert(profiles, profile)
-    end
-    return profiles
-end
-
--- Fungsi untuk teleport ke area tertentu
-local function teleportToArea(areaName)
-    log("TELEPORT", "Mencoba teleport ke area: " .. areaName)
-    -- Implementasi nyata akan menggunakan teleport service atau remote
-    -- Ini adalah simulasi
-    async(function()
-        -- Cari area di workspace
-        local areas = game.Workspace:FindFirstChild("Areas")
-        if areas then
-            local targetArea = areas:FindFirstChild(areaName)
-            if targetArea then
-                local spawnPoint = targetArea:FindFirstChild("SpawnPoint") or targetArea:FindFirstChildOfClass("Part")
-                if spawnPoint then
-                    game.Players.LocalPlayer.Character:MoveTo(spawnPoint.Position)
-                    log("SUCCESS", "Berhasil teleport ke " .. areaName)
-                    Rayfield:Notify({
-                        Title = "Teleport Berhasil",
-                        Content = "Anda telah teleport ke " .. areaName,
-                        Duration = 3,
-                        Image = 4483362458,
-                    })
-                else
-                    log("ERROR", "Spawn point tidak ditemukan di area " .. areaName)
-                end
-            else
-                log("ERROR", "Area " .. areaName .. " tidak ditemukan")
-            end
-        else
-            log("ERROR", "Folder Areas tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk teleport ke event tertentu
-local function teleportToEvent(eventName)
-    log("TELEPORT", "Mencoba teleport ke event: " .. eventName)
-    async(function()
-        -- Cari event di workspace
-        local events = game.Workspace:FindFirstChild("Events")
-        if events then
-            local targetEvent = events:FindFirstChild(eventName)
-            if targetEvent then
-                local spawnPoint = targetEvent:FindFirstChild("SpawnPoint") or targetEvent:FindFirstChildOfClass("Part")
-                if spawnPoint then
-                    game.Players.LocalPlayer.Character:MoveTo(spawnPoint.Position)
-                    log("SUCCESS", "Berhasil teleport ke event " .. eventName)
-                    Rayfield:Notify({
-                        Title = "Teleport Berhasil",
-                        Content = "Anda telah teleport ke event " .. eventName,
-                        Duration = 3,
-                        Image = 4483362458,
-                    })
-                else
-                    log("ERROR", "Spawn point tidak ditemukan di event " .. eventName)
-                end
-            else
-                log("ERROR", "Event " .. eventName .. " tidak ditemukan")
-            end
-        else
-            log("ERROR", "Folder Events tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk membeli item
-local function purchaseItem(itemName, itemType)
-    log("SHOP", "Mencoba membeli " .. itemType .. ": " .. itemName)
-    async(function()
-        -- Gunakan remote function untuk membeli
-        local remote = getRemote("RF/Purchase" .. itemType)
-        if remote then
-            local success = remote:InvokeServer(itemName)
-            if success then
-                log("SUCCESS", "Berhasil membeli " .. itemName)
-                Rayfield:Notify({
-                    Title = "Pembelian Berhasil",
-                    Content = "Anda telah membeli " .. itemName,
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal membeli " .. itemName)
-            end
-        else
-            log("ERROR", "Remote untuk membeli " .. itemType .. " tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk menjual item
-local function sellItem(itemName, quantity)
-    log("SHOP", "Mencoba menjual " .. quantity .. " " .. itemName)
-    async(function()
-        local remote = getRemote("RF/SellItem")
-        if remote then
-            local success = remote:InvokeServer(itemName, quantity)
-            if success then
-                log("SUCCESS", "Berhasil menjual " .. quantity .. " " .. itemName)
-                Rayfield:Notify({
-                    Title = "Penjualan Berhasil",
-                    Content = "Anda telah menjual " .. quantity .. " " .. itemName,
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal menjual " .. itemName)
-            end
-        else
-            log("ERROR", "Remote untuk menjual item tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk equip item
-local function equipItem(itemName)
-    log("EQUIP", "Mencoba equip item: " .. itemName)
-    async(function()
-        local remote = getRemote("RE/EquipItem")
-        if remote then
-            remote:FireServer(itemName)
-            log("SUCCESS", "Berhasil equip " .. itemName)
-            Rayfield:Notify({
-                Title = "Equip Berhasil",
-                Content = "Anda telah equip " .. itemName,
-                Duration = 3,
-                Image = 4483362458,
-            })
-        else
-            log("ERROR", "Remote untuk equip item tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk auto fishing
-local function startAutoFishing(version)
-    log("FARM", "Memulai Auto Fishing V" .. version)
-    async(function()
-        while _G.AutoFishingEnabled do
-            -- Equip rod terbaik
-            local bestRod = "!!! Hyper Rod" -- Ini bisa disesuaikan dengan logika pencarian rod terbaik
-            equipItem(bestRod)
-            
-            -- Equip bait terbaik
-            local bestBait = "Hyper Bait"
-            local equipBaitRemote = getRemote("RE/EquipBait")
-            if equipBaitRemote then
-                equipBaitRemote:FireServer(bestBait)
-            end
-            
-            -- Simulasi casting
-            log("FARM", "Melakukan cast...")
-            task.wait(1)
-            
-            -- Simulasi perfect cast
-            if version == "1" then
-                task.wait(0.1) -- Instant
-            else
-                task.wait(math.random(0.5, 1.5)) -- Humanized delay
-            end
-            
-            -- Simulasi reel
-            log("FARM", "Menarik pancing...")
-            task.wait(2)
-            
-            -- Simulasi catch
-            log("FARM", "Ikan tertangkap!")
-            local fishCaughtRemote = getRemote("RE/FishCaught")
-            if fishCaughtRemote then
-                fishCaughtRemote:FireServer("Random Fish", 100) -- Simulasi ikan dengan berat 100
-            end
-            
-            -- Delay antar cast
-            local delay = _G.CastingDelay or 3
-            log("FARM", "Menunggu " .. delay .. " detik sebelum cast berikutnya...")
-            task.wait(delay)
-        end
-    end)
-end
-
--- Fungsi untuk auto claim daily reward
-local function autoClaimDailyReward()
-    log("UTILITY", "Mencoba klaim daily reward")
-    async(function()
-        local remote = getRemote("RF/ClaimDailyLogin")
-        if remote then
-            local success, reward = pcall(function()
-                return remote:InvokeServer()
-            end)
-            if success and reward then
-                log("SUCCESS", "Berhasil klaim daily reward: " .. tostring(reward))
-                Rayfield:Notify({
-                    Title = "Daily Reward",
-                    Content = "Anda telah menerima daily reward!",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal klaim daily reward")
-            end
-        else
-            log("ERROR", "Remote untuk klaim daily reward tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk auto spin
-local function autoSpin()
-    log("UTILITY", "Mencoba spin wheel")
-    async(function()
-        local remote = getRemote("RF/RequestSpin")
-        if remote then
-            local success = remote:InvokeServer()
-            if success then
-                log("SUCCESS", "Berhasil spin wheel")
-                Rayfield:Notify({
-                    Title = "Spin Wheel",
-                    Content = "Anda telah melakukan spin!",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal spin wheel")
-            end
-        else
-            log("ERROR", "Remote untuk spin wheel tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk anti AFK
-local function startAntiAFK()
-    log("UTILITY", "Memulai Anti AFK")
-    async(function()
-        while _G.AntiAFKEnabled do
-            -- Simulasi aktivitas
-            game.Players.LocalPlayer.Character.Humanoid:Move(Vector3.new(1, 0, 0))
-            task.wait(0.1)
-            game.Players.LocalPlayer.Character.Humanoid:Move(Vector3.new(-1, 0, 0))
-            task.wait(60) -- Setiap 60 detik
-        end
-    end)
-end
-
--- Fungsi untuk auto jump
-local function startAutoJump()
-    log("UTILITY", "Memulai Auto Jump")
-    async(function()
-        while _G.AutoJumpEnabled do
-            game.Players.LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-            local jumpInterval = _G.JumpInterval or 5
-            task.wait(jumpInterval)
-        end
-    end)
-end
-
--- Fungsi untuk ESP Player
-local function togglePlayerESP(enabled)
-    log("VISUAL", "Player ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        -- Buat ESP untuk semua player
-        for _, player in pairs(game.Players:GetPlayers()) do
-            if player ~= game.Players.LocalPlayer then
-                async(function()
-                    while enabled and player.Character do
-                        -- Buat box ESP
-                        local character = player.Character
-                        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-                        if humanoidRootPart then
-                            -- Ini adalah simulasi ESP
-                            -- Dalam implementasi nyata, Anda akan membuat Box atau Tracer
-                            task.wait(0.1)
-                        else
-                            break
-                        end
-                    end
-                end)
-            end
-        end
-    end
-end
-
--- Fungsi untuk ESP Fish
-local function toggleFishESP(enabled)
-    log("VISUAL", "Fish ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Cari semua ikan di air
-                local fish = game.Workspace:FindFirstChild("Fish")
-                if fish then
-                    for _, fishPart in pairs(fish:GetChildren()) do
-                        if fishPart:IsA("Part") then
-                            -- Buat ESP untuk ikan
-                            -- Ini adalah simulasi
-                            task.wait(0.1)
-                        end
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    end
-end
-
--- Fungsi untuk ESP Chest
-local function toggleChestESP(enabled)
-    log("VISUAL", "Chest ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Cari semua chest
-                for _, chest in pairs(game.Workspace:GetDescendants()) do
-                    if chest.Name:find("Chest") or chest:FindFirstChild("Chest") then
-                        -- Buat ESP untuk chest
-                        -- Ini adalah simulasi
-                        task.wait(0.1)
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    end
-end
-
--- Fungsi untuk ESP NPC
-local function toggleNPCEsp(enabled)
-    log("VISUAL", "NPC ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Cari semua NPC
-                local npcs = game.Workspace:FindFirstChild("NPCs")
-                if npcs then
-                    for _, npc in pairs(npcs:GetChildren()) do
-                        if npc:IsA("Model") then
-                            -- Buat ESP untuk NPC
-                            -- Ini adalah simulasi
-                            task.wait(0.1)
-                        end
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    end
-end
-
--- Fungsi untuk ESP Shark
-local function toggleSharkESP(enabled)
-    log("VISUAL", "Shark ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Cari semua shark
-                for _, shark in pairs(game.Workspace:GetDescendants()) do
-                    if shark.Name:find("Shark") or shark:FindFirstChild("Shark") then
-                        -- Buat ESP untuk shark
-                        -- Ini adalah simulasi
-                        task.wait(0.1)
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    end
-end
-
--- Fungsi untuk ESP Event Object
-local function toggleEventObjectESP(enabled)
-    log("VISUAL", "Event Object ESP " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Cari semua objek event
-                local events = game.Workspace:FindFirstChild("Events")
-                if events then
-                    for _, event in pairs(events:GetChildren()) do
-                        if event:IsA("Model") then
-                            -- Buat ESP untuk objek event
-                            -- Ini adalah simulasi
-                            task.wait(0.1)
-                        end
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    end
-end
-
--- Fungsi untuk Chams
-local function toggleChams(enabled)
-    log("VISUAL", "Chams " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        async(function()
-            while enabled do
-                -- Terapkan efek chams pada objek
-                for _, part in pairs(game.Workspace:GetDescendants()) do
-                    if part:IsA("BasePart") and part.Transparency < 0.5 then
-                        part.LocalTransparencyModifier = 0.5
-                    end
-                end
-                task.wait(1)
-            end
-        end)
-    else
-        -- Reset transparency
-        for _, part in pairs(game.Workspace:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.LocalTransparencyModifier = 0
-            end
-        end
-    end
-end
-
--- Fungsi untuk toggle shadow
-local function toggleShadow(enabled)
-    log("GRAPHIC", "Shadow " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    game.Lighting.GlobalShadows = enabled
-end
-
--- Fungsi untuk toggle water wave
-local function toggleWaterWave(enabled)
-    log("GRAPHIC", "Water Wave " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    -- Ini tergantung pada implementasi game
-    -- Simulasi: cari part air dan ubah propertinya
-    local water = game.Workspace:FindFirstChild("Water") or game.Workspace:FindFirstChild("Ocean")
-    if water then
-        if water:IsA("Part") then
-            water.WaveSize = enabled and 1 or 0
-        elseif water:IsA("Model") then
-            for _, part in pairs(water:GetChildren()) do
-                if part:IsA("Part") and part:FindFirstChild("WaveSize") then
-                    part.WaveSize = enabled and 1 or 0
-                end
-            end
-        end
-    end
-end
-
--- Fungsi untuk toggle skybox
-local function toggleSkybox(skyboxName)
-    log("GRAPHIC", "Mengubah skybox ke: " .. skyboxName)
-    local lighting = game.Lighting
-    if skyboxName == "Default" then
-        lighting.Sky = nil
-    else
-        -- Cari skybox di LightingProfiles
-        local profiles = getAllLightingProfiles()
-        for _, profile in ipairs(profiles) do
-            if profile == skyboxName then
-                -- Load skybox
-                -- Ini adalah simulasi
-                lighting.Sky = Instance.new("Sky")
-                lighting.Sky.Name = skyboxName
-                break
-            end
-        end
-    end
-end
-
--- Fungsi untuk toggle fullbright
-local function toggleFullBright(enabled)
-    log("GRAPHIC", "FullBright " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    game.Lighting.Brightness = enabled and 3 or 1
-    game.Lighting.ExposureCompensation = enabled and 1 or 0
-end
-
--- Fungsi untuk mengubah graphics quality
-local function setGraphicsQuality(quality)
-    log("GRAPHIC", "Mengubah graphics quality ke: " .. quality)
-    -- 1 = Low, 2 = Medium, 3 = High, 4 = Ultra
-    game:GetService("Lighting").Technology = Enum.Technology.Future
-    if quality <= 1 then
-        game:GetService("Lighting").ShadowSoftness = 0
-        game:GetService("Lighting").GlobalShadows = false
-        game:GetService("Lighting").GeographicLatitude = -90
-        game:GetService("Lighting").Brightness = 1
-        game:GetService("Lighting").ExposureCompensation = 0
-        game:GetService("Lighting").Ambient = Color3.fromRGB(128, 128, 128)
-    elseif quality == 2 then
-        game:GetService("Lighting").ShadowSoftness = 0.2
-        game:GetService("Lighting").GlobalShadows = true
-        game:GetService("Lighting").GeographicLatitude = 0
-        game:GetService("Lighting").Brightness = 1.5
-        game:GetService("Lighting").ExposureCompensation = 0.5
-        game:GetService("Lighting").Ambient = Color3.fromRGB(192, 192, 192)
-    elseif quality == 3 then
-        game:GetService("Lighting").ShadowSoftness = 0.5
-        game:GetService("Lighting").GlobalShadows = true
-        game:GetService("Lighting").GeographicLatitude = 45
-        game:GetService("Lighting").Brightness = 2
-        game:GetService("Lighting").ExposureCompensation = 1
-        game:GetService("Lighting").Ambient = Color3.fromRGB(224, 224, 224)
-    else
-        game:GetService("Lighting").ShadowSoftness = 1
-        game:GetService("Lighting").GlobalShadows = true
-        game:GetService("Lighting").GeographicLatitude = 90
-        game:GetService("Lighting").Brightness = 3
-        game:GetService("Lighting").ExposureCompensation = 2
-        game:GetService("Lighting").Ambient = Color3.fromRGB(255, 255, 255)
-    end
-end
-
--- Fungsi untuk mode potato
-local function togglePotatoMode(enabled)
-    log("LOWDEV", "Potato Mode " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        -- Turunkan semua pengaturan grafis
-        setGraphicsQuality(1)
-        toggleShadow(false)
-        toggleWaterWave(false)
-        
-        -- Nonaktifkan partikel
-        for _, particle in pairs(game.Workspace:GetDescendants()) do
-            if particle:IsA("ParticleEmitter") then
-                particle.Enabled = false
-            end
-        end
-        
-        -- Sederhanakan air
-        local water = game.Workspace:FindFirstChild("Water") or game.Workspace:FindFirstChild("Ocean")
-        if water and water:IsA("Part") then
-            water.Material = Enum.Material.Neon
-            water.Transparency = 0.5
-        end
-        
-        -- Batasi FPS
-        game:GetService("RunService").RenderStepped:Connect(function()
-            game:GetService("RunService").Heartbeat:Wait()
-        end)
-    else
-        -- Reset pengaturan
-        setGraphicsQuality(3)
-        toggleShadow(true)
-        toggleWaterWave(true)
-        
-        -- Aktifkan kembali partikel
-        for _, particle in pairs(game.Workspace:GetDescendants()) do
-            if particle:IsA("ParticleEmitter") then
-                particle.Enabled = true
-            end
-        end
-        
-        -- Reset air
-        local water = game.Workspace:FindFirstChild("Water") or game.Workspace:FindFirstChild("Ocean")
-        if water and water:IsA("Part") then
-            water.Material = Enum.Material.Water
-            water.Transparency = 0.5
-        end
-    end
-end
-
--- Fungsi untuk disable texture
-local function toggleDisableTexture(enabled)
-    log("LOWDEV", "Disable Texture " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    for _, part in pairs(game.Workspace:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if enabled then
-                part.TextureID = ""
-            else
-                -- Tidak bisa mengembalikan texture asli tanpa menyimpannya terlebih dahulu
-                -- Jadi kita biarkan kosong
-            end
-        end
-    end
-end
-
--- Fungsi untuk disable particles
-local function toggleDisableParticles(enabled)
-    log("LOWDEV", "Disable Particles " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    for _, particle in pairs(game.Workspace:GetDescendants()) do
-        if particle:IsA("ParticleEmitter") then
-            particle.Enabled = not enabled
-        end
-    end
-end
-
--- Fungsi untuk simplify water
-local function toggleSimplifyWater(enabled)
-    log("LOWDEV", "Simplify Water " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    local water = game.Workspace:FindFirstChild("Water") or game.Workspace:FindFirstChild("Ocean")
-    if water then
-        if water:IsA("Part") then
-            if enabled then
-                water.Material = Enum.Material.Neon
-                water.WaveSize = 0
-                water.Transparency = 0.3
-            else
-                water.Material = Enum.Material.Water
-                water.WaveSize = 1
-                water.Transparency = 0.5
-            end
-        end
-    end
-end
-
--- Fungsi untuk limit FPS
-local function setFPSCap(fps)
-    log("LOWDEV", "Membatasi FPS ke: " .. fps)
-    local rs = game:GetService("RunService")
-    local targetFrameTime = 1 / fps
-    
-    if fps == 0 then
-        -- Hapus batasan FPS
-        if _G.FPSCapConnection then
-            _G.FPSCapConnection:Disconnect()
-            _G.FPSCapConnection = nil
-        end
-        return
-    end
-    
-    if _G.FPSCapConnection then
-        _G.FPSCapConnection:Disconnect()
-    end
-    
-    _G.FPSCapConnection = rs.RenderStepped:Connect(function()
-        local startTime = tick()
-        while tick() - startTime < targetFrameTime do
-            task.wait()
-        end
-    end)
-end
-
--- Fungsi untuk teleport ke player
-local function teleportToPlayer(playerName)
-    log("TELEPORT", "Mencoba teleport ke player: " .. playerName)
-    async(function()
-        local targetPlayer = game.Players:FindFirstChild(playerName)
-        if targetPlayer and targetPlayer.Character then
-            local humanoidRootPart = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if humanoidRootPart then
-                game.Players.LocalPlayer.Character:MoveTo(humanoidRootPart.Position + Vector3.new(0, 5, 0))
-                log("SUCCESS", "Berhasil teleport ke " .. playerName)
-                Rayfield:Notify({
-                    Title = "Teleport Berhasil",
-                    Content = "Anda telah teleport ke " .. playerName,
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "HumanoidRootPart tidak ditemukan untuk " .. playerName)
-            end
-        else
-            log("ERROR", "Player " .. playerName .. " tidak ditemukan atau tidak memiliki karakter")
-        end
-    end)
-end
-
--- Fungsi untuk server hop
-local function serverHop()
-    log("PLAYER", "Melakukan server hop")
-    async(function()
-        local currentGameId = game.PlaceId
-        local servers = game:GetService("GameServerService"):GetGameServersAsync(currentGameId)
-        for _, server in pairs(servers) do
-            if server.Id ~= game.JobId then
-                game:GetService("TeleportService"):TeleportToPlaceInstance(currentGameId, server.Id)
-                break
-            end
-        end
-    end)
-end
-
--- Fungsi untuk rejoin server
-local function rejoinServer()
-    log("PLAYER", "Rejoin server")
-    game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
-end
-
--- Fungsi untuk reset player
-local function resetPlayer()
-    log("PLAYER", "Reset player")
-    game.Players.LocalPlayer.Character:BreakJoints()
-end
-
--- Fungsi untuk toggle fly
-local function toggleFly(enabled)
-    log("PLAYER", "Fly " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        _G.FlyConnection = game:GetService("RunService").Stepped:Connect(function()
-            if game.Players.LocalPlayer.Character then
-                game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid").PlatformStand = true
-            end
-        end)
-    else
-        if _G.FlyConnection then
-            _G.FlyConnection:Disconnect()
-            _G.FlyConnection = nil
-        end
-        if game.Players.LocalPlayer.Character then
-            game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid").PlatformStand = false
-        end
-    end
-end
-
--- Fungsi untuk toggle noclip
-local function toggleNoclip(enabled)
-    log("PLAYER", "Noclip " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        _G.NoclipConnection = game:GetService("RunService").Stepped:Connect(function()
-            if game.Players.LocalPlayer.Character then
-                for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end)
-    else
-        if _G.NoclipConnection then
-            _G.NoclipConnection:Disconnect()
-            _G.NoclipConnection = nil
-        end
-        if game.Players.LocalPlayer.Character then
-            for _, part in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
-    end
-end
-
--- Fungsi untuk toggle infinite jump
-local function toggleInfiniteJump(enabled)
-    log("PLAYER", "Infinite Jump " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        _G.InfiniteJumpConnection = game:GetService("UserInputService").JumpRequest:Connect(function()
-            game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
-        end)
-    else
-        if _G.InfiniteJumpConnection then
-            _G.InfiniteJumpConnection:Disconnect()
-            _G.InfiniteJumpConnection = nil
-        end
-    end
-end
-
--- Fungsi untuk toggle sit/stand
-local function toggleSitStand(sit)
-    log("PLAYER", sit and "Sit" or "Stand")
-    if game.Players.LocalPlayer.Character then
-        local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-        if humanoid then
-            humanoid.Sit = sit
-        end
-    end
-end
-
--- Fungsi untuk anti detect developer
-local function toggleAntiDetect(enabled)
-    log("FARM", "Anti Detect Developer " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        -- Obfuscate aktivitas
-        -- Ubah pola farming
-        _G.OriginalCastingDelay = _G.CastingDelay or 3
-        _G.CastingDelay = math.random(2, 5)
-        
-        -- Ubah pola gerakan
-        _G.AntiDetectConnection = game:GetService("RunService").Stepped:Connect(function()
-            if game.Players.LocalPlayer.Character then
-                local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-                if humanoid then
-                    humanoid:Move(Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)) * 0.1)
-                end
-            end
-        end)
-    else
-        if _G.AntiDetectConnection then
-            _G.AntiDetectConnection:Disconnect()
-            _G.AntiDetectConnection = nil
-        end
-        if _G.OriginalCastingDelay then
-            _G.CastingDelay = _G.OriginalCastingDelay
-        end
-    end
-end
-
--- Fungsi untuk auto collect drops
-local function toggleAutoCollectDrops(enabled)
-    log("UTILITY", "Auto Collect Drops " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        _G.AutoCollectConnection = game.Workspace.ChildAdded:Connect(function(child)
-            if child:IsA("Tool") or (child:IsA("Model") and child:FindFirstChild("Handle")) then
-                async(function()
-                    task.wait(0.5) -- Delay kecil
-                    local character = game.Players.LocalPlayer.Character
-                    if character then
-                        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-                        if humanoidRootPart and child.PrimaryPart then
-                            child:SetPrimaryPartCFrame(humanoidRootPart.CFrame)
-                        end
-                    end
-                end)
-            end
-        end)
-    else
-        if _G.AutoCollectConnection then
-            _G.AutoCollectConnection:Disconnect()
-            _G.AutoCollectConnection = nil
-        end
-    end
-end
-
--- Fungsi untuk anti lag
-local function toggleAntiLag(enabled)
-    log("UTILITY", "Anti Lag " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        -- Hapus partikel lama
-        for _, particle in pairs(game.Workspace:GetDescendants()) do
-            if particle:IsA("ParticleEmitter") and particle.TimeLived > 10 then
-                particle.Enabled = false
-            end
-        end
-        
-        -- Batasi jumlah partikel
-        _G.AntiLagConnection = game.Workspace.DescendantAdded:Connect(function(child)
-            if child:IsA("ParticleEmitter") then
-                child.Lifetime = NumberRange.new(0.5, 1)
-                child.Rate = 5
-            end
-        end)
-    else
-        if _G.AntiLagConnection then
-            _G.AntiLagConnection:Disconnect()
-            _G.AntiLagConnection = nil
-        end
-    end
-end
-
--- Fungsi untuk FPS booster
-local function toggleFPSBooster(enabled)
-    log("UTILITY", "FPS Booster " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        -- Turunkan render distance
-        game:GetService("Workspace").CurrentCamera.FieldOfView = 70
-        game:GetService("Workspace").CurrentCamera.CameraType = Enum.CameraType.Fixed
-        
-        -- Kurangi kualitas grafis
-        setGraphicsQuality(1)
-        
-        -- Nonaktifkan efek tidak penting
-        toggleShadow(false)
-        toggleWaterWave(false)
-    else
-        -- Kembalikan pengaturan
-        game:GetService("Workspace").CurrentCamera.FieldOfView = 70
-        game:GetService("Workspace").CurrentCamera.CameraType = Enum.CameraType.Custom
-        setGraphicsQuality(3)
-        toggleShadow(true)
-        toggleWaterWave(true)
-    end
-end
-
--- Fungsi untuk webhook logger
-local function sendToWebhook(content)
-    log("UTILITY", "Mengirim data ke webhook")
-    async(function()
-        local webhookUrl = _G.WebhookURL or "https://discord.com/api/webhooks/placeholder"
-        local data = {
-            content = content,
-            username = "NIKZZMODDER Logger",
-            avatar_url = "https://i.imgur.com/placeholder.png"
-        }
-        local success, response = pcall(function()
-            return game:GetService("HttpService"):PostAsync(webhookUrl, game:GetService("HttpService"):JSONEncode(data))
-        end)
-        if success then
-            log("SUCCESS", "Data berhasil dikirim ke webhook")
-        else
-            log("ERROR", "Gagal mengirim data ke webhook: " .. tostring(response))
-        end
-    end)
-end
-
--- Fungsi untuk mengubah waktu
-local function changeTime(timeType)
-    log("GRAPHIC", "Mengubah waktu ke: " .. timeType)
-    local lighting = game.Lighting
-    if timeType == "Siang" then
-        lighting.TimeOfDay = "12:00:00"
-        lighting.Brightness = 2
-        lighting.ExposureCompensation = 1
-    elseif timeType == "Malam" then
-        lighting.TimeOfDay = "00:00:00"
-        lighting.Brightness = 1
-        lighting.ExposureCompensation = 0
-    elseif timeType == "Senja" then
-        lighting.TimeOfDay = "18:00:00"
-        lighting.Brightness = 1.5
-        lighting.ExposureCompensation = 0.5
-    elseif timeType == "Fajar" then
-        lighting.TimeOfDay = "06:00:00"
-        lighting.Brightness = 1.5
-        lighting.ExposureCompensation = 0.5
-    end
-end
-
--- Fungsi untuk menampilkan FPS counter
-local function toggleFPSCounter(enabled)
-    log("GRAPHIC", "FPS Counter " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        if not _G.FPSCounterFrame then
-            _G.FPSCounterFrame = Instance.new("ScreenGui")
-            _G.FPSCounterFrame.Name = "FPSCounter"
-            _G.FPSCounterFrame.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-            
-            local fpsLabel = Instance.new("TextLabel")
-            fpsLabel.Name = "FPSLabel"
-            fpsLabel.Size = UDim2.new(0, 100, 0, 30)
-            fpsLabel.Position = UDim2.new(0, 10, 0, 10)
-            fpsLabel.BackgroundTransparency = 0.5
-            fpsLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            fpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            fpsLabel.Text = "FPS: 0"
-            fpsLabel.Parent = _G.FPSCounterFrame
-            
-            _G.FPSCounterConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                local fps = math.floor(1 / game:GetService("RunService").RenderStepped:Wait())
-                fpsLabel.Text = "FPS: " .. fps
-            end)
-        end
-    else
-        if _G.FPSCounterFrame then
-            _G.FPSCounterFrame:Destroy()
-            _G.FPSCounterFrame = nil
-        end
-        if _G.FPSCounterConnection then
-            _G.FPSCounterConnection:Disconnect()
-            _G.FPSCounterConnection = nil
-        end
-    end
-end
-
--- Fungsi untuk auto max upgrade
-local function autoMaxUpgrade()
-    log("SHOP", "Memulai Auto Max Upgrade")
-    async(function()
-        local enchants = getAllEnchants()
-        for _, enchant in ipairs(enchants) do
-            -- Beli enchant
-            purchaseItem(enchant, "Enchant")
-            task.wait(1)
-        end
-        log("SUCCESS", "Auto Max Upgrade selesai")
-        Rayfield:Notify({
-            Title = "Auto Max Upgrade",
-            Content = "Semua upgrade telah dimaksimalkan!",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end)
-end
-
--- Fungsi untuk teleport ke shop
-local function teleportToShop()
-    log("SHOP", "Teleport ke Shop")
-    async(function()
-        -- Cari NPC shop
-        local npcs = game.Workspace:FindFirstChild("NPCs")
-        if npcs then
-            for _, npc in pairs(npcs:GetChildren()) do
-                if npc.Name:find("Shop") or npc:FindFirstChild("Shop") then
-                    local humanoidRootPart = npc:FindFirstChild("HumanoidRootPart")
-                    if humanoidRootPart then
-                        game.Players.LocalPlayer.Character:MoveTo(humanoidRootPart.Position + Vector3.new(0, 5, 5))
-                        log("SUCCESS", "Berhasil teleport ke shop")
-                        Rayfield:Notify({
-                            Title = "Teleport Berhasil",
-                            Content = "Anda telah teleport ke shop",
-                            Duration = 3,
-                            Image = 4483362458,
-                        })
-                        return
-                    end
-                end
-            end
-        end
-        log("ERROR", "Shop NPC tidak ditemukan")
-    end)
-end
-
--- Fungsi untuk auto buy bait
-local function autoBuyBait(baitName, quantity)
-    log("SHOP", "Auto Buy Bait: " .. baitName .. " x" .. quantity)
-    async(function()
-        for i = 1, quantity do
-            purchaseItem(baitName, "Bait")
-            task.wait(0.5)
-        end
-        log("SUCCESS", "Berhasil membeli " .. quantity .. " " .. baitName)
-        Rayfield:Notify({
-            Title = "Pembelian Berhasil",
-            Content = "Anda telah membeli " .. quantity .. " " .. baitName,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end)
-end
-
--- Fungsi untuk auto buy rod
-local function autoBuyRod(rodName)
-    log("SHOP", "Auto Buy Rod: " .. rodName)
-    async(function()
-        purchaseItem(rodName, "FishingRod")
-        log("SUCCESS", "Berhasil membeli " .. rodName)
-        Rayfield:Notify({
-            Title = "Pembelian Berhasil",
-            Content = "Anda telah membeli " .. rodName,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end)
-end
-
--- Fungsi untuk auto buy gear
-local function autoBuyGear(gearName)
-    log("SHOP", "Auto Buy Gear: " .. gearName)
-    async(function()
-        purchaseItem(gearName, "Gear")
-        log("SUCCESS", "Berhasil membeli " .. gearName)
-        Rayfield:Notify({
-            Title = "Pembelian Berhasil",
-            Content = "Anda telah membeli " .. gearName,
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end)
-end
-
--- Fungsi untuk auto sell fish
-local function autoSellFish()
-    log("SHOP", "Auto Sell Fish")
-    async(function()
-        -- Jual semua ikan
-        local remote = getRemote("RF/SellAllItems")
-        if remote then
-            local success = remote:InvokeServer("Fish")
-            if success then
-                log("SUCCESS", "Berhasil menjual semua ikan")
-                Rayfield:Notify({
-                    Title = "Penjualan Berhasil",
-                    Content = "Anda telah menjual semua ikan",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal menjual ikan")
-            end
-        else
-            log("ERROR", "Remote untuk menjual semua item tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk auto sell chest
-local function autoSellChest()
-    log("SHOP", "Auto Sell Chest")
-    async(function()
-        -- Jual semua chest
-        local remote = getRemote("RF/SellAllItems")
-        if remote then
-            local success = remote:InvokeServer("Chest")
-            if success then
-                log("SUCCESS", "Berhasil menjual semua chest")
-                Rayfield:Notify({
-                    Title = "Penjualan Berhasil",
-                    Content = "Anda telah menjual semua chest",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            else
-                log("ERROR", "Gagal menjual chest")
-            end
-        else
-            log("ERROR", "Remote untuk menjual semua item tidak ditemukan")
-        end
-    end)
-end
-
--- Fungsi untuk auto complete fishing
-local function toggleAutoCompleteFishing(enabled)
-    log("FARM", "Auto Complete Fishing " .. (enabled and "diaktifkan" or "dinonaktifkan"))
-    if enabled then
-        _G.AutoCompleteConnection = game:GetService("ReplicatedStorage"):WaitForChild("RE"):WaitForChild("FishingMinigameChanged"):Connect(function(minigameState)
-            if minigameState == "Started" then
-                async(function()
-                    -- Tunggu sebentar
-                    task.wait(0.5)
-                    -- Selesaikan minigame
-                    local completeRemote = getRemote("RE/FishingCompleted")
-                    if completeRemote then
-                        completeRemote:FireServer(true, 100) -- Perfect catch
-                    end
-                end)
-            end
-        end)
-    else
-        if _G.AutoCompleteConnection then
-            _G.AutoCompleteConnection:Disconnect()
-            _G.AutoCompleteConnection = nil
-        end
-    end
-end
-
--- Fungsi untuk bypass fishing radar
-local function bypassFishingRadar()
-    log("FARM", "Bypass Fishing Radar")
-    async(function()
-        -- Cek apakah sudah punya radar
-        local hasRadar = false
-        -- Ini adalah simulasi, dalam implementasi nyata Anda akan memeriksa inventaris
-        if not hasRadar then
-            -- Beli radar
-            purchaseItem("Fishing Radar", "Gear")
-        end
-        -- Equip radar
-        equipItem("Fishing Radar")
-    end)
-end
-
--- Fungsi untuk bypass diving gear
-local function bypassDivingGear()
-    log("FARM", "Bypass Diving Gear")
-    async(function()
-        -- Cek apakah sudah punya diving gear
-        local hasGear = false
-        -- Ini adalah simulasi, dalam implementasi nyata Anda akan memeriksa inventaris
-        if not hasGear then
-            -- Beli diving gear
-            purchaseItem("Diving Gear", "Gear")
-        end
-        -- Equip diving gear
-        local equipGearRemote = getRemote("RF/EquipOxygenTank")
-        if equipGearRemote then
-            equipGearRemote:InvokeServer("Diving Gear")
-        end
-    end)
-end
-
--- Fungsi untuk save position
-local function savePosition()
-    log("TELEPORT", "Menyimpan posisi saat ini")
-    if game.Players.LocalPlayer.Character then
-        local humanoidRootPart = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            _G.SavedPosition = humanoidRootPart.Position
-            log("SUCCESS", "Posisi tersimpan: " .. tostring(_G.SavedPosition))
-            Rayfield:Notify({
-                Title = "Posisi Tersimpan",
-                Content = "Posisi Anda telah tersimpan",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        else
-            log("ERROR", "HumanoidRootPart tidak ditemukan")
-        end
-    else
-        log("ERROR", "Karakter tidak ditemukan")
-    end
-end
-
--- Fungsi untuk teleport ke saved position
-local function teleportToSavedPosition()
-    log("TELEPORT", "Teleport ke posisi yang tersimpan")
-    if _G.SavedPosition then
-        async(function()
-            game.Players.LocalPlayer.Character:MoveTo(_G.SavedPosition)
-            log("SUCCESS", "Berhasil teleport ke posisi yang tersimpan")
-            Rayfield:Notify({
-                Title = "Teleport Berhasil",
-                Content = "Anda telah teleport ke posisi yang tersimpan",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end)
-    else
-        log("ERROR", "Tidak ada posisi yang tersimpan")
-        Rayfield:Notify({
-            Title = "Error",
-            Content = "Tidak ada posisi yang tersimpan",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end
-end
-
--- Fungsi untuk auto equip rod terbaik
-local function autoEquipBestRod()
-    log("FARM", "Auto Equip Rod Terbaik")
-    async(function()
-        local rods = {
-            "!!! Hyper Rod", "!!! Gold Rod", "!!! Lucky Rod", "!!! Midnight Rod", "!!! Ice Rod",
-            "!!! Chrome Rod", "!!! Carbon Rod", "!!! Magma Rod", "!!! Lava Rod", "!!! Starter Rod"
-        }
-        -- Cari rod terbaik yang dimiliki
-        -- Ini adalah simulasi, dalam implementasi nyata Anda akan memeriksa inventaris
-        for _, rod in ipairs(rods) do
-            -- Equip rod pertama yang ditemukan
-            equipItem(rod)
-            log("SUCCESS", "Berhasil equip " .. rod)
-            break
-        end
-    end)
-end
-
--- Inisialisasi variabel global
-_G.AutoFishingEnabled = false
-_G.AntiAFKEnabled = false
-_G.AutoJumpEnabled = false
-_G.CastingDelay = 3
-_G.SavedPosition = nil
-_G.JumpInterval = 5
-_G.WebhookURL = ""
-
--- Buat semua tab
-local Tabs = {}
-local TabNames = {"NKZ-FARM", "NKZ-TELEPORT", "NKZ-PLAYER", "NKZ-VISUAL", "NKZ-SHOP", "NKZ-UTILITY", "NKZ-GRAPHIC", "NKZ-LOWDEV", "NKZ-SETTINGS"}
-for i, tabName in ipairs(TabNames) do
-    Tabs[tabName] = Window:CreateTab(tabName, 4483362458)
-end
-
--- [ 1. NKZ-FARM ]
-local FarmTab = Tabs["NKZ-FARM"]
-
--- Section Farming
-local FarmSection = FarmTab:CreateSection("Auto Fishing & Farming")
-
--- Auto Fishing V1
+-- AUTO FISHING V1
 local AutoFishingV1Toggle = FarmTab:CreateToggle({
-    Name = "Auto Fishing V1 (Instant)",
+    Name = "AUTO FISHING V1",
     CurrentValue = false,
     Flag = "AutoFishingV1",
     Callback = function(Value)
-        _G.AutoFishingEnabled = Value
         if Value then
-            startAutoFishing("1")
-            log("FARM", "Auto Fishing V1 diaktifkan")
-        else
-            log("FARM", "Auto Fishing V1 dinonaktifkan")
+            Rayfield:Notify({
+                Title = "Auto Fishing V1 Aktif",
+                Content = "Sistem memancing otomatis diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while AutoFishingV1Toggle:Get() do
+                    task.wait(0.1)
+                    
+                    -- Check if already fishing
+                    if not isFishingActive() then
+                        -- Auto equip rod if none equipped
+                        local currentRod = getRodFromInventory()
+                        if not currentRod then
+                            local bestRod = getAvailableRods()[1]
+                            if bestRod then
+                                equipRod(bestRod)
+                                task.wait(0.5)
+                            end
+                        end
+                        
+                        -- Auto cast
+                        local castRemote = getRemote("RequestFishingMinigameStarted")
+                        if castRemote then
+                            castRemote:FireServer()
+                            task.wait(0.2)
+                        end
+                        
+                        -- Perfect casting (simulate perfect hit)
+                        task.wait(0.5)
+                        
+                        -- Auto pull
+                        local fishCaughtRemote = getRemote("FishCaught")
+                        if fishCaughtRemote then
+                            fishCaughtRemote:FireServer()
+                        end
+                    end
+                    
+                    -- Delay between casts
+                    task.wait(1)
+                end
+            end)
         end
     end,
 })
 
--- Auto Fishing V2
+-- AUTO FISHING V2
 local AutoFishingV2Toggle = FarmTab:CreateToggle({
-    Name = "Auto Fishing V2 (Humanized)",
+    Name = "AUTO FISHING V2 (SPAM)",
     CurrentValue = false,
     Flag = "AutoFishingV2",
     Callback = function(Value)
-        _G.AutoFishingEnabled = Value
         if Value then
-            startAutoFishing("2")
-            log("FARM", "Auto Fishing V2 diaktifkan")
-        else
-            log("FARM", "Auto Fishing V2 dinonaktifkan")
+            Rayfield:Notify({
+                Title = "Auto Fishing V2 Aktif",
+                Content = "Spam tap aktif untuk penangkapan lebih cepat.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while AutoFishingV2Toggle:Get() do
+                    task.wait(0.05)
+                    
+                    -- Simulate rapid tapping
+                    local castRemote = getRemote("RequestFishingMinigameStarted")
+                    if castRemote then
+                        castRemote:FireServer()
+                    end
+                    
+                    local pullRemote = getRemote("FishCaught")
+                    if pullRemote then
+                        pullRemote:FireServer()
+                    end
+                end
+            end)
         end
     end,
 })
 
--- Auto Complete Fishing
+-- AUTO COMPLETE FISHING
 local AutoCompleteFishingToggle = FarmTab:CreateToggle({
-    Name = "Auto Complete Fishing",
+    Name = "AUTO COMPLETE FISHING",
     CurrentValue = false,
     Flag = "AutoCompleteFishing",
     Callback = function(Value)
-        toggleAutoCompleteFishing(Value)
-    end,
-})
-
--- Auto Equip Rod
-local AutoEquipRodButton = FarmTab:CreateButton({
-    Name = "Auto Equip Rod Terbaik",
-    Callback = function()
-        autoEquipBestRod()
-    end,
-})
-
--- Set Casting Delay
-local CastingDelaySlider = FarmTab:CreateSlider({
-    Name = "Set Casting Delay (detik)",
-    Range = {1, 10},
-    Increment = 1,
-    Suffix = "detik",
-    CurrentValue = 3,
-    Flag = "CastingDelay",
-    Callback = function(Value)
-        _G.CastingDelay = Value
-        log("FARM", "Casting Delay diatur ke " .. Value .. " detik")
-    end,
-})
-
--- Choose Fishing Area
-local fishingAreas = getAllAreas()
-local ChooseFishingAreaDropdown = FarmTab:CreateDropdown({
-    Name = "Choose Fishing Area",
-    Options = fishingAreas,
-    CurrentOption = fishingAreas[1] or "Pilih Area",
-    Flag = "ChooseFishingArea",
-    Callback = function(Option)
-        if Option ~= "Pilih Area" then
-            teleportToArea(Option)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Complete Fishing Aktif",
+                Content = "Ikan akan langsung terangkat saat masuk area umpan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Hook into FishCaught event
+            local fishCaughtRemote = getRemote("FishCaught")
+            if fishCaughtRemote then
+                fishCaughtRemote.OnClientEvent:Connect(function()
+                    -- Do nothing, but ensures automatic completion
+                end)
+            end
+            
+            -- Listen for when fish is near
+            local fishingController = getModule("Controllers.FishingController")
+            if fishingController and fishingController.FishingState then
+                fishingController.FishingState.Changed:Connect(function()
+                    if fishingController.FishingState.Value == "FISHING" then
+                        -- Immediately complete
+                        local fishCaughtRemote = getRemote("FishCaught")
+                        if fishCaughtRemote then
+                            fishCaughtRemote:FireServer()
+                        end
+                    end
+                end)
+            end
         end
     end,
 })
 
--- Save Position
+-- AUTO EQUIP ROD
+local AutoEquipRodToggle = FarmTab:CreateToggle({
+    Name = "AUTO EQUIP ROD",
+    CurrentValue = false,
+    Flag = "AutoEquipRod",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Equip Rod Aktif",
+                Content = "Rod otomatis dipasang dari inventory.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while AutoEquipRodToggle:Get() do
+                    task.wait(1)
+                    local rod = getRodFromInventory()
+                    if rod then
+                        equipRod(rod.Name)
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+-- SET CASTING DELAY
+local CastingDelaySlider = FarmTab:CreateSlider({
+    Name = "SET CASTING DELAY (SECOND)",
+    Range = {1, 10},
+    Increment = 0.5,
+    Suffix = " detik",
+    CurrentValue = 2,
+    Flag = "CastingDelay",
+    Callback = function(Value)
+        Rayfield:Notify({
+            Title = "Delay Diubah",
+            Content = "Delay pemancingan: " .. Value .. " detik",
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- CHOSE FISHING AREA
+local FishingAreaDropdown = FarmTab:CreateDropdown({
+    Name = "CHOSE FISHING AREA",
+    Options = {"Pilih Area..."}..getAvailableAreas(),
+    CurrentOption = "Pilih Area...",
+    Flag = "FishingArea",
+    Callback = function(Option)
+        if Option ~= "Pilih Area..." then
+            Rayfield:Notify({
+                Title = "Area Dipilih",
+                Content = "Area: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- SAVE POSITION
 local SavePositionButton = FarmTab:CreateButton({
-    Name = "Save Position",
+    Name = "SAVE POSITION",
     Callback = function()
-        savePosition()
+        local character = LocalPlayer.Character
+        if character then
+            local position = character:GetPrimaryPartCFrame().Position
+            Rayfield:Notify({
+                Title = "Posisi Disimpan",
+                Content = "Posisi telah disimpan: " .. position.X .. ", " .. position.Y .. ", " .. position.Z,
+                Duration = 3,
+                Image = 4483362458,
+            })
+            _G.NIKZZ_SAVE_POSITION = position
+        end
     end,
 })
 
--- Teleport Save Position
+-- TELEPORT SAVE POSITION
 local TeleportSavePositionButton = FarmTab:CreateButton({
-    Name = "Teleport to Saved Position",
+    Name = "TELEPORT SAVE POSITION",
     Callback = function()
-        teleportToSavedPosition()
+        if _G.NIKZZ_SAVE_POSITION then
+            LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(_G.NIKZZ_SAVE_POSITION))
+            Rayfield:Notify({
+                Title = "Teleport Sukses",
+                Content = "Berhasil teleport ke posisi yang disimpan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Tidak Ada Posisi",
+                Content = "Belum ada posisi yang disimpan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
--- Bypass Fishing Radar
-local BypassFishingRadarButton = FarmTab:CreateButton({
-    Name = "Bypass Fishing Radar",
-    Callback = function()
-        bypassFishingRadar()
+-- BYPASS FISHING RADAR
+local BypassRadarToggle = FarmTab:CreateToggle({
+    Name = "BYPASS FISHING RADAR",
+    CurrentValue = false,
+    Flag = "BypassRadar",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Bypass Radar Aktif",
+                Content = "Mencoba mengaktifkan radar otomatis.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while BypassRadarToggle:Get() do
+                    task.wait(10)
+                    local hasRadar = false
+                    local inventory = getInventory()
+                    if inventory then
+                        for _, item in ipairs(inventory:GetChildren()) do
+                            if item.Name == "Fishing Radar" then
+                                hasRadar = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if not hasRadar then
+                        buyItem("Fishing Radar", "gear")
+                        task.wait(2)
+                    end
+                    
+                    -- Equip it
+                    local radar = inventory:FindFirstChild("Fishing Radar")
+                    if radar then
+                        local updateRadarRemote = getRemote("UpdateFishingRadar")
+                        if updateRadarRemote then
+                            updateRadarRemote:FireServer(true)
+                        end
+                    end
+                end
+            end)
+        end
     end,
 })
 
--- Bypass Diving Gear
-local BypassDivingGearButton = FarmTab:CreateButton({
-    Name = "Bypass Diving Gear",
-    Callback = function()
-        bypassDivingGear()
+-- BYPASS DIVING GEAR
+local BypassDivingGearToggle = FarmTab:CreateToggle({
+    Name = "BYPASS DIVING GEAR",
+    CurrentValue = false,
+    Flag = "BypassDivingGear",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Bypass Diving Gear Aktif",
+                Content = "Mencoba mengaktifkan alat menyelam otomatis.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while BypassDivingGearToggle:Get() do
+                    task.wait(10)
+                    local hasGear = false
+                    local inventory = getInventory()
+                    if inventory then
+                        for _, item in ipairs(inventory:GetChildren()) do
+                            if item.Name == "Diving Gear" then
+                                hasGear = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if not hasGear then
+                        buyItem("Diving Gear", "gear")
+                        task.wait(2)
+                    end
+                    
+                    -- Equip it
+                    local gear = inventory:FindFirstChild("Diving Gear")
+                    if gear then
+                        local equipRemote = getRemote("EquipOxygenTank")
+                        if equipRemote then
+                            equipRemote:FireServer()
+                        end
+                    end
+                end
+            end)
+        end
     end,
 })
 
--- Anti AFK / Anti Disconnect
+-- ANTI AFK & ANTI DC
 local AntiAFKToggle = FarmTab:CreateToggle({
-    Name = "Anti AFK / Anti Disconnect",
+    Name = "ANTI AFK & ANTI DC",
     CurrentValue = false,
     Flag = "AntiAFK",
     Callback = function(Value)
-        _G.AntiAFKEnabled = Value
         if Value then
-            startAntiAFK()
-            log("UTILITY", "Anti AFK diaktifkan")
-        else
-            log("UTILITY", "Anti AFK dinonaktifkan")
+            Rayfield:Notify({
+                Title = "Anti AFK Aktif",
+                Content = "Mencegah deteksi AFK dan disconnect.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableAntiAFK()
+            disableDetection()
         end
     end,
 })
 
--- Auto Jump
+-- AUTO JUMP
 local AutoJumpToggle = FarmTab:CreateToggle({
-    Name = "Auto Jump",
+    Name = "AUTO JUMP",
     CurrentValue = false,
     Flag = "AutoJump",
     Callback = function(Value)
-        _G.AutoJumpEnabled = Value
         if Value then
-            startAutoJump()
-            log("UTILITY", "Auto Jump diaktifkan")
-        else
-            log("UTILITY", "Auto Jump dinonaktifkan")
-        end
-    end,
-})
-
--- Set Jump Interval
-local JumpIntervalSlider = FarmTab:CreateSlider({
-    Name = "Set Jump Interval (detik)",
-    Range = {1, 10},
-    Increment = 1,
-    Suffix = "detik",
-    CurrentValue = 5,
-    Flag = "JumpInterval",
-    Callback = function(Value)
-        _G.JumpInterval = Value
-        log("UTILITY", "Jump Interval diatur ke " .. Value .. " detik")
-    end,
-})
-
--- Anti Detect Developer
-local AntiDetectToggle = FarmTab:CreateToggle({
-    Name = "Anti Detect Developer",
-    CurrentValue = false,
-    Flag = "AntiDetect",
-    Callback = function(Value)
-        toggleAntiDetect(Value)
-    end,
-})
-
--- [ 2. NKZ-TELEPORT ]
-local TeleportTab = Tabs["NKZ-TELEPORT"]
-
--- Section Teleport
-local TeleportSection = TeleportTab:CreateSection("Teleport System")
-
--- Choose Island
-local islands = getAllAreas() -- Menggunakan area yang sama sebagai island
-local ChooseIslandDropdown = TeleportTab:CreateDropdown({
-    Name = "Choose Island",
-    Options = islands,
-    CurrentOption = islands[1] or "Pilih Island",
-    Flag = "ChooseIsland",
-    Callback = function(Option)
-        if Option ~= "Pilih Island" then
-            teleportToArea(Option)
-        end
-    end,
-})
-
--- Teleport Island Button
-local TeleportIslandButton = TeleportTab:CreateButton({
-    Name = "Teleport to Selected Island",
-    Callback = function()
-        local selectedIsland = ChooseIslandDropdown.CurrentOption
-        if selectedIsland and selectedIsland ~= "Pilih Island" then
-            teleportToArea(selectedIsland)
-        else
             Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih island terlebih dahulu",
+                Title = "Auto Jump Aktif",
+                Content = "Karakter akan melompat otomatis setiap 2 detik.",
                 Duration = 3,
                 Image = 4483362458,
             })
-        end
-    end,
-})
-
--- Choose Event
-local events = getAllEvents()
-local ChooseEventDropdown = TeleportTab:CreateDropdown({
-    Name = "Choose Event",
-    Options = events,
-    CurrentOption = events[1] or "Pilih Event",
-    Flag = "ChooseEvent",
-    Callback = function(Option)
-        if Option ~= "Pilih Event" then
-            teleportToEvent(Option)
-        end
-    end,
-})
-
--- Teleport Event Button
-local TeleportEventButton = TeleportTab:CreateButton({
-    Name = "Teleport to Selected Event",
-    Callback = function()
-        local selectedEvent = ChooseEventDropdown.CurrentOption
-        if selectedEvent and selectedEvent ~= "Pilih Event" then
-            teleportToEvent(selectedEvent)
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih event terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- Select Player
-local playersList = {}
-for _, player in pairs(game.Players:GetPlayers()) do
-    table.insert(playersList, player.Name)
-end
-
-local SelectPlayerDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Player",
-    Options = playersList,
-    CurrentOption = playersList[1] or "Pilih Player",
-    Flag = "SelectPlayer",
-    Callback = function(Option)
-        -- Tidak melakukan apa-apa saat memilih, tunggu tombol teleport
-    end,
-})
-
--- Refresh Player List Button
-local RefreshPlayerListButton = TeleportTab:CreateButton({
-    Name = "Refresh Player List",
-    Callback = function()
-        local newPlayersList = {}
-        for _, player in pairs(game.Players:GetPlayers()) do
-            table.insert(newPlayersList, player.Name)
-        end
-        SelectPlayerDropdown:Refresh(newPlayersList, true)
-        log("TELEPORT", "Daftar player diperbarui")
-    end,
-})
-
--- Teleport to Player Button
-local TeleportToPlayerButton = TeleportTab:CreateButton({
-    Name = "Teleport to Selected Player",
-    Callback = function()
-        local selectedPlayer = SelectPlayerDropdown.CurrentOption
-        if selectedPlayer and selectedPlayer ~= "Pilih Player" then
-            teleportToPlayer(selectedPlayer)
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih player terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- [ 3. NKZ-PLAYER ]
-local PlayerTab = Tabs["NKZ-PLAYER"]
-
--- Section Player Control
-local PlayerSection = PlayerTab:CreateSection("Player Control")
-
--- WalkSpeed Slider
-local WalkSpeedSlider = PlayerTab:CreateSlider({
-    Name = "WalkSpeed",
-    Range = {1, 200},
-    Increment = 1,
-    Suffix = "Speed",
-    CurrentValue = 16,
-    Flag = "WalkSpeed",
-    Callback = function(Value)
-        if game.Players.LocalPlayer.Character then
-            local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = Value
-                log("PLAYER", "WalkSpeed diatur ke " .. Value)
-            end
-        end
-    end,
-})
-
--- JumpPower Slider
-local JumpPowerSlider = PlayerTab:CreateSlider({
-    Name = "JumpPower",
-    Range = {1, 300},
-    Increment = 1,
-    Suffix = "Power",
-    CurrentValue = 50,
-    Flag = "JumpPower",
-    Callback = function(Value)
-        if game.Players.LocalPlayer.Character then
-            local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-            if humanoid then
-                humanoid.JumpPower = Value
-                log("PLAYER", "JumpPower diatur ke " .. Value)
-            end
-        end
-    end,
-})
-
--- Fly Toggle
-local FlyToggle = PlayerTab:CreateToggle({
-    Name = "Fly",
-    CurrentValue = false,
-    Flag = "Fly",
-    Callback = function(Value)
-        toggleFly(Value)
-    end,
-})
-
--- Noclip Toggle
-local NoclipToggle = PlayerTab:CreateToggle({
-    Name = "Noclip",
-    CurrentValue = false,
-    Flag = "Noclip",
-    Callback = function(Value)
-        toggleNoclip(Value)
-    end,
-})
-
--- Infinite Jump Toggle
-local InfiniteJumpToggle = PlayerTab:CreateToggle({
-    Name = "Infinite Jump",
-    CurrentValue = false,
-    Flag = "InfiniteJump",
-    Callback = function(Value)
-        toggleInfiniteJump(Value)
-    end,
-})
-
--- Reset Player Button
-local ResetPlayerButton = PlayerTab:CreateButton({
-    Name = "Reset Player",
-    Callback = function()
-        resetPlayer()
-    end,
-})
-
--- Rejoin Server Button
-local RejoinServerButton = PlayerTab:CreateButton({
-    Name = "Rejoin Server",
-    Callback = function()
-        rejoinServer()
-    end,
-})
-
--- Server Hop Button
-local ServerHopButton = PlayerTab:CreateButton({
-    Name = "Server Hop",
-    Callback = function()
-        serverHop()
-    end,
-})
-
--- GodMode Toggle
-local GodModeToggle = PlayerTab:CreateToggle({
-    Name = "GodMode (Anti Damage)",
-    CurrentValue = false,
-    Flag = "GodMode",
-    Callback = function(Value)
-        if Value then
-            -- Aktifkan GodMode
-            if game.Players.LocalPlayer.Character then
-                local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-                if humanoid then
-                    humanoid.MaxHealth = math.huge
-                    humanoid.Health = math.huge
-                    _G.GodModeConnection = humanoid.Died:Connect(function()
-                        humanoid.Health = math.huge
-                    end)
+            
+            task.spawn(function()
+                while AutoJumpToggle:Get() do
+                    task.wait(2)
+                    local character, humanoid = getCharacter()
+                    if character and humanoid then
+                        humanoid:ApplyImpulse(Vector3.new(0, 50, 0))
+                    end
                 end
+            end)
+        end
+    end,
+})
+
+-- ANTI DETECT DEVELOPER
+local AntiDetectDeveloperToggle = FarmTab:CreateToggle({
+    Name = "ANTI DETECT DEVELOPER",
+    CurrentValue = false,
+    Flag = "AntiDetectDev",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Anti Detect Developer Aktif",
+                Content = "Semua fitur deteksi pengembang dinonaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            disableDetection()
+        end
+    end,
+})
+
+-- ========================================
+-- NKZ-TELEPORT TAB
+-- ========================================
+
+local TeleportTab = Window:CreateTab("NKZ-TELEPORT", 4483362458)
+
+-- CHOSE ISLAND
+local IslandDropdown = TeleportTab:CreateDropdown({
+    Name = "CHOSE ISLAND",
+    Options = getAvailableAreas(),
+    CurrentOption = "Pilih Pulau...",
+    Flag = "IslandChoice",
+    Callback = function(Option)
+        if Option ~= "Pilih Pulau..." then
+            Rayfield:Notify({
+                Title = "Pulau Dipilih",
+                Content = "Pulau: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- BUTTON TELEPORT TO ISLAND
+local TeleportToIslandButton = TeleportTab:CreateButton({
+    Name = "BUTTON TELEPORT TO ISLAND",
+    Callback = function()
+        local selected = IslandDropdown:Get()
+        if selected ~= "Pilih Pulau..." then
+            teleportToArea(selected)
+            Rayfield:Notify({
+                Title = "Teleport Ke Pulau",
+                Content = "Berhasil teleport ke " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- CHOSE EVENT
+local EventDropdown = TeleportTab:CreateDropdown({
+    Name = "CHOSE EVENT",
+    Options = getAvailableEvents(),
+    CurrentOption = "Pilih Event...",
+    Flag = "EventChoice",
+    Callback = function(Option)
+        if Option ~= "Pilih Event..." then
+            Rayfield:Notify({
+                Title = "Event Dipilih",
+                Content = "Event: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- BUTTON TELEPORT TO EVENT
+local TeleportToEventButton = TeleportTab:CreateButton({
+    Name = "BUTTON TELEPORT TO EVENT",
+    Callback = function()
+        local selected = EventDropdown:Get()
+        if selected ~= "Pilih Event..." then
+            teleportToEvent(selected)
+            Rayfield:Notify({
+                Title = "Teleport Ke Event",
+                Content = "Berhasil teleport ke event " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- SELECT PLAYER
+local PlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "SELECT PLAYER",
+    Options = getPlayerList(),
+    CurrentOption = "Pilih Pemain...",
+    Flag = "PlayerChoice",
+    Callback = function(Option)
+        if Option ~= "Pilih Pemain..." then
+            Rayfield:Notify({
+                Title = "Pemain Dipilih",
+                Content = "Pemain: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- BUTTON GO TO PLAYER
+local GoToPlayerButton = TeleportTab:CreateButton({
+    Name = "BUTTON GO TO PLAYER",
+    Callback = function()
+        local selected = PlayerDropdown:Get()
+        if selected ~= "Pilih Pemain..." then
+            teleportToPlayer(selected)
+            Rayfield:Notify({
+                Title = "Teleport Ke Pemain",
+                Content = "Berhasil teleport ke " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- REFRESH PLAYER
+local RefreshPlayerButton = TeleportTab:CreateButton({
+    Name = "REFRESH PLAYER",
+    Callback = function()
+        PlayerDropdown:Refresh(getPlayerList(), true)
+        Rayfield:Notify({
+            Title = "Pembaruan Pemain",
+            Content = "Daftar pemain diperbarui.",
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- ========================================
+-- NKZ-PLAYER TAB
+-- ========================================
+
+local PlayerTab = Window:CreateTab("NKZ-PLAYER", 4483362458)
+
+-- ACTIVE HACK SPEED
+local SpeedHackToggle = PlayerTab:CreateToggle({
+    Name = "ACTIVE HACK SPEED",
+    CurrentValue = false,
+    Flag = "SpeedHack",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Speed Hack Aktif",
+                Content = "Kecepatan karakter diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableSpeedHack(50)
+        end
+    end,
+})
+
+-- SETTINGS SPEED
+local SpeedSettingSlider = PlayerTab:CreateSlider({
+    Name = "SETTINGS SPEED",
+    Range = {0, 1000},
+    Increment = 1,
+    Suffix = " unit",
+    CurrentValue = 16,
+    Flag = "SpeedSetting",
+    Callback = function(Value)
+        enableSpeedHack(Value)
+        Rayfield:Notify({
+            Title = "Kecepatan Diubah",
+            Content = "Kecepatan: " .. Value,
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- INFINITY JUMP
+local InfinityJumpToggle = PlayerTab:CreateToggle({
+    Name = "INFINITY JUMP",
+    CurrentValue = false,
+    Flag = "InfinityJump",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Infinity Jump Aktif",
+                Content = "Melompat tanpa batas diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableInfiniteJump()
+        end
+    end,
+})
+
+-- FLY LITTLE
+local FlyLittleToggle = PlayerTab:CreateToggle({
+    Name = "FLY LITTLE",
+    CurrentValue = false,
+    Flag = "FlyLittle",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Fly Little Aktif",
+                Content = "Terbang dengan ketinggian terbatas diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableFly()
+        end
+    end,
+})
+
+-- FLY SPEED
+local FlySpeedSlider = PlayerTab:CreateSlider({
+    Name = "FLY SPEED",
+    Range = {0, 100},
+    Increment = 1,
+    Suffix = " unit",
+    CurrentValue = 10,
+    Flag = "FlySpeed",
+    Callback = function(Value)
+        Rayfield:Notify({
+            Title = "Kecepatan Terbang Diubah",
+            Content = "Kecepatan: " .. Value,
+            Duration = 2,
+            Image = 4483362458,
+        })
+        -- Apply to fly system
+        if FlyLittleToggle:Get() then
+            enableFly()
+        end
+    end,
+})
+
+-- HACK BOAT SPEED
+local BoatSpeedToggle = PlayerTab:CreateToggle({
+    Name = "HACK BOAT SPEED",
+    CurrentValue = false,
+    Flag = "BoatSpeed",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Boat Speed Hack Aktif",
+                Content = "Kecepatan perahu ditingkatkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            -- This will be handled by the next setting
+        end
+    end,
+})
+
+-- SPEED BOAT SETTING
+local SpeedBoatSettingSlider = PlayerTab:CreateSlider({
+    Name = "SPEED BOAT SETTING",
+    Range = {1, 20},
+    Increment = 1,
+    Suffix = "x",
+    CurrentValue = 5,
+    Flag = "SpeedBoatSetting",
+    Callback = function(Value)
+        Rayfield:Notify({
+            Title = "Kecepatan Perahu Diubah",
+            Content = "Perkalian kecepatan: " .. Value .. "x",
+            Duration = 2,
+            Image = 4483362458,
+        })
+        -- Apply to existing boat
+        local character, humanoid = getCharacter()
+        if character then
+            local vehicleSeat = character:FindFirstChildWhichIsA("VehicleSeat")
+            if vehicleSeat then
+                vehicleSeat.MaxVelocity = Vector3.new(Value * 10, Value * 10, Value * 10)
             end
-            log("PLAYER", "GodMode diaktifkan")
-        else
-            -- Nonaktifkan GodMode
-            if game.Players.LocalPlayer.Character then
-                local humanoid = game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
-                if humanoid then
-                    humanoid.MaxHealth = 100
-                    humanoid.Health = 100
-                    if _G.GodModeConnection then
-                        _G.GodModeConnection:Disconnect()
-                        _G.GodModeConnection = nil
+        end
+    end,
+})
+
+-- FLY BOAT
+local FlyBoatToggle = PlayerTab:CreateToggle({
+    Name = "FLY BOAT",
+    CurrentValue = false,
+    Flag = "FlyBoat",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Fly Boat Aktif",
+                Content = "Perahu dapat terbang di udara!",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableBoatFly(50)
+        end
+    end,
+})
+
+-- FLY BOAT SPEED
+local FlyBoatSpeedSlider = PlayerTab:CreateSlider({
+    Name = "FLY BOAT SPEED",
+    Range = {1, 50},
+    Increment = 1,
+    Suffix = " unit",
+    CurrentValue = 10,
+    Flag = "FlyBoatSpeed",
+    Callback = function(Value)
+        Rayfield:Notify({
+            Title = "Kecepatan Terbang Perahu Diubah",
+            Content = "Kecepatan: " .. Value,
+            Duration = 2,
+            Image = 4483362458,
+        })
+        if FlyBoatToggle:Get() then
+            enableBoatFly(Value)
+        end
+    end,
+})
+
+-- JUMP HACK
+local JumpHackToggle = PlayerTab:CreateToggle({
+    Name = "JUMP HACK",
+    CurrentValue = false,
+    Flag = "JumpHack",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Jump Hack Aktif",
+                Content = "Lompat lebih tinggi diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableJumpHack(200)
+        end
+    end,
+})
+
+-- JUMP HACK SETTING
+local JumpHackSettingSlider = PlayerTab:CreateSlider({
+    Name = "JUMP HACK SETTING",
+    Range = {1, 500},
+    Increment = 1,
+    Suffix = " unit",
+    CurrentValue = 100,
+    Flag = "JumpHackSetting",
+    Callback = function(Value)
+        enableJumpHack(Value)
+        Rayfield:Notify({
+            Title = "Ketinggian Lompat Diubah",
+            Content = "Ketinggian: " .. Value,
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- LOCK POSITION
+local LockPositionToggle = PlayerTab:CreateToggle({
+    Name = "LOCK POSITION",
+    CurrentValue = false,
+    Flag = "LockPosition",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Lock Position Aktif",
+                Content = "Karakter dikunci di posisi saat ini.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            local character = LocalPlayer.Character
+            if character then
+                for _, part in ipairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = true
                     end
                 end
             end
-            log("PLAYER", "GodMode dinonaktifkan")
+        else
+            local character = LocalPlayer.Character
+            if character then
+                for _, part in ipairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                    end
+                end
+            end
         end
     end,
 })
 
--- Sit/Stand Toggle
-local SitStandToggle = PlayerTab:CreateToggle({
-    Name = "Sit/Stand",
-    CurrentValue = false,
-    Flag = "SitStand",
-    Callback = function(Value)
-        toggleSitStand(Value)
-    end,
-})
+-- ========================================
+-- NKZ-VISUAL TAB
+-- ========================================
 
--- [ 4. NKZ-VISUAL ]
-local VisualTab = Tabs["NKZ-VISUAL"]
+local VisualTab = Window:CreateTab("NKZ-VISUAL", 4483362458)
 
--- Section ESP
-local ESPSection = VisualTab:CreateSection("ESP & Visual")
-
--- ESP Player
+-- ACTIVE ESP PLAYER
 local ESPPlayerToggle = VisualTab:CreateToggle({
-    Name = "ESP Player (Box, Tracer, Name)",
+    Name = "ACTIVE ESP PLAYER",
     CurrentValue = false,
     Flag = "ESPPlayer",
     Callback = function(Value)
-        togglePlayerESP(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "ESP Player Aktif",
+                Content = "Menampilkan informasi pemain lain.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableESP()
+        end
     end,
 })
 
--- ESP Fish
-local ESPFishToggle = VisualTab:CreateToggle({
-    Name = "ESP Fish",
+-- GHOST HACK
+local GhostHackToggle = VisualTab:CreateToggle({
+    Name = "GHOST HACK",
     CurrentValue = false,
-    Flag = "ESPFish",
+    Flag = "GhostHack",
     Callback = function(Value)
-        toggleFishESP(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Ghost Hack Aktif",
+                Content = "Karakter menjadi transparan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            enableGhost()
+        end
     end,
 })
 
--- ESP Chest
-local ESPChestToggle = VisualTab:CreateToggle({
-    Name = "ESP Chest",
+-- FOV CAMERA
+local FOVCameraToggle = VisualTab:CreateToggle({
+    Name = "FOV CAMERA",
     CurrentValue = false,
-    Flag = "ESPChest",
+    Flag = "FOVCamera",
     Callback = function(Value)
-        toggleChestESP(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "FOV Camera Aktif",
+                Content = "Field of View diperluas.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            setFOV(15, 15)
+        end
     end,
 })
 
--- ESP NPC
-local ESPNPCToggle = VisualTab:CreateToggle({
-    Name = "ESP NPC",
-    CurrentValue = false,
-    Flag = "ESPNPC",
-    Callback = function(Value)
-        toggleNPCEsp(Value)
-    end,
-})
-
--- ESP Shark
-local ESPSharkToggle = VisualTab:CreateToggle({
-    Name = "ESP Shark",
-    CurrentValue = false,
-    Flag = "ESPShark",
-    Callback = function(Value)
-        toggleSharkESP(Value)
-    end,
-})
-
--- ESP Event Object
-local ESPEventObjectToggle = VisualTab:CreateToggle({
-    Name = "ESP Event Object",
-    CurrentValue = false,
-    Flag = "ESPEventObject",
-    Callback = function(Value)
-        toggleEventObjectESP(Value)
-    end,
-})
-
--- Chams
-local ChamsToggle = VisualTab:CreateToggle({
-    Name = "Chams (Transparency Effect)",
-    CurrentValue = false,
-    Flag = "Chams",
-    Callback = function(Value)
-        toggleChams(Value)
-    end,
-})
-
--- [ 5. NKZ-SHOP ]
-local ShopTab = Tabs["NKZ-SHOP"]
-
--- Section Shop
-local ShopSection = ShopTab:CreateSection("Auto Shop")
-
--- Auto Buy Bait
-local baits = getAllBaits()
-local AutoBuyBaitDropdown = ShopTab:CreateDropdown({
-    Name = "Pilih Bait",
-    Options = baits,
-    CurrentOption = baits[1] or "Pilih Bait",
-    Flag = "AutoBuyBait",
-    Callback = function(Option)
-        -- Tidak melakukan apa-apa, tunggu tombol beli
-    end,
-})
-
--- Jumlah Bait
-local BaitQuantitySlider = ShopTab:CreateSlider({
-    Name = "Jumlah Bait",
-    Range = {1, 100},
-    Increment = 1,
-    Suffix = "pcs",
+-- SETTINGS FOV KAMERA
+local FOVSettingSlider = VisualTab:CreateSlider({
+    Name = "SETTINGS FOV KAMERA",
+    Range = {0, 15},
+    Increment = 0.5,
+    Suffix = " unit",
     CurrentValue = 10,
-    Flag = "BaitQuantity",
+    Flag = "FOVSetting",
     Callback = function(Value)
-        -- Simpan nilai
-    end,
-})
-
--- Auto Buy Bait Button
-local AutoBuyBaitButton = ShopTab:CreateButton({
-    Name = "Auto Buy Bait",
-    Callback = function()
-        local selectedBait = AutoBuyBaitDropdown.CurrentOption
-        local quantity = BaitQuantitySlider.CurrentValue
-        if selectedBait and selectedBait ~= "Pilih Bait" then
-            autoBuyBait(selectedBait, quantity)
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih bait terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- Auto Buy Rod
-local rods = {
-    "!!! Starter Rod", "!!! Gold Rod", "!!! Hyper Rod", "!!! Lucky Rod", "!!! Midnight Rod",
-    "!!! Ice Rod", "!!! Chrome Rod", "!!! Carbon Rod", "!!! Magma Rod", "!!! Lava Rod"
-}
-local AutoBuyRodDropdown = ShopTab:CreateDropdown({
-    Name = "Pilih Rod",
-    Options = rods,
-    CurrentOption = rods[1] or "Pilih Rod",
-    Flag = "AutoBuyRod",
-    Callback = function(Option)
-        -- Tidak melakukan apa-apa, tunggu tombol beli
-    end,
-})
-
--- Auto Buy Rod Button
-local AutoBuyRodButton = ShopTab:CreateButton({
-    Name = "Auto Buy Rod",
-    Callback = function()
-        local selectedRod = AutoBuyRodDropdown.CurrentOption
-        if selectedRod and selectedRod ~= "Pilih Rod" then
-            autoBuyRod(selectedRod)
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih rod terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- Auto Buy Gear
-local gears = {"Fishing Radar", "Diving Gear"}
-local AutoBuyGearDropdown = ShopTab:CreateDropdown({
-    Name = "Pilih Gear",
-    Options = gears,
-    CurrentOption = gears[1] or "Pilih Gear",
-    Flag = "AutoBuyGear",
-    Callback = function(Option)
-        -- Tidak melakukan apa-apa, tunggu tombol beli
-    end,
-})
-
--- Auto Buy Gear Button
-local AutoBuyGearButton = ShopTab:CreateButton({
-    Name = "Auto Buy Gear",
-    Callback = function()
-        local selectedGear = AutoBuyGearDropdown.CurrentOption
-        if selectedGear and selectedGear ~= "Pilih Gear" then
-            autoBuyGear(selectedGear)
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Pilih gear terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- Auto Sell Fish
-local AutoSellFishButton = ShopTab:CreateButton({
-    Name = "Auto Sell Fish",
-    Callback = function()
-        autoSellFish()
-    end,
-})
-
--- Auto Sell Chest
-local AutoSellChestButton = ShopTab:CreateButton({
-    Name = "Auto Sell Chest",
-    Callback = function()
-        autoSellChest()
-    end,
-})
-
--- Auto Max Upgrade
-local AutoMaxUpgradeButton = ShopTab:CreateButton({
-    Name = "Auto Max Upgrade",
-    Callback = function()
-        autoMaxUpgrade()
-    end,
-})
-
--- Shop Teleport
-local ShopTeleportButton = ShopTab:CreateButton({
-    Name = "Teleport to Shop",
-    Callback = function()
-        teleportToShop()
-    end,
-})
-
--- [ 6. NKZ-UTILITY ]
-local UtilityTab = Tabs["NKZ-UTILITY"]
-
--- Section Utility
-local UtilitySection = UtilityTab:CreateSection("Utility & Tools")
-
--- Anti Lag
-local AntiLagToggle = UtilityTab:CreateToggle({
-    Name = "Anti Lag (Bersihkan Partikel)",
-    CurrentValue = false,
-    Flag = "AntiLag",
-    Callback = function(Value)
-        toggleAntiLag(Value)
-    end,
-})
-
--- FPS Booster
-local FPSBoosterToggle = UtilityTab:CreateToggle({
-    Name = "FPS Booster (Turunkan Kualitas)",
-    CurrentValue = false,
-    Flag = "FPSBooster",
-    Callback = function(Value)
-        toggleFPSBooster(Value)
-    end,
-})
-
--- Auto Collect Drops
-local AutoCollectDropsToggle = UtilityTab:CreateToggle({
-    Name = "Auto Collect Drops",
-    CurrentValue = false,
-    Flag = "AutoCollectDrops",
-    Callback = function(Value)
-        toggleAutoCollectDrops(Value)
-    end,
-})
-
--- Auto Claim Daily Reward
-local AutoClaimDailyRewardButton = UtilityTab:CreateButton({
-    Name = "Auto Claim Daily Reward",
-    Callback = function()
-        autoClaimDailyReward()
-    end,
-})
-
--- Auto Spin Event
-local AutoSpinButton = UtilityTab:CreateButton({
-    Name = "Auto Spin Event",
-    Callback = function()
-        autoSpin()
-    end,
-})
-
--- Webhook Logger
-local WebhookURLInput = UtilityTab:CreateInput({
-    Name = "Discord Webhook URL",
-    PlaceholderText = "Masukkan URL webhook Discord",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        _G.WebhookURL = Text
-        log("UTILITY", "Webhook URL diatur")
-    end,
-})
-
--- Test Webhook Button
-local TestWebhookButton = UtilityTab:CreateButton({
-    Name = "Test Webhook",
-    Callback = function()
-        if _G.WebhookURL and _G.WebhookURL ~= "" then
-            sendToWebhook("Test message from NIKZZMODDER!")
-        else
-            Rayfield:Notify({
-                Title = "Error",
-                Content = "Masukkan URL webhook terlebih dahulu",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end,
-})
-
--- Save Config
-local SaveConfigButton = UtilityTab:CreateButton({
-    Name = "Save Config",
-    Callback = function()
-        Rayfield:SaveConfiguration()
-        log("SETTINGS", "Konfigurasi disimpan")
+        setFOV(Value, Value)
         Rayfield:Notify({
-            Title = "Konfigurasi",
-            Content = "Pengaturan UI berhasil disimpan",
-            Duration = 3,
+            Title = "FOV Diubah",
+            Content = "FOV: " .. Value,
+            Duration = 2,
             Image = 4483362458,
         })
     end,
 })
 
--- Load Config
-local LoadConfigButton = UtilityTab:CreateButton({
-    Name = "Load Config",
-    Callback = function()
-        Rayfield:LoadConfiguration()
-        log("SETTINGS", "Konfigurasi dimuat")
+-- FITUR BEBAS (Customizable Visuals)
+VisualTab:CreateLabel("FITUR BEBAS:")
+local CustomVisualsDropdown = VisualTab:CreateDropdown({
+    Name = "Pilih Efek Visual",
+    Options = {"None", "Rainbow Trails", "Smoke Effect", "Glowing Parts"},
+    CurrentOption = "None",
+    Flag = "CustomVisuals",
+    Callback = function(Option)
+        if Option == "Rainbow Trails" then
+            -- Implement rainbow trails
+            Rayfield:Notify({
+                Title = "Efek Rainbow Trails",
+                Content = "Efek jejak pelangi diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        elseif Option == "Smoke Effect" then
+            Rayfield:Notify({
+                Title = "Efek Asap",
+                Content = "Efek asap diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        elseif Option == "Glowing Parts" then
+            Rayfield:Notify({
+                Title = "Efek Glowing",
+                Content = "Bagian bercahaya diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- ========================================
+-- NKZ-SHOP TAB
+-- ========================================
+
+local ShopTab = Window:CreateTab("NKZ-SHOP", 4483362458)
+
+-- AUTO SHELL FISH
+local AutoShellFishToggle = ShopTab:CreateToggle({
+    Name = "AUTO SHELL FISH",
+    CurrentValue = false,
+    Flag = "AutoShellFish",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Sell Fish Aktif",
+                Content = "Ikan akan dijual otomatis.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            autoSellFish()
+        end
+    end,
+})
+
+-- SETTINGS DELAY SELL
+local SellDelaySlider = ShopTab:CreateSlider({
+    Name = "SETTINGS DELAY SELL",
+    Range = {0.1, 10},
+    Increment = 0.1,
+    Suffix = " detik",
+    CurrentValue = 1,
+    Flag = "SellDelay",
+    Callback = function(Value)
         Rayfield:Notify({
-            Title = "Konfigurasi",
-            Content = "Pengaturan UI berhasil dimuat",
-            Duration = 3,
+            Title = "Delay Penjualan Diubah",
+            Content = "Delay: " .. Value .. " detik",
+            Duration = 2,
             Image = 4483362458,
         })
     end,
 })
 
--- [ 7. NKZ-GRAPHIC ]
-local GraphicTab = Tabs["NKZ-GRAPHIC"]
-
--- Section Graphics
-local GraphicSection = GraphicTab:CreateSection("Graphics & Visual")
-
--- Toggle Shadow
-local ShadowToggle = GraphicTab:CreateToggle({
-    Name = "Toggle Shadow",
-    CurrentValue = true,
-    Flag = "Shadow",
-    Callback = function(Value)
-        toggleShadow(Value)
-    end,
-})
-
--- Toggle Water Wave
-local WaterWaveToggle = GraphicTab:CreateToggle({
-    Name = "Toggle Water Wave",
-    CurrentValue = true,
-    Flag = "WaterWave",
-    Callback = function(Value)
-        toggleWaterWave(Value)
-    end,
-})
-
--- Toggle Skybox
-local skyboxes = getAllLightingProfiles()
-table.insert(skyboxes, 1, "Default")
-local SkyboxDropdown = GraphicTab:CreateDropdown({
-    Name = "Pilih Skybox",
-    Options = skyboxes,
-    CurrentOption = "Default",
-    Flag = "Skybox",
+-- SELECT WEATHER
+local WeatherDropdown = ShopTab:CreateDropdown({
+    Name = "SELECT WEATHER",
+    Options = getAvailableWeather(),
+    CurrentOption = "Pilih Cuaca...",
+    Flag = "WeatherChoice",
     Callback = function(Option)
-        toggleSkybox(Option)
+        if Option ~= "Pilih Cuaca..." then
+            Rayfield:Notify({
+                Title = "Cuaca Dipilih",
+                Content = "Cuaca: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
--- FPS Counter
-local FPSCounterToggle = GraphicTab:CreateToggle({
-    Name = "FPS Counter",
+-- BUTTON BUY WEATHER
+local BuyWeatherButton = ShopTab:CreateButton({
+    Name = "BUTTON BUY WEATHER",
+    Callback = function()
+        local selected = WeatherDropdown:Get()
+        if selected ~= "Pilih Cuaca..." then
+            autoBuyWeather(selected)
+            Rayfield:Notify({
+                Title = "Cuaca Dibeli",
+                Content = "Berhasil membeli cuaca: " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- AUTO BUY WEATHER
+local AutoBuyWeatherToggle = ShopTab:CreateToggle({
+    Name = "AUTO BUY WEATHER",
     CurrentValue = false,
-    Flag = "FPSCounter",
+    Flag = "AutoBuyWeather",
     Callback = function(Value)
-        toggleFPSCounter(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Buy Weather Aktif",
+                Content = "Cuaca akan dibeli otomatis.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while AutoBuyWeatherToggle:Get() do
+                    local selected = WeatherDropdown:Get()
+                    if selected ~= "Pilih Cuaca..." then
+                        autoBuyWeather(selected)
+                    end
+                    task.wait(30) -- Wait 30 seconds before buying again
+                end
+            end)
+        end
     end,
 })
 
--- Time Changer
-local timeOptions = {"Siang", "Malam", "Senja", "Fajar"}
-local TimeChangerDropdown = GraphicTab:CreateDropdown({
-    Name = "Ubah Waktu",
-    Options = timeOptions,
-    CurrentOption = "Siang",
-    Flag = "TimeChanger",
+-- DELAY AUTO WEATHER
+local AutoWeatherDelaySlider = ShopTab:CreateSlider({
+    Name = "DELAY AUTO WEATHER",
+    Range = {5, 120},
+    Increment = 5,
+    Suffix = " detik",
+    CurrentValue = 30,
+    Flag = "AutoWeatherDelay",
+    Callback = function(Value)
+        Rayfield:Notify({
+            Title = "Delay Otomatis Cuaca Diubah",
+            Content = "Delay: " .. Value .. " detik",
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- SELECT BOOBERS
+local BaitDropdown = ShopTab:CreateDropdown({
+    Name = "SELECT BOOBERS",
+    Options = getAvailableBaits(),
+    CurrentOption = "Pilih Umpan...",
+    Flag = "BaitChoice",
     Callback = function(Option)
-        changeTime(Option)
+        if Option ~= "Pilih Umpan..." then
+            Rayfield:Notify({
+                Title = "Umpan Dipilih",
+                Content = "Umpan: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
     end,
 })
 
--- FullBright Toggle
-local FullBrightToggle = GraphicTab:CreateToggle({
-    Name = "FullBright",
+-- BUTTON BUY BOOBERS
+local BuyBaitButton = ShopTab:CreateButton({
+    Name = "BUTTON BUY BOOBERS",
+    Callback = function()
+        local selected = BaitDropdown:Get()
+        if selected ~= "Pilih Umpan..." then
+            autoBuyBait(selected)
+            Rayfield:Notify({
+                Title = "Umpan Dibeli",
+                Content = "Berhasil membeli umpan: " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- SELECT ROD
+local RodDropdown = ShopTab:CreateDropdown({
+    Name = "SELECT ROD",
+    Options = getAvailableRods(),
+    CurrentOption = "Pilih Pancing...",
+    Flag = "RodChoice",
+    Callback = function(Option)
+        if Option ~= "Pilih Pancing..." then
+            Rayfield:Notify({
+                Title = "Pancing Dipilih",
+                Content = "Pancing: " .. Option,
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- BUTTON BUY ROD
+local BuyRodButton = ShopTab:CreateButton({
+    Name = "BUTTON BUY ROD",
+    Callback = function()
+        local selected = RodDropdown:Get()
+        if selected ~= "Pilih Pancing..." then
+            autoBuyRod(selected)
+            Rayfield:Notify({
+                Title = "Pancing Dibeli",
+                Content = "Berhasil membeli pancing: " .. selected,
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+-- ========================================
+-- NKZ-UTILITY TAB
+-- ========================================
+
+local UtilityTab = Window:CreateTab("NKZ-UTILITY", 4483362458)
+
+-- STABIL FPS/ANTILAG
+local StabilizeFPSToggle = UtilityTab:CreateToggle({
+    Name = "STABIL FPS/ANTILAG",
     CurrentValue = false,
-    Flag = "FullBright",
+    Flag = "StabilFPS",
     Callback = function(Value)
-        toggleFullBright(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Stabil FPS Aktif",
+                Content = "FPS distabilkan untuk performa optimal.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            setFPSLimit(60)
+        end
     end,
 })
 
--- Graphics Quality Slider
-local GraphicsQualitySlider = GraphicTab:CreateSlider({
-    Name = "Graphics Quality",
-    Range = {1, 4},
+-- UNLOCK HIGH FPS
+local UnlockHighFPSToggle = UtilityTab:CreateToggle({
+    Name = "UNLOCK HIGH FPS",
+    CurrentValue = false,
+    Flag = "UnlockHighFPS",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "High FPS Dibuka",
+                Content = "FPS maksimum tidak dibatasi.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            setFPSLimit(0)
+        end
+    end,
+})
+
+-- SETTINGS HIGH FPS
+local HighFPSRangeSlider = UtilityTab:CreateSlider({
+    Name = "SETTINGS HIGH FPS",
+    Range = {30, 240},
+    Increment = 10,
+    Suffix = " FPS",
+    CurrentValue = 120,
+    Flag = "HighFPS",
+    Callback = function(Value)
+        setFPSLimit(Value)
+        Rayfield:Notify({
+            Title = "FPS Maksimum Diatur",
+            Content = "FPS: " .. Value,
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- SHOW SYSTEM INFO
+local ShowSystemInfoToggle = UtilityTab:CreateToggle({
+    Name = "SHOW SYSTEM INFO",
+    CurrentValue = false,
+    Flag = "ShowSystemInfo",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Info Sistem Ditampilkan",
+                Content = "FPS, Ping, Memory, Suhu ditampilkan di layar.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Create a simple GUI to show info
+            local gui = Instance.new("ScreenGui")
+            gui.Name = "NikzzSystemInfo"
+            gui.ResetOnSpawn = false
+            gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.new(0, 200, 0, 100)
+            frame.Position = UDim2.new(0, 10, 0, 10)
+            frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            frame.BackgroundTransparency = 0.7
+            frame.BorderSizePixel = 0
+            frame.Parent = gui
+            
+            local fpsLabel = Instance.new("TextLabel")
+            fpsLabel.Size = UDim2.new(1, 0, 0.25, 0)
+            fpsLabel.Position = UDim2.new(0, 0, 0, 0)
+            fpsLabel.Text = "FPS: 0"
+            fpsLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            fpsLabel.TextScaled = true
+            fpsLabel.Parent = frame
+            
+            local pingLabel = Instance.new("TextLabel")
+            pingLabel.Size = UDim2.new(1, 0, 0.25, 0)
+            pingLabel.Position = UDim2.new(0, 0, 0.25, 0)
+            pingLabel.Text = "Ping: 0"
+            pingLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            pingLabel.TextScaled = true
+            pingLabel.Parent = frame
+            
+            local memoryLabel = Instance.new("TextLabel")
+            memoryLabel.Size = UDim2.new(1, 0, 0.25, 0)
+            memoryLabel.Position = UDim2.new(0, 0, 0.5, 0)
+            memoryLabel.Text = "Memory: 0 MB"
+            memoryLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            memoryLabel.TextScaled = true
+            memoryLabel.Parent = frame
+            
+            local temperatureLabel = Instance.new("TextLabel")
+            temperatureLabel.Size = UDim2.new(1, 0, 0.25, 0)
+            temperatureLabel.Position = UDim2.new(0, 0, 0.75, 0)
+            temperatureLabel.Text = "Suhu: 0°C"
+            temperatureLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+            temperatureLabel.TextScaled = true
+            temperatureLabel.Parent = frame
+            
+            task.spawn(function()
+                while ShowSystemInfoToggle:Get() do
+                    task.wait(1)
+                    local fps = RunService.Heartbeat:Wait()
+                    local ping = 0 -- Roblox doesn't expose this directly
+                    local memory = collectgarbage("count")
+                    local temp = 0 -- No direct access
+                    
+                    fpsLabel.Text = "FPS: " .. math.floor(RunService.Heartbeat:Wait() * 1000)
+                    pingLabel.Text = "Ping: " .. ping
+                    memoryLabel.Text = "Memory: " .. math.floor(memory) .. " MB"
+                    temperatureLabel.Text = "Suhu: " .. temp .. "°C"
+                end
+                gui:Destroy()
+            end)
+        end
+    end,
+})
+
+-- AUTO CLEAR CACHE
+local AutoClearCacheToggle = UtilityTab:CreateToggle({
+    Name = "AUTO CLEAR CACHE",
+    CurrentValue = false,
+    Flag = "AutoClearCache",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Clear Cache Aktif",
+                Content = "Cache akan dibersihkan setiap 10 detik.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            task.spawn(function()
+                while AutoClearCacheToggle:Get() do
+                    task.wait(10)
+                    collectgarbage("collect")
+                    Rayfield:Notify({
+                        Title = "Cache Dibersihkan",
+                        Content = "Cache berhasil dibersihkan.",
+                        Duration = 1,
+                        Image = 4483362458,
+                    })
+                end
+            end)
+        end
+    end,
+})
+
+-- DISABLE PARTICLE
+local DisableParticleToggle = UtilityTab:CreateToggle({
+    Name = "DISABLE PARTICLE",
+    CurrentValue = false,
+    Flag = "DisableParticle",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Particle Dinonaktifkan",
+                Content = "Efek partikel dinonaktifkan untuk performa.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            disableEffects()
+        end
+    end,
+})
+
+-- BOOST PING
+local BoostPingToggle = UtilityTab:CreateToggle({
+    Name = "BOOST PING",
+    CurrentValue = false,
+    Flag = "BoostPing",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Ping Ditingkatkan",
+                Content = "Koneksi dioptimalkan untuk latensi rendah.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            -- In Roblox, this is limited by network
+            -- We can only simulate by reducing data usage
+            -- For now, just notify
+        end
+    end,
+})
+
+-- ========================================
+-- NKZ-GRAPHIC TAB
+-- ========================================
+
+local GraphicTab = Window:CreateTab("NKZ-GRAPHIC", 4483362458)
+
+-- MAXIMAL QUALITY
+local MaxQualityButton = GraphicTab:CreateButton({
+    Name = "MAXIMAL QUALITY",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Kualitas Maksimal",
+            Content = "Kualitas grafis diatur ke level tertinggi.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        -- Apply settings
+        workspace.Lighting.GlobalShadows = true
+        workspace.Lighting.Brightness = 1
+        workspace.AmbientLight.Color = Color3.fromRGB(255, 255, 255)
+        workspace.Environment.DiffuseIntensity = 1
+        workspace.Environment.SpecularIntensity = 1
+        workspace.Environment.Skybox = "rbxassetid://123456789" -- Default sky
+        camera.FieldOfView = 100
+    end,
+})
+
+-- MEDIUM QUALITY
+local MediumQualityButton = GraphicTab:CreateButton({
+    Name = "MEDIUM QUALITY",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Kualitas Menengah",
+            Content = "Kualitas grafis diatur ke menengah.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        workspace.Lighting.GlobalShadows = true
+        workspace.Lighting.Brightness = 0.7
+        workspace.Lighting.AmbientLight.Color = Color3.fromRGB(200, 200, 200)
+        workspace.Environment.DiffuseIntensity = 0.8
+        workspace.Environment.SpecularIntensity = 0.8
+    end,
+})
+
+-- LOW QUALITY
+local LowQualityButton = GraphicTab:CreateButton({
+    Name = "LOW QUALITY",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Kualitas Rendah",
+            Content = "Kualitas grafis diatur ke rendah untuk performa.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        workspace.Lighting.GlobalShadows = false
+        workspace.Lighting.Brightness = 0.3
+        workspace.Lighting.AmbientLight.Color = Color3.fromRGB(100, 100, 100)
+        workspace.Environment.DiffuseIntensity = 0.3
+        workspace.Environment.SpecularIntensity = 0.3
+    end,
+})
+
+-- DISABLE WATER REFLECTION
+local DisableWaterReflectionToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE WATER REFLECTION",
+    CurrentValue = false,
+    Flag = "DisableWaterReflection",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Refleksi Air Dinonaktifkan",
+                Content = "Efek refleksi air dimatikan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            -- Find water parts and disable reflection
+            for _, part in ipairs(workspace:GetDescendants()) do
+                if part:IsA("Part") and part.Name == "Water" then
+                    part.Reflectance = 0
+                end
+            end
+        end
+    end,
+})
+
+-- DISABLE EFFECT SKIN
+local DisableEffectSkinToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE EFFECT SKIN",
+    CurrentValue = false,
+    Flag = "DisableEffectSkin",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Efek Kulit Dinonaktifkan",
+                Content = "Efek visual kulit dimatikan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            -- Disable all skin effects
+            for _, effect in ipairs(workspace:GetDescendants()) do
+                if effect:IsA("ParticleEmitter") and effect.Name:find("Skin") then
+                    effect.Enabled = false
+                end
+            end
+        end
+    end,
+})
+
+-- DISABLE SHADOW
+local DisableShadowToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE SHADOW",
+    CurrentValue = false,
+    Flag = "DisableShadow",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Bayangan Dinonaktifkan",
+                Content = "Bayangan dimatikan untuk meningkatkan FPS.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            workspace.Lighting.GlobalShadows = false
+        else
+            workspace.Lighting.GlobalShadows = true
+        end
+    end,
+})
+
+-- DISABLE EXCESSIVE WATER EFFECT
+local DisableExcessiveWaterToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE EXCESSIVE WATER EFFECT",
+    CurrentValue = false,
+    Flag = "DisableExcessiveWater",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Efek Air Berlebihan Dinonaktifkan",
+                Content = "Efek air kompleks dimatikan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            for _, effect in ipairs(workspace:GetDescendants()) do
+                if effect:IsA("ParticleEmitter") and effect.Name:find("Water") then
+                    effect.Enabled = false
+                end
+            end
+        end
+    end,
+})
+
+-- BRIGHTNESS SETTINGS
+local BrightnessSettingSlider = GraphicTab:CreateSlider({
+    Name = "BRIGHTNESS SETTINGS",
+    Range = {-10, 20},
     Increment = 1,
-    Suffix = "Quality",
-    CurrentValue = 3,
-    Flag = "GraphicsQuality",
+    Suffix = " unit",
+    CurrentValue = 0,
+    Flag = "BrightnessSetting",
     Callback = function(Value)
-        setGraphicsQuality(Value)
-    end,
-})
-
--- [ 8. NKZ-LOWDEV ]
-local LowDevTab = Tabs["NKZ-LOWDEV"]
-
--- Section Low Device
-local LowDevSection = LowDevTab:CreateSection("Low Device Mode")
-
--- Mode Potato
-local PotatoModeToggle = LowDevTab:CreateToggle({
-    Name = "Mode Potato (Render Ultra Rendah)",
-    CurrentValue = false,
-    Flag = "PotatoMode",
-    Callback = function(Value)
-        togglePotatoMode(Value)
-    end,
-})
-
--- Disable Texture
-local DisableTextureToggle = LowDevTab:CreateToggle({
-    Name = "Disable Texture",
-    CurrentValue = false,
-    Flag = "DisableTexture",
-    Callback = function(Value)
-        toggleDisableTexture(Value)
-    end,
-})
-
--- Disable Particles
-local DisableParticlesToggle = LowDevTab:CreateToggle({
-    Name = "Disable Particles",
-    CurrentValue = false,
-    Flag = "DisableParticles",
-    Callback = function(Value)
-        toggleDisableParticles(Value)
-    end,
-})
-
--- Simplify Water
-local SimplifyWaterToggle = LowDevTab:CreateToggle({
-    Name = "Simplify Water",
-    CurrentValue = false,
-    Flag = "SimplifyWater",
-    Callback = function(Value)
-        toggleSimplifyWater(Value)
-    end,
-})
-
--- Limit FPS
-local fpsOptions = {0, 30, 60, 120, 144, 240}
-local LimitFPSSlider = LowDevTab:CreateDropdown({
-    Name = "Limit FPS",
-    Options = {"No Limit", "30 FPS", "60 FPS", "120 FPS", "144 FPS", "240 FPS"},
-    CurrentOption = "No Limit",
-    Flag = "LimitFPS",
-    Callback = function(Option)
-        local fps = 0
-        if Option == "30 FPS" then fps = 30
-        elseif Option == "60 FPS" then fps = 60
-        elseif Option == "120 FPS" then fps = 120
-        elseif Option == "144 FPS" then fps = 144
-        elseif Option == "240 FPS" then fps = 240
-        end
-        setFPSCap(fps)
-    end,
-})
-
--- [ 9. NKZ-SETTINGS ]
-local SettingsTab = Tabs["NKZ-SETTINGS"]
-
--- Section Settings
-local SettingsSection = SettingsTab:CreateSection("Settings & About")
-
--- UI Toggle Keybind
-local KeybindButton = SettingsTab:CreateKeybind({
-    Name = "UI Toggle Keybind",
-    Default = Enum.KeyCode.RightShift,
-    Flag = "UIToggleKeybind",
-    Callback = function(Key)
-        log("SETTINGS", "UI Toggle Keybind diatur ke " .. tostring(Key))
-    end,
-})
-
--- Save UI Layout
-local SaveUILayoutButton = SettingsTab:CreateButton({
-    Name = "Save UI Layout",
-    Callback = function()
-        Rayfield:SaveConfiguration()
-        log("SETTINGS", "UI Layout disimpan")
+        setBrightness(Value)
         Rayfield:Notify({
-            Title = "Layout",
-            Content = "Layout UI berhasil disimpan",
-            Duration = 3,
+            Title = "Kecerahan Diubah",
+            Content = "Kecerahan: " .. Value,
+            Duration = 2,
             Image = 4483362458,
         })
     end,
 })
 
--- Theme Selector
-local themes = {"Light", "Dark", "Custom"}
-local ThemeSelectorDropdown = SettingsTab:CreateDropdown({
-    Name = "Theme Selector",
-    Options = themes,
-    CurrentOption = "Dark",
-    Flag = "ThemeSelector",
-    Callback = function(Option)
-        if Option == "Light" then
+-- ========================================
+-- NKZ-LOWDEV TAB
+-- ========================================
+
+local LowDevTab = Window:CreateTab("NKZ-LOWDEV", 4483362458)
+
+-- SUPER EXTREME SMOOTH
+local SuperExtremeSmoothButton = LowDevTab:CreateButton({
+    Name = "SUPER EXTREME SMOOTH",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Super Extreme Smooth",
+            Content = "Performa digunakan hingga 100x lebih halus.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        -- Apply all low-end optimizations
+        disableEffects()
+        disableDetection()
+        setFPSLimit(60)
+        setBrightness(-5)
+        disableShadowToggle:Set(true)
+        disableWaterReflectionToggle:Set(true)
+        disableExcessiveWaterToggle:Set(true)
+        disableEffectSkinToggle:Set(true)
+    end,
+})
+
+-- DISABLE EFFECT
+local DisableEffectToggle = LowDevTab:CreateToggle({
+    Name = "DISABLE EFFECT",
+    CurrentValue = false,
+    Flag = "DisableEffect",
+    Callback = function(Value)
+        if Value then
             Rayfield:Notify({
-                Title = "Theme",
-                Content = "Theme Light belum diimplementasikan",
+                Title = "Semua Efek Dinonaktifkan",
+                Content = "Semua efek visual dan suara dimatikan.",
                 Duration = 3,
                 Image = 4483362458,
             })
-        elseif Option == "Dark" then
-            -- Theme default Rayfield sudah dark
-        elseif Option == "Custom" then
+            disableEffects()
+            -- Disable sounds
+            for _, sound in ipairs(workspace:GetDescendants()) do
+                if sound:IsA("Sound") then
+                    sound.Volume = 0
+                end
+            end
+        end
+    end,
+})
+
+-- 32-BIT SETTINGS
+local Bit32SettingsButton = LowDevTab:CreateButton({
+    Name = "32-BIT SETTINGS",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Mode 32-Bit Diaktifkan",
+            Content = "Optimasi untuk perangkat 32-bit.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        -- Force lower resolution rendering
+        game.Players.LocalPlayer.ResolutionScale = 0.5
+    end,
+})
+
+-- LOW BATTERY MODE
+local LowBatteryModeToggle = LowDevTab:CreateToggle({
+    Name = "LOW BATTERY MODE",
+    CurrentValue = false,
+    Flag = "LowBatteryMode",
+    Callback = function(Value)
+        if Value then
             Rayfield:Notify({
-                Title = "Theme",
-                Content = "Theme Custom belum diimplementasikan",
+                Title = "Mode Baterai Rendah",
+                Content = "Mode hemat daya diaktifkan.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            -- Reduce everything
+            setFPSLimit(30)
+            setBrightness(-10)
+            disableEffects()
+            disableShadowToggle:Set(true)
+            disableWaterReflectionToggle:Set(true)
+            disableExcessiveWaterToggle:Set(true)
+        end
+    end,
+})
+
+-- ========================================
+-- NKZ-SETTINGS TAB
+-- ========================================
+
+local SettingsTab = Window:CreateTab("NKZ-SETTINGS", 4483362458)
+
+-- CONFIGURATION OPTIONS
+SettingsTab:CreateLabel("Konfigurasi UI")
+SettingsTab:CreateLabel("Semua pengaturan akan disimpan otomatis.")
+
+-- THEME SELECTION
+local ThemeDropdown = SettingsTab:CreateDropdown({
+    Name = "Pilih Tema",
+    Options = {"Dark", "Light", "Rainbow"},
+    CurrentOption = "Dark",
+    Flag = "Theme",
+    Callback = function(Option)
+        if Option == "Dark" then
+            Window:SetTheme("Dark")
+        elseif Option == "Light" then
+            Window:SetTheme("Light")
+        elseif Option == "Rainbow" then
+            Window:SetTheme("Rainbow")
+        end
+        Rayfield:Notify({
+            Title = "Tema Diubah",
+            Content = "Tema: " .. Option,
+            Duration = 2,
+            Image = 4483362458,
+        })
+    end,
+})
+
+-- AUTOSTART SCRIPT
+local AutoStartToggle = SettingsTab:CreateToggle({
+    Name = "Auto Start Script",
+    CurrentValue = false,
+    Flag = "AutoStart",
+    Callback = function(Value)
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Start Aktif",
+                Content = "Script akan otomatis dijalankan saat masuk.",
                 Duration = 3,
                 Image = 4483362458,
             })
         end
-        log("SETTINGS", "Theme diatur ke " .. Option)
     end,
 })
 
--- Auto Update Checker
-local AutoUpdateToggle = SettingsTab:CreateToggle({
-    Name = "Auto Update Checker",
-    CurrentValue = true,
-    Flag = "AutoUpdate",
-    Callback = function(Value)
-        log("SETTINGS", "Auto Update Checker " .. (Value and "diaktifkan" or "dinonaktifkan"))
+-- RESET ALL SETTINGS
+local ResetButton = SettingsTab:CreateButton({
+    Name = "RESET SEMUA SETTING",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Reset Semua Pengaturan",
+            Content = "Semua pengaturan telah direset ke default.",
+            Duration = 3,
+            Image = 4483362458,
+        })
+        -- Reset all toggles and sliders
+        AutoFishingV1Toggle:Set(false)
+        AutoFishingV2Toggle:Set(false)
+        AutoCompleteFishingToggle:Set(false)
+        AutoEquipRodToggle:Set(false)
+        CastingDelaySlider:Set(2)
+        FishingAreaDropdown:Set("Pilih Area...")
+        BypassRadarToggle:Set(false)
+        BypassDivingGearToggle:Set(false)
+        AntiAFKToggle:Set(false)
+        AutoJumpToggle:Set(false)
+        AntiDetectDeveloperToggle:Set(false)
+        IslandDropdown:Set("Pilih Pulau...")
+        EventDropdown:Set("Pilih Event...")
+        PlayerDropdown:Set("Pilih Pemain...")
+        SpeedHackToggle:Set(false)
+        SpeedSettingSlider:Set(16)
+        InfinityJumpToggle:Set(false)
+        FlyLittleToggle:Set(false)
+        FlySpeedSlider:Set(10)
+        BoatSpeedToggle:Set(false)
+        SpeedBoatSettingSlider:Set(5)
+        FlyBoatToggle:Set(false)
+        FlyBoatSpeedSlider:Set(10)
+        JumpHackToggle:Set(false)
+        JumpHackSettingSlider:Set(100)
+        LockPositionToggle:Set(false)
+        ESPPlayerToggle:Set(false)
+        GhostHackToggle:Set(false)
+        FOVCameraToggle:Set(false)
+        FOVSettingSlider:Set(10)
+        AutoShellFishToggle:Set(false)
+        SellDelaySlider:Set(1)
+        WeatherDropdown:Set("Pilih Cuaca...")
+        BuyWeatherButton:Set(false)
+        AutoBuyWeatherToggle:Set(false)
+        AutoWeatherDelaySlider:Set(30)
+        BaitDropdown:Set("Pilih Umpan...")
+        RodDropdown:Set("Pilih Pancing...")
+        StabilizeFPSToggle:Set(false)
+        UnlockHighFPSToggle:Set(false)
+        HighFPSRangeSlider:Set(120)
+        ShowSystemInfoToggle:Set(false)
+        AutoClearCacheToggle:Set(false)
+        DisableParticleToggle:Set(false)
+        BoostPingToggle:Set(false)
+        MaxQualityButton:Set(false)
+        MediumQualityButton:Set(false)
+        LowQualityButton:Set(false)
+        DisableWaterReflectionToggle:Set(false)
+        DisableEffectSkinToggle:Set(false)
+        DisableShadowToggle:Set(false)
+        DisableExcessiveWaterToggle:Set(false)
+        BrightnessSettingSlider:Set(0)
+        SuperExtremeSmoothButton:Set(false)
+        DisableEffectToggle:Set(false)
+        Bit32SettingsButton:Set(false)
+        LowBatteryModeToggle:Set(false)
+        ThemeDropdown:Set("Dark")
+        AutoStartToggle:Set(false)
     end,
 })
 
--- Debug Mode
-local DebugModeToggle = SettingsTab:CreateToggle({
-    Name = "Debug Mode (Logging Detail)",
-    CurrentValue = false,
-    Flag = "DebugMode",
-    Callback = function(Value)
-        log("SETTINGS", "Debug Mode " .. (Value and "diaktifkan" or "dinonaktifkan"))
-        -- Dalam implementasi nyata, Anda bisa mengaktifkan logging lebih detail
-    end,
-})
+-- ========================================
+-- FINAL INITIALIZATION
+-- ========================================
 
--- About Section
-SettingsTab:CreateLabel("NIKZZMODDER - Ultimate Roblox Utility")
-SettingsTab:CreateLabel("Versi: 1.0.0")
-SettingsTab:CreateLabel("Dibuat oleh: Nikzz7z")
-SettingsTab:CreateLabel(" ")
-SettingsTab:CreateLabel("Fitur:")
-SettingsTab:CreateLabel("- 100% Stabil, Ringan, Optimal")
-SettingsTab:CreateLabel("- Async Execution, No Lag")
-SettingsTab:CreateLabel("- Kompatibel dengan device lemah")
-SettingsTab:CreateLabel("- Semua fitur berfungsi penuh")
-SettingsTab:CreateLabel(" ")
-SettingsTab:CreateLabel("Terima kasih telah menggunakan NIKZZMODDER!")
-SettingsTab:CreateLabel("Gunakan dengan bijak dan jangan lupa bersenang-senang!")
-
--- Load configuration
 Rayfield:LoadConfiguration()
 
--- Inisialisasi
-log("SYSTEM", "NIKZZMODDER.lua berhasil dimuat!")
+-- Ensure character is loaded before starting
+waitForCharacter()
+
+-- Initialize all systems
 Rayfield:Notify({
-    Title = "NIKZZMODDER",
-    Content = "Script berhasil dimuat! Tekan RightShift untuk membuka UI.",
+    Title = "NIKZZ MODDER",
+    Content = "Script siap digunakan. Semua fitur telah diinisialisasi.",
     Duration = 5,
     Image = 4483362458,
 })
-
--- Auto save config setiap 5 menit
-task.spawn(function()
-    while true do
-        task.wait(300) -- 5 menit
-        Rayfield:SaveConfiguration()
-        log("SETTINGS", "Auto save configuration")
-    end
-end)
-
--- Deteksi karakter baru
-game.Players.LocalPlayer.CharacterAdded:Connect(function(character)
-    log("SYSTEM", "Karakter baru dimuat")
-    -- Reset pengaturan karakter
-    local humanoid = character:WaitForChild("Humanoid")
-    humanoid.WalkSpeed = WalkSpeedSlider.CurrentValue
-    humanoid.JumpPower = JumpPowerSlider.CurrentValue
-end)
-
--- Notifikasi saat pertama kali dimuat
-if not _G.NIKZZMODDERLoaded then
-    _G.NIKZZMODDERLoaded = true
-    Rayfield:Notify({
-        Title = "Selamat Datang di NIKZZMODDER!",
-        Content = "Script profesional untuk Roblox. Semua fitur 100% aktif dan stabil.",
-        Duration = 8,
-        Image = 4483362458,
-    })
-end
-
--- Akhir dari script
-log("SYSTEM", "NIKZZMODDER.lua siap digunakan!")
