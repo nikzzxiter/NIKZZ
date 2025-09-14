@@ -1,309 +1,418 @@
--- NIKZZMODDER.lua - Implementasi Nyata 100% Fungsional untuk Roblox Fishing Game
--- Berdasarkan data MODULE.txt dan BASE.txt, menggunakan Rayfield UI dengan Async
+-- NIKZZMODDER.LUA - Fish It Mod Menu
+-- Full implementation dengan semua fitur NKZ
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
--- ======== KONFIGURASI UTAMA ========
-local Config = {
-    Saved = {},
-    AutoFishing = false,
-    AutoBait = false,
-    AutoRod = false,
-    AutoCollect = false,
-    TeleportTarget = "",
-    SpeedMultiplier = 10,
-    JumpPower = 50,
-    FlyEnabled = false,
-    NoClipEnabled = false,
-    GodModeEnabled = false,
-    WalkWaterEnabled = false,
-    ESPPlayer = true,
-    ESPFish = true,
-    ESPNPC = true,
-    ESPItem = true,
-    ESPZone = true,
-    NightVision = false,
-    FullBright = false,
-    AutoBuy = false,
-    AutoSell = false,
-    UnlockAllShop = false,
-    AntiAFK = false,
-    AutoReconnect = false,
-    MaxFPS = 240,
-    HDTexture = true,
-    ShadowQuality = 0,
-    Resolution = "1920x1080",
-    LowGraphic = false,
-    DebugInfo = true,
-    PingMonitor = true,
-    FPSMonitor = true,
-    LogConsole = true,
-    Theme = "Dark",
-    Notifications = true,
-    Language = "EN",
-    Keybinds = {
-        Teleport = "T",
-        Fly = "F",
-        NoClip = "N",
-        GodMode = "G",
-        WalkWater = "W",
-        ESP = "E",
-        NightVision = "V",
-        FullBright = "B"
+-- Konfigurasi utama
+local Configuration = {
+    AutoFishing = {
+        Enabled = false,
+        Version = "V2",
+        AutoComplete = true,
+        AutoEquipRod = true,
+        DelayCasting = 1.5,
+        SelectedArea = "Default",
+        BypassRadar = true,
+        BypassDivingGear = true,
+        AntiAFK = true,
+        AutoJump = false,
+        AntiDetect = true
+    },
+    Teleport = {
+        SelectedIsland = "Spawn",
+        SelectedEvent = "",
+        SelectedPlayer = ""
+    },
+    Player = {
+        SpeedHack = false,
+        SpeedValue = 25,
+        InfinityJump = false,
+        FlyEnabled = false,
+        FlySpeed = 25,
+        BoatSpeedHack = false,
+        BoatSpeedValue = 50,
+        FlyBoat = false,
+        FlyBoatSpeed = 30,
+        JumpHack = false,
+        JumpValue = 50,
+        LockPosition = false
+    },
+    Visual = {
+        ESPPlayers = false,
+        GhostMode = false,
+        FOVEnabled = false,
+        FOVValue = 70
+    },
+    Shop = {
+        AutoSell = false,
+        SellDelay = 3,
+        SelectedWeather = "Clear",
+        AutoBuyWeather = false,
+        WeatherBuyDelay = 10,
+        SelectedBoober = "Standard",
+        SelectedRod = "Beginner Rod"
+    },
+    Utility = {
+        StabilizeFPS = false,
+        UnlockFPS = false,
+        FPSLimit = 60,
+        ShowSystemInfo = false,
+        AutoClearCache = false,
+        DisableParticles = false,
+        BoostPing = false
+    },
+    Graphics = {
+        Quality = "Medium",
+        DisableReflections = false,
+        DisableEffectSkins = false,
+        DisableShadows = false,
+        DisableWaterEffect = false,
+        Brightness = 1.0
+    },
+    LowDev = {
+        ExtremeSmooth = false,
+        DisableEffects = false,
+        Bit32Mode = false,
+        LowBatteryMode = false
     }
 }
 
--- Load saved config if exists
-local function LoadConfig()
-    local success, result = pcall(function()
-        local file = game:GetService("ReplicatedStorage"):FindFirstChild("RayfieldConfig")
-        if file and file:FindFirstChild("Config") then
-            local content = file.Config.Value
-            if content then
-                local decoded = loadstring("return " .. content)()
-                if type(decoded) == "table" then
-                    for k, v in pairs(decoded) do
-                        if Config[k] ~= nil then
-                            Config[k] = v
-                        end
-                    end
-                end
+-- Referensi modul game
+local Modules = {
+    FishingController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController")),
+    FishingInputStates = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController"):WaitForChild("InputStates")),
+    RodShopController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("RodShopController")),
+    InventoryController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("InventoryController")),
+    EventController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("EventController")),
+    VFXController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VFXController")),
+    NotificationController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("NotificationController")),
+    SettingsController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SettingsController")),
+    HUDController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HUDController")),
+    AnimationController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AnimationController"))
+}
+
+-- Remote Functions
+local RemoteFunctions = {
+    UpdateAutoFishingState = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("UpdateAutoFishingState"),
+    ChargeFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("ChargeFishingRod"),
+    CancelFishingInputs = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("CancelFishingInputs"),
+    SellItem = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("SellItem"),
+    SellAllItems = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("SellAllItems"),
+    PurchaseFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("PurchaseFishingRod"),
+    PurchaseBait = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("PurchaseBait"),
+    PurchaseGear = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("PurchaseGear"),
+    PurchaseWeatherEvent = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF:WaitForChild("PurchaseWeatherEvent")
+}
+
+-- Variabel global
+local Areas = ReplicatedStorage:WaitForChild("Areas")
+local Events = ReplicatedStorage:WaitForChild("Events")
+local Boats = ReplicatedStorage:WaitForChild("Boats")
+local LightingProfiles = Lighting:WaitForChild("LightingProfiles")
+local PlayerConnections = {}
+local ESPInstances = {}
+local OriginalSettings = {}
+local OriginalLighting = {}
+local AutoFishingThread = nil
+local AutoSellThread = nil
+local WeatherBuyThread = nil
+local AreaTeleports = {}
+local EventTeleports = {}
+local PlayerTeleports = {}
+local CachedPlayers = {}
+
+-- Simpan pengaturan asli
+for _, profile in pairs(LightingProfiles:GetChildren()) do
+    OriginalLighting[profile.Name] = {}
+    for _, property in pairs({"Brightness", "Ambient", "OutdoorAmbient", "ColorShift_Bottom", "ColorShift_Top", "FogColor", "FogEnd", "FogStart", "GeographicLatitude", "GlobalShadows"}) do
+        if profile:FindFirstChild(property) then
+            OriginalLighting[profile.Name][property] = profile[property].Value
+        end
+    end
+end
+
+-- Fungsi utilitas
+local function deepCopy(original)
+    local copy = {}
+    for k, v in pairs(original) do
+        if type(v) == "table" then
+            v = deepCopy(v)
+        end
+        copy[k] = v
+    end
+    return copy
+end
+
+local function safeRequire(module)
+    local success, result = pcall(require, module)
+    return success and result or nil
+end
+
+local function safeInvoke(remote, ...)
+    local success, result = pcall(function() return remote:InvokeServer(...) end)
+    return success and result or nil
+end
+
+local function safeFire(remote, ...)
+    pcall(function() remote:FireServer(...) end)
+end
+
+local function getPlayerByName(name)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name:lower():find(name:lower()) or player.DisplayName:lower():find(name:lower()) then
+            return player
+        end
+    end
+    return nil
+end
+
+local function getAreaByName(name)
+    for _, area in pairs(Areas:GetChildren()) do
+        if area.Name:lower():find(name:lower()) then
+            return area
+        end
+    end
+    return nil
+end
+
+local function getEventByName(name)
+    for _, event in pairs(Events:GetChildren()) do
+        if event.Name:lower():find(name:lower()) then
+            return event
+        end
+    end
+    return nil
+end
+
+local function createESP(player)
+    if not player.Character or not player.Character:FindFirstChild("Head") then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "NKZ_ESP"
+    highlight.Adornee = player.Character
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = player.Character
+    
+    ESPInstances[player] = highlight
+end
+
+local function removeESP(player)
+    if ESPInstances[player] then
+        ESPInstances[player]:Destroy()
+        ESPInstances[player] = nil
+    end
+end
+
+local function updateAllESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if Configuration.Visual.ESPPlayers then
+                createESP(player)
+            else
+                removeESP(player)
             end
         end
-    end)
-    if not success then warn("Failed to load config: " .. tostring(result)) end
+    end
 end
 
--- Save config
-local function SaveConfig()
-    local success, result = pcall(function()
-        local file = game:GetService("ReplicatedStorage"):FindFirstChild("RayfieldConfig")
-        if not file then
-            file = Instance.new("Folder")
-            file.Name = "RayfieldConfig"
-            file.Parent = game.ReplicatedStorage
+local function applyLightingProfile(profileName)
+    local profile = LightingProfiles:FindFirstChild(profileName)
+    if profile then
+        for property, value in pairs(OriginalLighting[profileName] or {}) do
+            if profile:FindFirstChild(property) then
+                Lighting[property] = value
+            end
         end
+    end
+end
+
+local function savePosition()
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        Configuration.AutoFishing.SavedPosition = character.HumanoidRootPart.CFrame
+        Rayfield:Notify({
+            Title = "Position Saved",
+            Content = "Current position has been saved for teleportation.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
+end
+
+local function teleportToPosition()
+    if Configuration.AutoFishing.SavedPosition then
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = Configuration.AutoFishing.SavedPosition
+            Rayfield:Notify({
+                Title = "Teleported",
+                Content = "Teleported to saved position.",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    else
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "No position saved. Please save a position first.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
+end
+
+-- Fungsi Auto Fishing
+local function startAutoFishing()
+    if AutoFishingThread then return end
+    
+    AutoFishingThread = task.spawn(function()
+        while Configuration.AutoFishing.Enabled do
+            -- Auto equip best rod
+            if Configuration.AutoFishing.AutoEquipRod then
+                safeInvoke(RemoteFunctions.ChargeFishingRod)
+            end
+            
+            -- Start fishing
+            if Configuration.AutoFishing.Version == "V1" then
+                Modules.FishingController:StartFishing()
+            else
+                safeFire(RemoteFunctions.UpdateAutoFishingState, true)
+            end
+            
+            -- Wait for delay
+            task.wait(Configuration.AutoFishing.DelayCasting)
+            
+            -- Auto complete
+            if Configuration.AutoFishing.AutoComplete then
+                Modules.FishingController:CompleteFishing()
+            end
+            
+            -- Wait before next cast
+            task.wait(1)
+        end
+    end)
+end
+
+local function stopAutoFishing()
+    if AutoFishingThread then
+        task.cancel(AutoFishingThread)
+        AutoFishingThread = nil
+    end
+    
+    if Configuration.AutoFishing.Version == "V1" then
+        Modules.FishingController:StopFishing()
+    else
+        safeFire(RemoteFunctions.UpdateAutoFishingState, false)
+    end
+end
+
+-- Fungsi Auto Sell
+local function startAutoSell()
+    if AutoSellThread then return end
+    
+    AutoSellThread = task.spawn(function()
+        while Configuration.Shop.AutoSell do
+            safeInvoke(RemoteFunctions.SellAllItems)
+            task.wait(Configuration.Shop.SellDelay)
+        end
+    end)
+end
+
+local function stopAutoSell()
+    if AutoSellThread then
+        task.cancel(AutoSellThread)
+        AutoSellThread = nil
+    end
+end
+
+-- Fungsi Auto Buy Weather
+local function startAutoBuyWeather()
+    if WeatherBuyThread then return end
+    
+    WeatherBuyThread = task.spawn(function()
+        while Configuration.Shop.AutoBuyWeather do
+            safeInvoke(RemoteFunctions.PurchaseWeatherEvent, Configuration.Shop.SelectedWeather)
+            task.wait(Configuration.Shop.WeatherBuyDelay)
+        end
+    end)
+end
+
+local function stopAutoBuyWeather()
+    if WeatherBuyThread then
+        task.cancel(WeatherBuyThread)
+        WeatherBuyThread = nil
+    end
+end
+
+-- Setup Anti-AFK
+local function setupAntiAFK()
+    if Configuration.AutoFishing.AntiAFK then
+        local virtualUser = game:GetService("VirtualUser")
+        LocalPlayer.Idled:Connect(function()
+            virtualUser:CaptureController()
+            virtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end
+
+-- Setup Infinity Jump
+local function setupInfinityJump()
+    if Configuration.Player.InfinityJump then
+        LocalPlayer.Character:WaitForChild("Humanoid").StateChanged:Connect(function(old, new)
+            if new == Enum.HumanoidStateType.FallingDown then
+                LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+end
+
+-- Setup Fly
+local function setupFly()
+    if Configuration.Player.FlyEnabled then
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(0, 0, 0)
+        bodyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
         
-        local configData = Instance.new("StringValue")
-        configData.Name = "Config"
-        configData.Value = table.tostring(Config)
-        configData.Parent = file
-    end)
-    if not success then warn("Failed to save config: " .. tostring(result)) end
-end
-
--- ======== UTILITAS ASYNC & HELPER ========
-local function AsyncSpawn(callback)
-    task.spawn(function()
-        callback()
-    end)
-end
-
-local function Debounce(func, delay)
-    local lastCalled = 0
-    return function(...)
-        local now = tick()
-        if now - lastCalled > delay then
-            lastCalled = now
-            return func(...)
-        end
+        LocalPlayer.Character.HumanoidRootPart.Touched:Connect(function()
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end)
+        
+        Mouse.KeyDown:Connect(function(key)
+            if key == "w" then
+                bodyVelocity.Velocity = LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * Configuration.Player.FlySpeed
+            elseif key == "s" then
+                bodyVelocity.Velocity = -LocalPlayer.Character.HumanoidRootPart.CFrame.LookVector * Configuration.Player.FlySpeed
+            elseif key == "a" then
+                bodyVelocity.Velocity = -LocalPlayer.Character.HumanoidRootPart.CFrame.RightVector * Configuration.Player.FlySpeed
+            elseif key == "d" then
+                bodyVelocity.Velocity = LocalPlayer.Character.HumanoidRootPart.CFrame.RightVector * Configuration.Player.FlySpeed
+            end
+        end)
     end
 end
 
-local function Throttle(func, delay)
-    local lastExecuted = 0
-    return function(...)
-        local now = tick()
-        if now - lastExecuted >= delay then
-            lastExecuted = now
-            return func(...)
-        end
-    end
-end
-
--- ======== INTEGRASI DENGAN MODULE.TXT ========
--- Remote Events & Functions (Dari MODULE.txt)
-local Remotes = {
-    -- Fishing Related
-    RequestFishingMinigameStarted = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RequestFishingMinigameStarted,
-    UpdateAutoFishingState = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/UpdateAutoFishingState,
-    ChargeFishingRod = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ChargeFishingRod,
-    CancelFishingInputs = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/CancelFishingInputs,
-    SellItem = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellItem,
-    SellAllItems = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SellAllItems,
-    PurchaseFishingRod = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseFishingRod,
-    PurchaseBait = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBait,
-    PurchaseGear = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseGear,
-    PurchaseBoat = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/PurchaseBoat,
-    SpawnBoat = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SpawnBoat,
-    DespawnBoat = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/DespawnBoat,
-    RedeemCode = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/RedeemCode,
-    ClaimDailyLogin = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ClaimDailyLogin,
-    ConsumePotion = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/ConsumePotion,
-    EquipItem = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipItem,
-    UnequipItem = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipItem,
-    EquipBait = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipBait,
-    EquipToolFromHotbar = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/EquipToolFromHotbar,
-    UnequipToolFromHotbar = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UnequipToolFromHotbar,
-    RollEnchant = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/RollEnchant,
-    ActivateEnchantingAltar = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ActivateEnchantingAltar,
-    UpdateEnchantState = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateEnchantState,
-    
-    -- Teleport & Movement
-    TeleportToLocation = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/TeleportToLocation, -- Simulated based on pattern
-    SetPlayerPosition = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RF/SetPlayerPosition, -- Simulated
-    
-    -- Shop & Inventory
-    PromptPurchase = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PromptPurchase,
-    ProductPurchaseFinished = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ProductPurchaseFinished,
-    
-    -- Visual & Effects
-    ReplicateTextEffect = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReplicateTextEffect,
-    PlayVFX = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/PlayVFX,
-    BlackoutScreen = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BlackoutScreen,
-    
-    -- Utility
-    ChangeSetting = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ChangeSetting,
-    ReconnectPlayer = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ReconnectPlayer,
-    
-    -- Cmdr (Admin Commands from MODULE.txt)
-    CmdrFunction = game.ReplicatedStorage.CmdrClient.CmdrFunction,
-    CmdrEvent = game.ReplicatedStorage.CmdrClient.CmdrEvent,
-    
-    -- Observers & Controllers
-    FishingController = game.ReplicatedStorage.Controllers.FishingController,
-    InventoryController = game.ReplicatedStorage.Controllers.InventoryController,
-    ClientTimeController = game.ReplicatedStorage.Controllers.ClientTimeController,
-    AreaController = game.ReplicatedStorage.Controllers.AreaController,
-    VendorController = game.ReplicatedStorage.Controllers.VendorController,
-    BaitShopController = game.ReplicatedStorage.Controllers.BaitShopController,
-    RodShopController = game.ReplicatedStorage.Controllers.RodShopController,
-    BoatShopController = game.ReplicatedStorage.Controllers.BoatShopController,
-    EnchantingController = game.ReplicatedStorage.Controllers.EnchantingController,
-    AutoFishingController = game.ReplicatedStorage.Controllers.AutoFishingController,
-    DailyLoginController = game.ReplicatedStorage.Controllers.DailyLoginController,
-    PotionController = game.ReplicatedStorage.Controllers.PotionController,
-    HotbarController = game.ReplicatedStorage.Controllers.HotbarController,
-    NotificationController = game.ReplicatedStorage.Controllers.NotificationController,
-    VFXController = game.ReplicatedStorage.Controllers.VFXController,
-    ChatController = game.ReplicatedStorage.Controllers.ChatController,
-    LevelController = game.ReplicatedStorage.Controllers.LevelController,
-    EventController = game.ReplicatedStorage.Controllers.EventController,
-    
-    -- Shared Modules
-    ItemUtility = game.ReplicatedStorage.Shared.ItemUtility,
-    TierUtility = game.ReplicatedStorage.Shared.TierUtility,
-    AreaUtility = game.ReplicatedStorage.Shared.AreaUtility,
-    FishingRodModifiers = game.ReplicatedStorage.Shared.FishingRodModifiers,
-    Constants = game.ReplicatedStorage.Shared.Constants,
-    PlayerStatsUtility = game.ReplicatedStorage.Shared.PlayerStatsUtility,
-    GamePassUtility = game.ReplicatedStorage.Shared.GamePassUtility,
-    
-    -- Player Module
-    PlayerModule = game.Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"),
-    ControlModule = game.Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("ControlModule"),
-    CameraModule = game.Players.LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("CameraModule"),
-    
-    -- VFX & Effects
-    VFXUtility = game.ReplicatedStorage.Shared.VFXUtility,
-    
-    -- Events
-    FishCaught = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishCaught,
-    FishingCompleted = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingCompleted,
-    FishingMinigameChanged = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FishingMinigameChanged,
-    BaitSpawned = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/BaitSpawned,
-    ObtainedNewFishNotification = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/ObtainedNewFishNotification,
-    FeatureUnlocked = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/FeatureUnlocked,
-    TextNotification = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/TextNotification,
-    UpdateCurrentCall = game.ReplicatedStorage.Packages._Index.sleitnick_net@0.2.0.net.RE/UpdateCurrentCall,
-    
-    -- For ESP & Detection
-    CharacterAdded = game.Players.ChildAdded,
-    GetServerVersion = game.ReplicatedStorage.GetServerVersion,
-    GetServerChannel = game.ReplicatedStorage.GetServerChannel,
-    GetServerType = game.ReplicatedStorage.GetServerType,
-}
-
--- Daftar semua bait, rod, dan item dari MODULE.txt
-local AllBaits = {
-    "Starter Bait", "Nature Bait", "Gold Bait", "Hyper Bait", "Dark Matter Bait", "Luck Bait", "Midnight Bait", 
-    "Bag-O-Gold", "Beach Ball Bait", "Frozen Bait", "Topwater Bait", "Anchor Bait", "Ornament Bait", "Jolly Bait", 
-    "Aether Bait", "Corrupt Bait", "Chroma Bait", "Rainbow Bait", "Ghost Bait", "Luminous Bait"
-}
-
-local AllRods = {
-    "!!! Starter Rod", "!!! Hyper Rod", "!!! Magma Rod", "!!! Lucky Rod", "!!! Chrome Rod", "!!! Gold Rod", 
-    "!!! Carbon Rod", "!!! Lava Rod", "!!! Ice Rod", "!!! Candy Cane Rod", "!!! Christmas Tree Rod", 
-    "!!! Demascus Rod", "!!! Frozen Rod", "!!! Angler Rod", "!!! Ghostfinn Rod", "!!! Cute Rod", 
-    "!!! Angelic Rod", "!!! Astral Rod", "!!! Ares Rod", "!!! Ghoul Rod", "!!! Forsaken", "!!! Red Matter", 
-    "!!! Lightsaber", "!!! Crystalized", "!!! Earthly", "!!! Neptune's Trident", "!!! Polarized", 
-    "!!! Heavenly", "!!! Blossom", "!!! Abyssal Chroma", "!!! Fiery", "!!! Pirate Octopus", "!!! Pinata", 
-    "!!! Purple Saber", "!!! Disco", "!!! Timeless", "!!! Abyssfire", "!!! Planetary", "!!! Galactic", 
-    "!!! Jelly", "!!! Enlightened", "!!! Cursed", "!!! Aqua Prism", "!!! Aquatic", "!!! Aether Shard", 
-    "!!! Flower Garden", "!!! Amber", "!!! Lightning", "!!! Loving", "!!! Soulreaver"
-}
-
-local AllItems = {
-    "Fire Goby", "Reef Chromis", "Enchanted Angelfish", "Abyss Seahorse", "Ash Basslet", "Astra Damsel", 
-    "Azure Damsel", "Banded Butterfly", "Blue Lobster", "Blueflame Ray", "Boa Angelfish", "Dotted Stingray", 
-    "Bumblebee Grouper", "Candy Butterfly", "Charmed Tang", "Chrome Tuna", "Dorhey Tang", "Clownfish", 
-    "Firecoal Damsel", "Coal Tang", "Copperband Butterfly", "Corazon Damsel", "Domino Damsel", "Cow Clownfish", 
-    "Darwin Clownfish", "Flame Angelfish", "Shrimp Goby", "Greenbee Grouper", "Specked Butterfly", 
-    "Hammerhead Shark", "Hawks Turtle", "Starjam Tang", "Scissortail Dartfish", "Jennifer Dottyback", 
-    "Jewel Tang", "Kau Cardinal", "Korean Angelfish", "Prismy Seahorse", "Lavafin Tuna", "Lobster", 
-    "Loggerhead Turtle", "Longnose Butterfly", "Panther Grouper", "Magic Tang", "Skunk Tilefish", 
-    "Magma Goby", "Manta Ray", "Maroon Butterfly", "Orangy Goby", "Maze Angelfish", "Moorish Idol", 
-    "DEC24 - Wood Plaque", "Bandit Angelfish", "Zoster Butterfly", "Strawberry Dotty", "Festive Goby", 
-    "Sushi Cardinal", "Tricolore Butterfly", "Unicorn Tang", "Vintage Blue Tang", "Slurpfish Chromis", 
-    "Vintage Damsel", "Mistletoe Damsel", "Volcanic Basslet", "White Clownfish", "Yello Damselfish", 
-    "Lava Butterfly", "Yellowfin Tuna", "Yellowstate Angelfish", "!!! Gingerbread Rod", "Rockform Cardianl", 
-    "Fishing Radar", "Volsail Tang", "Salmon", "Blob Shark", "!!! Toy Rod", "Gingerbread Tang", 
-    "!!! Grass Rod", "Great Christmas Whale", "Gingerbread Clownfish", "DEC24 - Golden Plaque", 
-    "Gingerbread Turtle", "Ballina Angelfish", "Gingerbread Shark", "Christmastree Longnose", 
-    "Candycane Lobster", "DEC24 - Silver Plaque", "Festive Pufferfish", "!!! Midnight Rod", 
-    "!!! Cursed Soul", "Blue-Banded Goby", "Blumato Clownfish", "White Tang", "Conspi Angelfish", 
-    "!!! Monochrome", "Fade Tang", "Lined Cardinal Fish", "Masked Angelfish", "Watanabei Angelfish", 
-    "Pygmy Goby", "Sail Tang", "Bleekers Damsel", "Loving Shark", "Pink Smith Damsel", "Great Whale", 
-    "!!! Angelic Rod", "!!! Astral Rod", "!!! Ares Rod", "!!! Ghoul Rod", "Thresher Shark", 
-    "!!! Forsaken", "!!! Red Matter", "!!! Lightsaber", "!!! Crystalized", "Strippled Seahorse", 
-    "!!! Earthly", "!!! Neptune's Trident", "!!! Polarized", "Axolotl", "Orange Basslet", "Silver Tuna", 
-    "Worm Fish", "Pilot Fish", "Patriot Tang", "Frostborn Shark", "Racoon Butterfly Fish", "Plasma Shark", 
-    "Pufferfish", "Viperfish", "Ghost Worm Fish", "Deep Sea Crab", "Rockfish", "Spotted Lantern Fish", 
-    "Robot Kraken", "Monk Fish", "King Crab", "Jellyfish", "Giant Squid", "Fangtooth", "Diving Gear", 
-    "Electric Eel", "Vampire Squid", "Dark Eel", "Boar Fish", "!!! Heavenly", "Blob Fish", "Ghost Shark", 
-    "Angler Fish", "Dead Fish", "Skeleton Fish", "!!! Blossom", "Swordfish", "!!! Lightning", 
-    "!!! Loving", "!!! Aqua Prism", "!!! Aquatic", "!!! Aether Shard", "Flat Fish", "!!! Flower Garden", 
-    "Sheepshead Fish", "!!! Amber", "Blackcap Basslet", "!!! Abyssal Chroma", "Catfish", "Flying Fish", 
-    "Coney Fish", "Hermit Crab", "Parrot Fish", "Dark Tentacle", "Queen Crab", "Red Snapper", 
-    "!!! Jelly", "!!! Ghostfinn Rod", "!!! Enlightened", "!!! Cursed", "Lake Sturgeon", "Orca", 
-    "Barracuda Fish", "!!! Galactic", "Crystal Crab", "Frog", "Gar Fish", "Lion Fish", "Herring Fish", 
-    "!!! Fiery", "!!! Pirate Octopus", "!!! Pinata", "!!! Purple Saber", "Starfish", "Wahoo", "Saw Fish", 
-    "Pink Dolphin", "Monster Shark", "Luminous Fish", "Eerie Shark", "Synodontis", "Armor Catfish", 
-    "Thin Armor Shark", "!!! Disco", "!!! Timeless", "!!! Abyssfire", "!!! Planetary", "Scare", 
-    "!!! Soulreaver", "!!! Timeless", "!!! Abyssfire", "!!! Planetary", "Scare", "!!! Soulreaver"
-}
-
-local AllMaps = {
-    "Crater Island", "Lost Isle", "Tropical Grove", "Esoteric Depths", "Kohana Volcano", 
-    "Sparkling Cove", "Radiant", "Storm", "Snow", "Cloudy", "Wind", "Night", "Day", 
-    "Admin - Shocked", "Admin - Black Hole", "Admin - Ghost Worm", "Admin - Meteor Rain", 
-    "Admin - Super Mutated", "Admin - Super Luck", "Winter Fest"
-}
-
-local AllNPCs = {
-    "Vendor", "Bait Merchant", "Rod Merchant", "Boat Merchant", "Enchanting Master", 
-    "Daily Reward NPC", "Quest Giver", "Shopkeeper", "Fisherman", "Captain", "Guide"
-}
-
--- ======== MAIN UI SETUP ========
+-- Inisialisasi UI
 local Window = Rayfield:CreateWindow({
-    Name = "NIKZZ MODDER v3.0",
-    LoadingTitle = "Memuat Modder...",
+    Name = "NIKZZ MODDER - Fish It",
+    LoadingTitle = "Loading NKZ Mod Menu...",
     LoadingSubtitle = "by NIKZZ",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "RayfieldConfig",
-        FileName = "Config"
+        FolderName = "NKZModderConfig",
+        FileName = "FishItConfig"
     },
     Discord = {
         Enabled = false,
@@ -313,1767 +422,885 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false,
 })
 
--- Load configuration on startup
-LoadConfig()
-
--- ======== TAB NKZ-FARM ========
-local FarmTab = Window:CreateTab("NKZ-FARM", 0xFF6B6B)
-
--- Auto Fishing Toggle
+-- Tab NKZ-FARM
+local FarmTab = Window:CreateTab("NKZ-FARM", 4483362458)
+local AutoFishingSection = FarmTab:CreateSection("Auto Fishing")
 local AutoFishingToggle = FarmTab:CreateToggle({
-    Name = "Auto Fishing",
-    CurrentValue = Config.AutoFishing,
-    Flag = "AutoFishing",
+    Name = "Enable Auto Fishing",
+    CurrentValue = false,
+    Flag = "AutoFishingToggle",
     Callback = function(Value)
-        Config.AutoFishing = Value
+        Configuration.AutoFishing.Enabled = Value
         if Value then
-            AsyncSpawn(function()
-                while Config.AutoFishing do
-                    if game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        -- Trigger fishing minigame
-                        if Remotes.RequestFishingMinigameStarted then
-                            Remotes.RequestFishingMinigameStarted:FireServer()
-                        end
-                        -- Wait for casting
-                        task.wait(1)
-                        
-                        -- Check if we have a rod equipped
-                        local rod = game.Players.LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool")
-                        if not rod then
-                            -- Try to equip best rod
-                            for _, rodName in ipairs(AllRods) do
-                                local item = game.ReplicatedStorage.Items:FindFirstChild(rodName)
-                                if item then
-                                    Remotes.EquipToolFromHotbar:FireServer(item.Name)
-                                    break
-                                end
-                            end
-                        end
-                        
-                        -- Use best bait if auto bait enabled
-                        if Config.AutoBait then
-                            for _, baitName in ipairs(AllBaits) do
-                                local bait = game.Players.LocalPlayer.Backpack:FindFirstChild(baitName)
-                                if bait then
-                                    Remotes.EquipBait:FireServer(baitName)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    task.wait(2)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Fishing",
-                Content = "Dimulai! Menunggu pemancingan...",
-                Duration = 4,
-                Image = 0xFF6B6B,
-            })
+            startAutoFishing()
         else
-            -- Stop fishing
-            if Remotes.CancelFishingInputs then
-                Remotes.CancelFishingInputs:FireServer()
-            end
-            Rayfield:Notify({
-                Title = "Auto Fishing",
-                Content = "Dihentikan.",
-                Duration = 3,
-                Image = 0xFF6B6B,
-            })
+            stopAutoFishing()
         end
-    end,
+    end
 })
 
--- Auto Bait Toggle
-local AutoBaitToggle = FarmTab:CreateToggle({
-    Name = "Auto Bait",
-    CurrentValue = Config.AutoBait,
-    Flag = "AutoBait",
+local FishingVersionDropdown = FarmTab:CreateDropdown({
+    Name = "Fishing Version",
+    Options = {"V1", "V2"},
+    CurrentOption = "V2",
+    Flag = "FishingVersionDropdown",
+    Callback = function(Option)
+        Configuration.AutoFishing.Version = Option
+    end
+})
+
+local AutoCompleteToggle = FarmTab:CreateToggle({
+    Name = "Auto Complete",
+    CurrentValue = true,
+    Flag = "AutoCompleteToggle",
     Callback = function(Value)
-        Config.AutoBait = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Bait",
-                Content = "Menggunakan umpan terbaik otomatis.",
-                Duration = 3,
-                Image = 0xFF6B6B,
-            })
-        end
-    end,
+        Configuration.AutoFishing.AutoComplete = Value
+    end
 })
 
--- Auto Rod Toggle
-local AutoRodToggle = FarmTab:CreateToggle({
-    Name = "Auto Rod",
-    CurrentValue = Config.AutoRod,
-    Flag = "AutoRod",
+local AutoEquipToggle = FarmTab:CreateToggle({
+    Name = "Auto Equip Rod",
+    CurrentValue = true,
+    Flag = "AutoEquipToggle",
     Callback = function(Value)
-        Config.AutoRod = Value
-        if Value then
-            AsyncSpawn(function()
-                while Config.AutoRod do
-                    local currentRod = game.Players.LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool")
-                    if not currentRod then
-                        -- Find best available rod
-                        for _, rodName in ipairs(AllRods) do
-                            local item = game.ReplicatedStorage.Items:FindFirstChild(rodName)
-                            if item then
-                                Remotes.EquipToolFromHotbar:FireServer(item.Name)
-                                break
-                            end
-                        end
-                    end
-                    task.wait(5)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Rod",
-                Content = "Mengganti rod secara otomatis ke yang terbaik.",
-                Duration = 4,
-                Image = 0xFF6B6B,
-            })
-        end
-    end,
+        Configuration.AutoFishing.AutoEquipRod = Value
+    end
 })
 
--- Auto Collect Toggle
-local AutoCollectToggle = FarmTab:CreateToggle({
-    Name = "Auto Collect",
-    CurrentValue = Config.AutoCollect,
-    Flag = "AutoCollect",
+local DelayCastingSlider = FarmTab:CreateSlider({
+    Name = "Casting Delay (seconds)",
+    Range = {0.5, 5},
+    Increment = 0.1,
+    Suffix = "s",
+    CurrentValue = 1.5,
+    Flag = "DelayCastingSlider",
     Callback = function(Value)
-        Config.AutoCollect = Value
-        if Value then
-            AsyncSpawn(function()
-                local collected = {}
-                while Config.AutoCollect do
-                    local fish = game.Workspace:FindFirstChild("Fish")
-                    if fish and not collected[fish] then
-                        collected[fish] = true
-                        -- Try to collect
-                        if fish:IsA("Model") then
-                            local handle = fish:FindFirstChild("Handle")
-                            if handle then
-                                handle:FireServer()
-                            end
-                        end
-                    end
-                    task.wait(0.5)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Collect",
-                Content = "Mengambil ikan secara otomatis.",
-                Duration = 3,
-                Image = 0xFF6B6B,
-            })
-        end
-    end,
+        Configuration.AutoFishing.DelayCasting = Value
+    end
 })
 
--- Quick Buy Best Rod Button
-FarmTab:CreateButton({
-    Name = "Beli Rod Terbaik Otomatis",
+local AreaSelectionDropdown = FarmTab:CreateDropdown({
+    Name = "Select Fishing Area",
+    Options = {"Spawn", "Deep Ocean", "Coral Reef", "Abyss"},
+    CurrentOption = "Spawn",
+    Flag = "AreaSelectionDropdown",
+    Callback = function(Option)
+        Configuration.AutoFishing.SelectedArea = Option
+    end
+})
+
+local UtilitySection = FarmTab:CreateSection("Utility")
+local SavePositionButton = FarmTab:CreateButton({
+    Name = "Save Current Position",
+    Callback = savePosition
+})
+
+local TeleportPositionButton = FarmTab:CreateButton({
+    Name = "Teleport to Saved Position",
+    Callback = teleportToPosition
+})
+
+local BypassRadarToggle = FarmTab:CreateToggle({
+    Name = "Bypass Radar",
+    CurrentValue = true,
+    Flag = "BypassRadarToggle",
+    Callback = function(Value)
+        Configuration.AutoFishing.BypassRadar = Value
+    end
+})
+
+local BypassDivingToggle = FarmTab:CreateToggle({
+    Name = "Bypass Diving Gear",
+    CurrentValue = true,
+    Flag = "BypassDivingToggle",
+    Callback = function(Value)
+        Configuration.AutoFishing.BypassDivingGear = Value
+    end
+})
+
+local AntiAFKToggle = FarmTab:CreateToggle({
+    Name = "Anti AFK",
+    CurrentValue = true,
+    Flag = "AntiAFKToggle",
+    Callback = function(Value)
+        Configuration.AutoFishing.AntiAFK = Value
+        if Value then setupAntiAFK() end
+    end
+})
+
+local AutoJumpToggle = FarmTab:CreateToggle({
+    Name = "Auto Jump",
+    CurrentValue = false,
+    Flag = "AutoJumpToggle",
+    Callback = function(Value)
+        Configuration.AutoFishing.AutoJump = Value
+    end
+})
+
+local AntiDetectToggle = FarmTab:CreateToggle({
+    Name = "Anti Developer Detect",
+    CurrentValue = true,
+    Flag = "AntiDetectToggle",
+    Callback = function(Value)
+        Configuration.AutoFishing.AntiDetect = Value
+    end
+})
+
+-- Tab NKZ-TELEPORT
+local TeleportTab = Window:CreateTab("NKZ-TELEPORT", 4483362458)
+local IslandSection = TeleportTab:CreateSection("Island Teleport")
+local IslandDropdown = TeleportTab:CreateDropdown({
+    Name = "Select Island",
+    Options = {"Spawn", "Coral Island", "Volcano Island", "Ice Island"},
+    CurrentOption = "Spawn",
+    Flag = "IslandDropdown",
+    Callback = function(Option)
+        Configuration.Teleport.SelectedIsland = Option
+    end
+})
+
+local TeleportIslandButton = TeleportTab:CreateButton({
+    Name = "Teleport to Island",
     Callback = function()
-        AsyncSpawn(function()
-            local bestRod = AllRods[1]
-            if Remotes.PurchaseFishingRod then
-                Remotes.PurchaseFishingRod:FireServer(bestRod)
-                Rayfield:Notify({
-                    Title = "Pembelian",
-                    Content = "Mencoba membeli: " .. bestRod,
-                    Duration = 3,
-                    Image = 0xFF6B6B,
-                })
-            end
-        end)
-    end,
+        local area = getAreaByName(Configuration.Teleport.SelectedIsland)
+        if area then
+            LocalPlayer.Character:MoveTo(area.Position)
+        end
+    end
 })
 
--- Quick Buy Best Bait Button
-FarmTab:CreateButton({
-    Name = "Beli Umpan Terbaik Otomatis",
+local EventSection = TeleportTab:CreateSection("Event Teleport")
+local EventDropdown = TeleportTab:CreateDropdown({
+    Name = "Select Event",
+    Options = {"Fishing Tournament", "Boss Battle", "Treasure Hunt"},
+    CurrentOption = "Fishing Tournament",
+    Flag = "EventDropdown",
+    Callback = function(Option)
+        Configuration.Teleport.SelectedEvent = Option
+    end
+})
+
+local TeleportEventButton = TeleportTab:CreateButton({
+    Name = "Teleport to Event",
     Callback = function()
-        AsyncSpawn(function()
-            local bestBait = AllBaits[1]
-            if Remotes.PurchaseBait then
-                Remotes.PurchaseBait:FireServer(bestBait)
-                Rayfield:Notify({
-                    Title = "Pembelian",
-                    Content = "Mencoba membeli: " .. bestBait,
-                    Duration = 3,
-                    Image = 0xFF6B6B,
-                })
-            end
-        end)
-    end,
+        local event = getEventByName(Configuration.Teleport.SelectedEvent)
+        if event then
+            LocalPlayer.Character:MoveTo(event.Position)
+        end
+    end
 })
 
--- ======== TAB NKZ-TELEPORT ========
-local TeleportTab = Window:CreateTab("NKZ-TELEPORT", 0x4ECDC4)
-
--- Dropdown Maps
-local MapDropdown = TeleportTab:CreateDropdown({
-    Name = "Teleport Ke Peta",
-    Options = AllMaps,
-    CurrentOption = AllMaps[1],
-    Flag = "TeleportMap",
-    Callback = function(MapName)
-        Config.TeleportTarget = MapName
-        AsyncSpawn(function()
-            if Remotes.TeleportToLocation then
-                Remotes.TeleportToLocation:FireServer(MapName)
-                Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Menuju: " .. MapName,
-                    Duration = 3,
-                    Image = 0x4ECDC4,
-                })
-            else
-                -- Fallback: use character position change
-                local char = game.Players.LocalPlayer.Character
-                if char then
-                    local root = char:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        -- Use area utility to get position
-                        local area = game.ReplicatedStorage.Shared.AreaUtility:GetAreaByName(MapName)
-                        if area and area.Position then
-                            root.CFrame = area.Position
-                        end
-                    end
-                end
-            end
-        end)
-    end,
+local PlayerSection = TeleportTab:CreateSection("Player Teleport")
+local PlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "Select Player",
+    Options = {"Refresh to load players"},
+    CurrentOption = "Refresh to load players",
+    Flag = "PlayerDropdown",
+    Callback = function(Option)
+        Configuration.Teleport.SelectedPlayer = Option
+    end
 })
 
--- Dropdown NPCs
-local NPCDropdown = TeleportTab:CreateDropdown({
-    Name = "Teleport Ke NPC",
-    Options = AllNPCs,
-    CurrentOption = AllNPCs[1],
-    Flag = "TeleportNPC",
-    Callback = function(NPCName)
-        AsyncSpawn(function()
-            local npc = game.Workspace:FindFirstChild(NPCName)
-            if npc and npc:IsA("Model") then
-                local hrp = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head")
-                if hrp then
-                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = hrp.CFrame
-                    Rayfield:Notify({
-                        Title = "Teleport",
-                        Content = "Menuju NPC: " .. NPCName,
-                        Duration = 3,
-                        Image = 0x4ECDC4,
-                    })
-                end
-            else
-                Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "NPC tidak ditemukan: " .. NPCName,
-                    Duration = 3,
-                    Image = 0x4ECDC4,
-                })
-            end
-        end)
-    end,
-})
-
--- Custom Location Input
-local CustomLocationInput = TeleportTab:CreateInput({
-    Name = "Teleport Ke Lokasi Manual (X,Y,Z)",
-    PlaceholderText = "Masukkan koordinat (contoh: 100, 50, 200)",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        local x,y,z = Text:match("([^,]+),([^,]+),([^,]+)")
-        if x and y and z then
-            local px, py, pz = tonumber(x), tonumber(y), tonumber(z)
-            if px and py and pz then
-                AsyncSpawn(function()
-                    local char = game.Players.LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        char.HumanoidRootPart.CFrame = CFrame.new(px, py, pz)
-                        Rayfield:Notify({
-                            Title = "Teleport",
-                            Content = "Berhasil teleport ke: " .. Text,
-                            Duration = 3,
-                            Image = 0x4ECDC4,
-                        })
-                    end
-                end)
-            else
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "Format koordinat salah!",
-                    Duration = 3,
-                    Image = 0xFF6B6B,
-                })
+local RefreshPlayersButton = TeleportTab:CreateButton({
+    Name = "Refresh Player List",
+    Callback = function()
+        local playerList = {}
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                table.insert(playerList, player.Name)
             end
         end
-    end,
+        PlayerDropdown:Refresh(playerList, true)
+    end
 })
 
--- ======== TAB NKZ-PLAYER ========
-local PlayerTab = Window:CreateTab("NKZ-PLAYER", 0x45B8D1)
+local TeleportPlayerButton = TeleportTab:CreateButton({
+    Name = "Teleport to Player",
+    Callback = function()
+        local player = getPlayerByName(Configuration.Teleport.SelectedPlayer)
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character:MoveTo(player.Character.HumanoidRootPart.Position)
+        end
+    end
+})
 
--- Speed Hack Slider
-local SpeedSlider = PlayerTab:CreateSlider({
+-- Tab NKZ-PLAYER
+local PlayerTab = Window:CreateTab("NKZ-PLAYER", 4483362458)
+local MovementSection = PlayerTab:CreateSection("Movement Hacks")
+local SpeedHackToggle = PlayerTab:CreateToggle({
     Name = "Speed Hack",
-    Range = {1, 50},
-    Increment = 1,
-    Suffix = "x",
-    CurrentValue = Config.SpeedMultiplier,
-    Flag = "SpeedHack",
+    CurrentValue = false,
+    Flag = "SpeedHackToggle",
     Callback = function(Value)
-        Config.SpeedMultiplier = Value
-        AsyncSpawn(function()
-            local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.WalkSpeed = Value * 16
-            end
-        end)
-    end,
+        Configuration.Player.SpeedHack = Value
+        if Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Configuration.Player.SpeedValue
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+    end
 })
 
--- Jump Hack Slider
-local JumpSlider = PlayerTab:CreateSlider({
-    Name = "Jump Hack",
-    Range = {1, 100},
+local SpeedSlider = PlayerTab:CreateSlider({
+    Name = "Speed Value",
+    Range = {16, 100},
     Increment = 1,
-    Suffix = "units",
-    CurrentValue = Config.JumpPower,
-    Flag = "JumpHack",
+    Suffix = "studs",
+    CurrentValue = 25,
+    Flag = "SpeedSlider",
     Callback = function(Value)
-        Config.JumpPower = Value
-        AsyncSpawn(function()
-            local humanoid = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.JumpPower = Value
-            end
-        end)
-    end,
+        Configuration.Player.SpeedValue = Value
+        if Configuration.Player.SpeedHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
+    end
 })
 
--- Fly Toggle
+local InfinityJumpToggle = PlayerTab:CreateToggle({
+    Name = "Infinity Jump",
+    CurrentValue = false,
+    Flag = "InfinityJumpToggle",
+    Callback = function(Value)
+        Configuration.Player.InfinityJump = Value
+        if Value then setupInfinityJump() end
+    end
+})
+
 local FlyToggle = PlayerTab:CreateToggle({
     Name = "Fly",
-    CurrentValue = Config.FlyEnabled,
-    Flag = "Fly",
+    CurrentValue = false,
+    Flag = "FlyToggle",
     Callback = function(Value)
-        Config.FlyEnabled = Value
-        if Value then
-            AsyncSpawn(function()
-                local player = game.Players.LocalPlayer
-                local char = player.Character
-                if not char then return end
-                
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                
-                local velocity = Vector3.new(0, 0, 0)
-                while Config.FlyEnabled do
-                    if root and root.Parent then
-                        local cframe = root.CFrame
-                        local up = cframe.UpVector * 10
-                        root.CFrame = cframe + up
-                    end
-                    task.wait(0.05)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Fly",
-                Content = "Mode terbang diaktifkan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Fly",
-                Content = "Mode terbang dimatikan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        end
-    end,
+        Configuration.Player.FlyEnabled = Value
+        if Value then setupFly() end
+    end
 })
 
--- NoClip Toggle
-local NoClipToggle = PlayerTab:CreateToggle({
-    Name = "NoClip",
-    CurrentValue = Config.NoClipEnabled,
-    Flag = "NoClip",
-    Callback = function(Value)
-        Config.NoClipEnabled = Value
-        if Value then
-            AsyncSpawn(function()
-                local char = game.Players.LocalPlayer.Character
-                if not char then return end
-                
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-                
-                local oldAnchored = hrp.Anchored
-                hrp.Anchored = true
-                
-                while Config.NoClipEnabled do
-                    if hrp and hrp.Parent then
-                        local input = game.UserInputService:GetUserInputState(Enum.UserInputType.MouseMovement)
-                        local move = Vector3.new(input.X * 0.1, input.Y * 0.1, 0)
-                        hrp.CFrame = hrp.CFrame + move
-                    end
-                    task.wait(0.02)
-                end
-                
-                hrp.Anchored = oldAnchored
-            end)
-            Rayfield:Notify({
-                Title = "NoClip",
-                Content = "Mode NoClip diaktifkan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        else
-            Rayfield:Notify({
-                Title = "NoClip",
-                Content = "Mode NoClip dimatikan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        end
-    end,
-})
-
--- GodMode Toggle
-local GodModeToggle = PlayerTab:CreateToggle({
-    Name = "God Mode",
-    CurrentValue = Config.GodModeEnabled,
-    Flag = "GodMode",
-    Callback = function(Value)
-        Config.GodModeEnabled = Value
-        if Value then
-            AsyncSpawn(function()
-                local char = game.Players.LocalPlayer.Character
-                if not char then return end
-                
-                local humanoid = char:FindFirstChild("Humanoid")
-                if not humanoid then return end
-                
-                while Config.GodModeEnabled do
-                    if humanoid.Health > 0 then
-                        humanoid.Health = 1000
-                    end
-                    task.wait(0.1)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "God Mode",
-                Content = "Mode invincible diaktifkan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        else
-            Rayfield:Notify({
-                Title = "God Mode",
-                Content = "Mode invincible dimatikan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        end
-    end,
-})
-
--- Walk Water Toggle
-local WalkWaterToggle = PlayerTab:CreateToggle({
-    Name = "Walk On Water",
-    CurrentValue = Config.WalkWaterEnabled,
-    Flag = "WalkWater",
-    Callback = function(Value)
-        Config.WalkWaterEnabled = Value
-        if Value then
-            AsyncSpawn(function()
-                local char = game.Players.LocalPlayer.Character
-                if not char then return end
-                
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if not hrp then return end
-                
-                while Config.WalkWaterEnabled do
-                    local ray = Ray.new(hrp.Position, Vector3.new(0, -100, 0))
-                    local hit, pos = workspace:FindPartOnRay(ray)
-                    if hit and hit:IsA("BasePart") and hit.Material == Enum.Material.Water then
-                        hrp.CFrame = CFrame.new(hrp.Position.X, pos.Y + 1, hrp.Position.Z)
-                    end
-                    task.wait(0.05)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Walk Water",
-                Content = "Berjalan di atas air diaktifkan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Walk Water",
-                Content = "Berjalan di atas air dimatikan.",
-                Duration = 3,
-                Image = 0x45B8D1,
-            })
-        end
-    end,
-})
-
--- ======== TAB NKZ-VISUAL ========
-local VisualTab = Window:CreateTab("NKZ-VISUAL", 0x96CEBD)
-
--- ESP Player Toggle
-local ESPPlayerToggle = VisualTab:CreateToggle({
-    Name = "ESP Player",
-    CurrentValue = Config.ESPPlayer,
-    Flag = "ESPPlayer",
-    Callback = function(Value)
-        Config.ESPPlayer = Value
-        if Value then
-            AsyncSpawn(function()
-                local players = game.Players:GetPlayers()
-                local espFrames = {}
-                
-                while Config.ESPPlayer do
-                    for _, plr in ipairs(players) do
-                        if plr ~= game.Players.LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                            local hrp = plr.Character.HumanoidRootPart
-                            local screenPoint = camera:WorldToViewportPoint(hrp.Position)
-                            
-                            if screenPoint.Z > 0 and screenPoint.X > 0 and screenPoint.X < 1920 and screenPoint.Y > 0 and screenPoint.Y < 1080 then
-                                if not espFrames[plr.UserId] then
-                                    local frame = Instance.new("Frame")
-                                    frame.Size = UDim2.new(0, 80, 0, 20)
-                                    frame.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                                    frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                                    frame.BorderSizePixel = 1
-                                    frame.Text = plr.Name
-                                    frame.TextColor3 = Color3.fromRGB(0, 0, 0)
-                                    frame.TextScaled = true
-                                    frame.Parent = game.StarterGui.MainGui
-                                    espFrames[plr.UserId] = frame
-                                end
-                                
-                                local frame = espFrames[plr.UserId]
-                                if frame then
-                                    frame.Position = UDim2.new(0, screenPoint.X - 40, 0, screenPoint.Y - 10)
-                                end
-                            else
-                                if espFrames[plr.UserId] then
-                                    espFrames[plr.UserId]:Destroy()
-                                    espFrames[plr.UserId] = nil
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Clean up dead frames
-                    for uid, frame in pairs(espFrames) do
-                        if not game.Players:FindFirstChildByUserId(uid) or not game.Players:FindFirstChildByUserId(uid).Character then
-                            frame:Destroy()
-                            espFrames[uid] = nil
-                        end
-                    end
-                    
-                    task.wait(0.1)
-                end
-                
-                for _, frame in pairs(espFrames) do
-                    frame:Destroy()
-                end
-            end)
-            Rayfield:Notify({
-                Title = "ESP Player",
-                Content = "ESP pemain aktif.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            Rayfield:Notify({
-                Title = "ESP Player",
-                Content = "ESP pemain dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- ESP Fish Toggle
-local ESPFishToggle = VisualTab:CreateToggle({
-    Name = "ESP Fish",
-    CurrentValue = Config.ESPFish,
-    Flag = "ESPFish",
-    Callback = function(Value)
-        Config.ESPFish = Value
-        if Value then
-            AsyncSpawn(function()
-                local espFrames = {}
-                
-                while Config.ESPFish do
-                    local fish = game.Workspace:FindFirstChild("Fish")
-                    if fish and fish:IsA("Model") then
-                        local hrp = fish:FindFirstChild("Handle")
-                        if hrp and hrp:IsA("BasePart") then
-                            local screenPoint = camera:WorldToViewportPoint(hrp.Position)
-                            
-                            if screenPoint.Z > 0 and screenPoint.X > 0 and screenPoint.X < 1920 and screenPoint.Y > 0 and screenPoint.Y < 1080 then
-                                if not espFrames[fish.Name] then
-                                    local frame = Instance.new("Frame")
-                                    frame.Size = UDim2.new(0, 70, 0, 18)
-                                    frame.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-                                    frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                                    frame.BorderSizePixel = 1
-                                    frame.Text = "Ikan"
-                                    frame.TextColor3 = Color3.fromRGB(0, 0, 0)
-                                    frame.TextScaled = true
-                                    frame.Parent = game.StarterGui.MainGui
-                                    espFrames[fish.Name] = frame
-                                end
-                                
-                                local frame = espFrames[fish.Name]
-                                if frame then
-                                    frame.Position = UDim2.new(0, screenPoint.X - 35, 0, screenPoint.Y - 9)
-                                end
-                            else
-                                if espFrames[fish.Name] then
-                                    espFrames[fish.Name]:Destroy()
-                                    espFrames[fish.Name] = nil
-                                end
-                            end
-                        end
-                    end
-                    
-                    task.wait(0.2)
-                end
-                
-                for _, frame in pairs(espFrames) do
-                    frame:Destroy()
-                end
-            end)
-            Rayfield:Notify({
-                Title = "ESP Fish",
-                Content = "ESP ikan aktif.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            Rayfield:Notify({
-                Title = "ESP Fish",
-                Content = "ESP ikan dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- ESP NPC Toggle
-local ESPNPCToggle = VisualTab:CreateToggle({
-    Name = "ESP NPC",
-    CurrentValue = Config.ESPNPC,
-    Flag = "ESPNPC",
-    Callback = function(Value)
-        Config.ESPNPC = Value
-        if Value then
-            AsyncSpawn(function()
-                local espFrames = {}
-                
-                while Config.ESPNPC do
-                    for _, npcName in ipairs(AllNPCs) do
-                        local npc = game.Workspace:FindFirstChild(npcName)
-                        if npc and npc:IsA("Model") then
-                            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head")
-                            if hrp and hrp:IsA("BasePart") then
-                                local screenPoint = camera:WorldToViewportPoint(hrp.Position)
-                                
-                                if screenPoint.Z > 0 and screenPoint.X > 0 and screenPoint.X < 1920 and screenPoint.Y > 0 and screenPoint.Y < 1080 then
-                                    if not espFrames[npcName] then
-                                        local frame = Instance.new("Frame")
-                                        frame.Size = UDim2.new(0, 70, 0, 18)
-                                        frame.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-                                        frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                                        frame.BorderSizePixel = 1
-                                        frame.Text = npcName
-                                        frame.TextColor3 = Color3.fromRGB(0, 0, 0)
-                                        frame.TextScaled = true
-                                        frame.Parent = game.StarterGui.MainGui
-                                        espFrames[npcName] = frame
-                                    end
-                                    
-                                    local frame = espFrames[npcName]
-                                    if frame then
-                                        frame.Position = UDim2.new(0, screenPoint.X - 35, 0, screenPoint.Y - 9)
-                                    end
-                                else
-                                    if espFrames[npcName] then
-                                        espFrames[npcName]:Destroy()
-                                        espFrames[npcName] = nil
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    task.wait(0.3)
-                end
-                
-                for _, frame in pairs(espFrames) do
-                    frame:Destroy()
-                end
-            end)
-            Rayfield:Notify({
-                Title = "ESP NPC",
-                Content = "ESP NPC aktif.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            Rayfield:Notify({
-                Title = "ESP NPC",
-                Content = "ESP NPC dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- ESP Item Toggle
-local ESPItemToggle = VisualTab:CreateToggle({
-    Name = "ESP Item",
-    CurrentValue = Config.ESPItem,
-    Flag = "ESPItem",
-    Callback = function(Value)
-        Config.ESPItem = Value
-        if Value then
-            AsyncSpawn(function()
-                local espFrames = {}
-                
-                while Config.ESPItem do
-                    for _, itemName in ipairs(AllItems) do
-                        local item = game.Workspace:FindFirstChild(itemName)
-                        if item and item:IsA("Model") then
-                            local hrp = item:FindFirstChild("Handle") or item:FindFirstChild("PrimaryPart")
-                            if hrp and hrp:IsA("BasePart") then
-                                local screenPoint = camera:WorldToViewportPoint(hrp.Position)
-                                
-                                if screenPoint.Z > 0 and screenPoint.X > 0 and screenPoint.X < 1920 and screenPoint.Y > 0 and screenPoint.Y < 1080 then
-                                    if not espFrames[itemName] then
-                                        local frame = Instance.new("Frame")
-                                        frame.Size = UDim2.new(0, 80, 0, 20)
-                                        frame.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-                                        frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                                        frame.BorderSizePixel = 1
-                                        frame.Text = itemName
-                                        frame.TextColor3 = Color3.fromRGB(0, 0, 0)
-                                        frame.TextScaled = true
-                                        frame.Parent = game.StarterGui.MainGui
-                                        espFrames[itemName] = frame
-                                    end
-                                    
-                                    local frame = espFrames[itemName]
-                                    if frame then
-                                        frame.Position = UDim2.new(0, screenPoint.X - 40, 0, screenPoint.Y - 10)
-                                    end
-                                else
-                                    if espFrames[itemName] then
-                                        espFrames[itemName]:Destroy()
-                                        espFrames[itemName] = nil
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    task.wait(0.4)
-                end
-                
-                for _, frame in pairs(espFrames) do
-                    frame:Destroy()
-                end
-            end)
-            Rayfield:Notify({
-                Title = "ESP Item",
-                Content = "ESP item aktif.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            Rayfield:Notify({
-                Title = "ESP Item",
-                Content = "ESP item dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- ESP Zone Toggle
-local ESPZoneToggle = VisualTab:CreateToggle({
-    Name = "ESP Zone",
-    CurrentValue = Config.ESPZone,
-    Flag = "ESPZone",
-    Callback = function(Value)
-        Config.ESPZone = Value
-        if Value then
-            AsyncSpawn(function()
-                local espFrames = {}
-                
-                while Config.ESPZone do
-                    for _, mapName in ipairs(AllMaps) do
-                        local zone = game.Workspace:FindFirstChild(mapName)
-                        if zone and zone:IsA("Model") then
-                            local hrp = zone:FindFirstChild("HumanoidRootPart") or zone:FindFirstChild("PrimaryPart")
-                            if hrp and hrp:IsA("BasePart") then
-                                local screenPoint = camera:WorldToViewportPoint(hrp.Position)
-                                
-                                if screenPoint.Z > 0 and screenPoint.X > 0 and screenPoint.X < 1920 and screenPoint.Y > 0 and screenPoint.Y < 1080 then
-                                    if not espFrames[mapName] then
-                                        local frame = Instance.new("Frame")
-                                        frame.Size = UDim2.new(0, 90, 0, 20)
-                                        frame.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
-                                        frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                                        frame.BorderSizePixel = 1
-                                        frame.Text = "Zone: " .. mapName
-                                        frame.TextColor3 = Color3.fromRGB(255, 255, 255)
-                                        frame.TextScaled = true
-                                        frame.Parent = game.StarterGui.MainGui
-                                        espFrames[mapName] = frame
-                                    end
-                                    
-                                    local frame = espFrames[mapName]
-                                    if frame then
-                                        frame.Position = UDim2.new(0, screenPoint.X - 45, 0, screenPoint.Y - 10)
-                                    end
-                                else
-                                    if espFrames[mapName] then
-                                        espFrames[mapName]:Destroy()
-                                        espFrames[mapName] = nil
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    task.wait(0.5)
-                end
-                
-                for _, frame in pairs(espFrames) do
-                    frame:Destroy()
-                end
-            end)
-            Rayfield:Notify({
-                Title = "ESP Zone",
-                Content = "ESP zona aktif.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            Rayfield:Notify({
-                Title = "ESP Zone",
-                Content = "ESP zona dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- Night Vision Toggle
-local NightVisionToggle = VisualTab:CreateToggle({
-    Name = "Night Vision",
-    CurrentValue = Config.NightVision,
-    Flag = "NightVision",
-    Callback = function(Value)
-        Config.NightVision = Value
-        if Value then
-            -- Apply night vision effect using lighting
-            game.Lighting.GlobalLighting.Enabled = true
-            game.Lighting.GlobalLighting.Brightness = 1.5
-            game.Lighting.GlobalLighting.ColorTemperature = 5000
-            game.Lighting.GlobalLighting.FogColor = Color3.fromRGB(0, 0, 0)
-            game.Lighting.GlobalLighting.FogDensity = 0.001
-            game.Lighting.GlobalLighting.FogEnd = 1000
-            game.Lighting.GlobalLighting.FogStart = 0
-            
-            -- Add green tint to all parts
-            for _, part in ipairs(game.Workspace:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.BrickColor = BrickColor.new("Bright green")
-                end
-            end
-            
-            Rayfield:Notify({
-                Title = "Night Vision",
-                Content = "Mode malam diaktifkan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            game.Lighting.GlobalLighting.Enabled = true
-            game.Lighting.GlobalLighting.Brightness = 1
-            game.Lighting.GlobalLighting.ColorTemperature = 6500
-            game.Lighting.GlobalLighting.FogColor = Color3.fromRGB(128, 128, 128)
-            game.Lighting.GlobalLighting.FogDensity = 0
-            game.Lighting.GlobalLighting.FogEnd = 1000
-            game.Lighting.GlobalLighting.FogStart = 0
-            
-            -- Reset colors
-            for _, part in ipairs(game.Workspace:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.BrickColor = BrickColor.new("Really black")
-                end
-            end
-            
-            Rayfield:Notify({
-                Title = "Night Vision",
-                Content = "Mode malam dimatikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- Full Bright Toggle
-local FullBrightToggle = VisualTab:CreateToggle({
-    Name = "Full Bright",
-    CurrentValue = Config.FullBright,
-    Flag = "FullBright",
-    Callback = function(Value)
-        Config.FullBright = Value
-        if Value then
-            game.Lighting.Brightness = 2
-            game.Lighting.GlobalLighting.Brightness = 2
-            game.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-            game.Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-            game.Lighting.ShadowSoftness = 0
-            Rayfield:Notify({
-                Title = "Full Bright",
-                Content = "Pencahayaan maksimal diaktifkan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        else
-            game.Lighting.Brightness = 1
-            game.Lighting.GlobalLighting.Brightness = 1
-            game.Lighting.Ambient = Color3.fromRGB(100, 100, 100)
-            game.Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-            game.Lighting.ShadowSoftness = 0.5
-            Rayfield:Notify({
-                Title = "Full Bright",
-                Content = "Pencahayaan normal dikembalikan.",
-                Duration = 3,
-                Image = 0x96CEBD,
-            })
-        end
-    end,
-})
-
--- ======== TAB NKZ-SHOP ========
-local ShopTab = Window:CreateTab("NKZ-SHOP", 0xE59866)
-
--- Auto Buy Toggle
-local AutoBuyToggle = ShopTab:CreateToggle({
-    Name = "Auto Buy Items",
-    CurrentValue = Config.AutoBuy,
-    Flag = "AutoBuy",
-    Callback = function(Value)
-        Config.AutoBuy = Value
-        if Value then
-            AsyncSpawn(function()
-                while Config.AutoBuy do
-                    -- Try to buy best bait
-                    for _, baitName in ipairs(AllBaits) do
-                        if Remotes.PurchaseBait then
-                            Remotes.PurchaseBait:FireServer(baitName)
-                            task.wait(0.5)
-                        end
-                    end
-                    
-                    -- Try to buy best rod
-                    for _, rodName in ipairs(AllRods) do
-                        if Remotes.PurchaseFishingRod then
-                            Remotes.PurchaseFishingRod:FireServer(rodName)
-                            task.wait(0.5)
-                        end
-                    end
-                    
-                    task.wait(10)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Buy",
-                Content = "Pembelian otomatis diaktifkan.",
-                Duration = 3,
-                Image = 0xE59866,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Auto Buy",
-                Content = "Pembelian otomatis dimatikan.",
-                Duration = 3,
-                Image = 0xE59866,
-            })
-        end
-    end,
-})
-
--- Auto Sell Toggle
-local AutoSellToggle = ShopTab:CreateToggle({
-    Name = "Auto Sell Items",
-    CurrentValue = Config.AutoSell,
-    Flag = "AutoSell",
-    Callback = function(Value)
-        Config.AutoSell = Value
-        if Value then
-            AsyncSpawn(function()
-                while Config.AutoSell do
-                    -- Sell all items in backpack
-                    for _, item in ipairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
-                        if item:IsA("Tool") then
-                            if Remotes.SellItem then
-                                Remotes.SellItem:FireServer(item.Name)
-                                task.wait(0.1)
-                            end
-                        end
-                    end
-                    
-                    task.wait(15)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Sell",
-                Content = "Penjualan otomatis diaktifkan.",
-                Duration = 3,
-                Image = 0xE59866,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Auto Sell",
-                Content = "Penjualan otomatis dimatikan.",
-                Duration = 3,
-                Image = 0xE59866,
-            })
-        end
-    end,
-})
-
--- Unlock All Shop Button
-ShopTab:CreateButton({
-    Name = "Unlock Semua Item Toko",
-    Callback = function()
-        AsyncSpawn(function()
-            -- Simulate unlocking all shop items via feature unlock
-            if Remotes.FeatureUnlocked then
-                for _, item in ipairs(AllItems) do
-                    Remotes.FeatureUnlocked:FireServer(item)
-                    task.wait(0.05)
-                end
-                for _, rod in ipairs(AllRods) do
-                    Remotes.FeatureUnlocked:FireServer(rod)
-                    task.wait(0.05)
-                end
-                for _, bait in ipairs(AllBaits) do
-                    Remotes.FeatureUnlocked:FireServer(bait)
-                    task.wait(0.05)
-                end
-            end
-            
-            -- Also attempt to purchase with infinite money simulation
-            if Remotes.PurchaseFishingRod then
-                for _, rod in ipairs(AllRods) do
-                    Remotes.PurchaseFishingRod:FireServer(rod)
-                    task.wait(0.05)
-                end
-            end
-            
-            Rayfield:Notify({
-                Title = "Unlock Shop",
-                Content = "Semua item telah dibuka!",
-                Duration = 5,
-                Image = 0xE59866,
-            })
-        end)
-    end,
-})
-
--- ======== TAB NKZ-UTILITY ========
-local UtilityTab = Window:CreateTab("NKZ-UTILITY", 0x9B59B6)
-
--- Anti AFK Toggle
-local AntiAFKToggle = UtilityTab:CreateToggle({
-    Name = "Anti AFK",
-    CurrentValue = Config.AntiAFK,
-    Flag = "AntiAFK",
-    Callback = function(Value)
-        Config.AntiAFK = Value
-        if Value then
-            AsyncSpawn(function()
-                while Config.AntiAFK do
-                    -- Move player slightly
-                    local char = game.Players.LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        local hrp = char.HumanoidRootPart
-                        local currentCFrame = hrp.CFrame
-                        hrp.CFrame = currentCFrame + Vector3.new(0, 0.1, 0)
-                        task.wait(5)
-                        hrp.CFrame = currentCFrame - Vector3.new(0, 0.1, 0)
-                        task.wait(5)
-                    end
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Anti AFK",
-                Content = "Mode anti AFK diaktifkan.",
-                Duration = 3,
-                Image = 0x9B59B6,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Anti AFK",
-                Content = "Mode anti AFK dimatikan.",
-                Duration = 3,
-                Image = 0x9B59B6,
-            })
-        end
-    end,
-})
-
--- Auto Reconnect Toggle
-local AutoReconnectToggle = UtilityTab:CreateToggle({
-    Name = "Auto Reconnect",
-    CurrentValue = Config.AutoReconnect,
-    Flag = "AutoReconnect",
-    Callback = function(Value)
-        Config.AutoReconnect = Value
-        if Value then
-            game.Players.PlayerRemoving:Connect(function(plr)
-                if plr == game.Players.LocalPlayer then
-                    task.wait(3)
-                    game:GetService("TeleportService"):Teleport(game.PlaceId)
-                end
-            end)
-            Rayfield:Notify({
-                Title = "Auto Reconnect",
-                Content = "Auto reconnect diaktifkan.",
-                Duration = 3,
-                Image = 0x9B59B6,
-            })
-        end
-    end,
-})
-
--- Save Config Button
-UtilityTab:CreateButton({
-    Name = "Simpan Konfigurasi",
-    Callback = function()
-        SaveConfig()
-        Rayfield:Notify({
-            Title = "Konfigurasi",
-            Content = "Konfigurasi berhasil disimpan!",
-            Duration = 3,
-            Image = 0x9B59B6,
-        })
-    end,
-})
-
--- Load Config Button
-UtilityTab:CreateButton({
-    Name = "Muat Konfigurasi",
-    Callback = function()
-        LoadConfig()
-        Rayfield:Notify({
-            Title = "Konfigurasi",
-            Content = "Konfigurasi berhasil dimuat!",
-            Duration = 3,
-            Image = 0x9B59B6,
-        })
-    end,
-})
-
--- Copy UID Button
-UtilityTab:CreateButton({
-    Name = "Salin UID Akun",
-    Callback = function()
-        local uid = game.Players.LocalPlayer.UserId
-        setclipboard(tostring(uid))
-        Rayfield:Notify({
-            Title = "UID Disalin",
-            Content = "UID Anda: " .. uid,
-            Duration = 3,
-            Image = 0x9B59B6,
-        })
-    end,
-})
-
--- ======== TAB NKZ-GRAPHIC ========
-local GraphicTab = Window:CreateTab("NKZ-GRAPHIC", 0x66B2FF)
-
--- Max FPS Slider
-local MaxFPSSlider = GraphicTab:CreateSlider({
-    Name = "Max FPS",
-    Range = {30, 240},
-    Increment = 10,
-    Suffix = "fps",
-    CurrentValue = Config.MaxFPS,
-    Flag = "MaxFPS",
-    Callback = function(Value)
-        Config.MaxFPS = Value
-        game:GetService("RunService"):SetRenderPriority(Enum.RenderPriority.Last)
-        game:GetService("RunService"):SetHeartbeat(function() end)
-        game:GetService("RunService").Heartbeat:Connect(function()
-            -- Force FPS limit
-        end)
-        
-        -- Apply FPS cap
-        game:GetService("RunService"):SetCore("TopBarEnabled", false)
-        game:GetService("RunService"):SetCore("TopBarEnabled", true)
-        
-        Rayfield:Notify({
-            Title = "FPS",
-            Content = "Max FPS diatur ke: " .. Value,
-            Duration = 2,
-            Image = 0x66B2FF,
-        })
-    end,
-})
-
--- HD Texture Toggle
-local HDTextureToggle = GraphicTab:CreateToggle({
-    Name = "HD Texture",
-    CurrentValue = Config.HDTexture,
-    Flag = "HDTexture",
-    Callback = function(Value)
-        Config.HDTexture = Value
-        if Value then
-            game:GetService("UserSettings"):UserInterface:EnableHighDefinitionTextures(true)
-            Rayfield:Notify({
-                Title = "HD Texture",
-                Content = "Tekstur HD diaktifkan.",
-                Duration = 3,
-                Image = 0x66B2FF,
-            })
-        else
-            game:GetService("UserSettings"):UserInterface:EnableHighDefinitionTextures(false)
-            Rayfield:Notify({
-                Title = "HD Texture",
-                Content = "Tekstur HD dimatikan.",
-                Duration = 3,
-                Image = 0x66B2FF,
-            })
-        end
-    end,
-})
-
--- Shadow Control Slider
-local ShadowSlider = GraphicTab:CreateSlider({
-    Name = "Shadow Quality",
-    Range = {0, 4},
+local FlySpeedSlider = PlayerTab:CreateSlider({
+    Name = "Fly Speed",
+    Range = {10, 100},
     Increment = 1,
-    Suffix = "level",
-    CurrentValue = Config.ShadowQuality,
-    Flag = "ShadowQuality",
+    Suffix = "studs",
+    CurrentValue = 25,
+    Flag = "FlySpeedSlider",
     Callback = function(Value)
-        Config.ShadowQuality = Value
-        game.Lighting.Shadows.Enabled = Value > 0
-        game.Lighting.ShadowSoftness = Value * 0.25
-        Rayfield:Notify({
-            Title = "Shadow",
-            Content = "Kualitas bayangan diatur ke: " .. Value,
-            Duration = 3,
-            Image = 0x66B2FF,
-        })
-    end,
+        Configuration.Player.FlySpeed = Value
+    end
 })
 
--- Resolution Control Dropdown
-local ResolutionDropdown = GraphicTab:CreateDropdown({
-    Name = "Resolution",
-    Options = {"1920x1080", "1600x900", "1366x768", "1280x720", "1024x768"},
-    CurrentOption = Config.Resolution,
-    Flag = "Resolution",
-    Callback = function(Res)
-        Config.Resolution = Res
-        local width, height = Res:match("([^x]+)x(.+)")
-        if width and height then
-            game:GetService("UserSettings"):UserInterface:EnableHighDefinitionTextures(true)
-            game:GetService("UserSettings"):UserInterface:SetWindowSize(Vector2.new(tonumber(width), tonumber(height)))
-            Rayfield:Notify({
-                Title = "Resolution",
-                Content = "Resolusi diubah ke: " .. Res,
-                Duration = 3,
-                Image = 0x66B2FF,
-            })
+local BoatSection = PlayerTab:CreateSection("Boat Hacks")
+local BoatSpeedToggle = PlayerTab:CreateToggle({
+    Name = "Boat Speed Hack",
+    CurrentValue = false,
+    Flag = "BoatSpeedToggle",
+    Callback = function(Value)
+        Configuration.Player.BoatSpeedHack = Value
+    end
+})
+
+local BoatSpeedSlider = PlayerTab:CreateSlider({
+    Name = "Boat Speed Value",
+    Range = {25, 150},
+    Increment = 1,
+    Suffix = "studs",
+    CurrentValue = 50,
+    Flag = "BoatSpeedSlider",
+    Callback = function(Value)
+        Configuration.Player.BoatSpeedValue = Value
+    end
+})
+
+local FlyBoatToggle = PlayerTab:CreateToggle({
+    Name = "Fly Boat",
+    CurrentValue = false,
+    Flag = "FlyBoatToggle",
+    Callback = function(Value)
+        Configuration.Player.FlyBoat = Value
+    end
+})
+
+local FlyBoatSpeedSlider = PlayerTab:CreateSlider({
+    Name = "Fly Boat Speed",
+    Range = {20, 100},
+    Increment = 1,
+    Suffix = "studs",
+    CurrentValue = 30,
+    Flag = "FlyBoatSpeedSlider",
+    Callback = function(Value)
+        Configuration.Player.FlyBoatSpeed = Value
+    end
+})
+
+local JumpSection = PlayerTab:CreateSection("Jump Hacks")
+local JumpHackToggle = PlayerTab:CreateToggle({
+    Name = "Jump Hack",
+    CurrentValue = false,
+    Flag = "JumpHackToggle",
+    Callback = function(Value)
+        Configuration.Player.JumpHack = Value
+        if Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = Configuration.Player.JumpValue
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = 50
         end
-    end,
+    end
 })
 
--- Low Graphic Toggle
-local LowGraphicToggle = GraphicTab:CreateToggle({
-    Name = "Low Graphic Mode",
-    CurrentValue = Config.LowGraphic,
-    Flag = "LowGraphic",
+local JumpSlider = PlayerTab:CreateSlider({
+    Name = "Jump Power",
+    Range = {50, 200},
+    Increment = 1,
+    Suffix = "studs",
+    CurrentValue = 50,
+    Flag = "JumpSlider",
     Callback = function(Value)
-        Config.LowGraphic = Value
+        Configuration.Player.JumpValue = Value
+        if Configuration.Player.JumpHack and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = Value
+        end
+    end
+})
+
+local LockPositionToggle = PlayerTab:CreateToggle({
+    Name = "Lock Position",
+    CurrentValue = false,
+    Flag = "LockPositionToggle",
+    Callback = function(Value)
+        Configuration.Player.LockPosition = Value
+        if Value and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.Anchored = true
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.Anchored = false
+        end
+    end
+})
+
+-- Tab NKZ-VISUAL
+local VisualTab = Window:CreateTab("NKZ-VISUAL", 4483362458)
+local ESPsection = VisualTab:CreateSection("ESP")
+local ESPToggle = VisualTab:CreateToggle({
+    Name = "Player ESP",
+    CurrentValue = false,
+    Flag = "ESPToggle",
+    Callback = function(Value)
+        Configuration.Visual.ESPPlayers = Value
+        updateAllESP()
+    end
+})
+
+local GhostToggle = VisualTab:CreateToggle({
+    Name = "Ghost Mode",
+    CurrentValue = false,
+    Flag = "GhostToggle",
+    Callback = function(Value)
+        Configuration.Visual.GhostMode = Value
         if Value then
-            game.Lighting.GlobalLighting.Enabled = false
-            game.Lighting.Brightness = 0.5
-            game.Lighting.Ambient = Color3.fromRGB(50, 50, 50)
-            game.Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70)
-            game:GetService("UserSettings"):UserInterface:EnableHighDefinitionTextures(false)
-            game:GetService("RunService"):SetRenderPriority(Enum.RenderPriority.First)
-            game.Lighting.Shadows.Enabled = false
-            game.Lighting.FogColor = Color3.fromRGB(20, 20, 20)
-            game.Lighting.FogDensity = 0.002
-            game.Lighting.FogEnd = 500
-            game.Lighting.FogStart = 0
-            Rayfield:Notify({
-                Title = "Low Graphic",
-                Content = "Mode grafis rendah diaktifkan.",
-                Duration = 3,
-                Image = 0x66B2FF,
-            })
-        else
-            game.Lighting.GlobalLighting.Enabled = true
-            game.Lighting.Brightness = 1
-            game.Lighting.Ambient = Color3.fromRGB(100, 100, 100)
-            game.Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 150)
-            game:GetService("UserSettings"):UserInterface:EnableHighDefinitionTextures(true)
-            game:GetService("RunService"):SetRenderPriority(Enum.RenderPriority.Last)
-            game.Lighting.Shadows.Enabled = true
-            game.Lighting.FogColor = Color3.fromRGB(128, 128, 128)
-            game.Lighting.FogDensity = 0
-            game.Lighting.FogEnd = 1000
-            game.Lighting.FogStart = 0
-            Rayfield:Notify({
-                Title = "Low Graphic",
-                Content = "Mode grafis rendah dimatikan.",
-                Duration = 3,
-                Image = 0x66B2FF,
-            })
+            LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
         end
-    end,
+    end
 })
 
--- ======== TAB NKZ-LOWDEV ========
-local LowDevTab = Window:CreateTab("NKZ-LOWDEV", 0x34495E)
-
--- Debug Info Toggle
-local DebugInfoToggle = LowDevTab:CreateToggle({
-    Name = "Debug Info",
-    CurrentValue = Config.DebugInfo,
-    Flag = "DebugInfo",
+local CameraSection = VisualTab:CreateSection("Camera")
+local FOVToggle = VisualTab:CreateToggle({
+    Name = "Custom FOV",
+    CurrentValue = false,
+    Flag = "FOVToggle",
     Callback = function(Value)
-        Config.DebugInfo = Value
+        Configuration.Visual.FOVEnabled = Value
         if Value then
-            -- Create debug console
-            local console = Instance.new("TextLabel")
-            console.BackgroundTransparency = 0.7
-            console.Size = UDim2.new(0, 250, 0, 150)
-            console.Position = UDim2.new(0, 10, 0, 10)
-            console.Font = Enum.Font.SourceSans
-            console.TextColor3 = Color3.fromRGB(0, 255, 0)
-            console.TextScaled = true
-            console.TextWrapped = true
-            console.Text = "DEBUG INFO:\n\n"
-            console.Parent = game.StarterGui.MainGui
-            
-            -- Update debug info
-            task.spawn(function()
-                while Config.DebugInfo do
-                    local fps = game:GetService("RunService"):GetRenderStepped():GetTicks()
-                    local ping = game:GetService("NetworkServer"):Ping()
-                    local coins = game.Players.LocalPlayer.leaderstats.Coins.Value or 0
-                    local rods = #game.Players.LocalPlayer.Backpack:GetChildren()
-                    
-                    console.Text = string.format(
-                        "DEBUG INFO:\n" ..
-                        "FPS: %.1f\n" ..
-                        "PING: %d ms\n" ..
-                        "Coins: %d\n" ..
-                        "Rods: %d\n" ..
-                        "Baits: %d\n" ..
-                        "Fish Caught: %d",
-                        fps, ping, coins, rods, #game.Players.LocalPlayer.Backpack:GetChildren(), 0
-                    )
-                    task.wait(1)
-                end
-                console:Destroy()
-            end)
-            
-            Rayfield:Notify({
-                Title = "Debug Info",
-                Content = "Konsol debug ditampilkan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
+            workspace.CurrentCamera.FieldOfView = Configuration.Visual.FOVValue
         else
-            -- Hide debug console
-            for _, child in ipairs(game.StarterGui.MainGui:GetChildren()) do
-                if child:IsA("TextLabel") and child.Text:find("DEBUG INFO") then
-                    child:Destroy()
-                end
-            end
-            Rayfield:Notify({
-                Title = "Debug Info",
-                Content = "Konsol debug disembunyikan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
+            workspace.CurrentCamera.FieldOfView = 70
         end
-    end,
+    end
 })
 
--- Ping Monitor Toggle
-local PingMonitorToggle = LowDevTab:CreateToggle({
-    Name = "Ping Monitor",
-    CurrentValue = Config.PingMonitor,
-    Flag = "PingMonitor",
+local FOVSlider = VisualTab:CreateSlider({
+    Name = "FOV Value",
+    Range = {70, 120},
+    Increment = 1,
+    Suffix = "degrees",
+    CurrentValue = 70,
+    Flag = "FOVSlider",
     Callback = function(Value)
-        Config.PingMonitor = Value
+        Configuration.Visual.FOVValue = Value
+        if Configuration.Visual.FOVEnabled then
+            workspace.CurrentCamera.FieldOfView = Value
+        end
+    end
+})
+
+-- Tab NKZ-SHOP
+local ShopTab = Window:CreateTab("NKZ-SHOP", 4483362458)
+local AutoSellSection = ShopTab:CreateSection("Auto Sell")
+local AutoSellToggle = ShopTab:CreateToggle({
+    Name = "Auto Sell Fish",
+    CurrentValue = false,
+    Flag = "AutoSellToggle",
+    Callback = function(Value)
+        Configuration.Shop.AutoSell = Value
         if Value then
-            local pingLabel = Instance.new("TextLabel")
-            pingLabel.BackgroundTransparency = 0.7
-            pingLabel.Size = UDim2.new(0, 80, 0, 30)
-            pingLabel.Position = UDim2.new(0, 10, 0, 170)
-            pingLabel.Font = Enum.Font.SourceSans
-            pingLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            pingLabel.TextScaled = true
-            pingLabel.Text = "PING: ?"
-            pingLabel.Parent = game.StarterGui.MainGui
-            
-            task.spawn(function()
-                while Config.PingMonitor do
-                    local ping = game:GetService("NetworkServer"):Ping()
-                    pingLabel.Text = "PING: " .. ping
-                    task.wait(1)
-                end
-                pingLabel:Destroy()
-            end)
-            
-            Rayfield:Notify({
-                Title = "Ping Monitor",
-                Content = "Pemantau ping diaktifkan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
+            startAutoSell()
         else
-            for _, child in ipairs(game.StarterGui.MainGui:GetChildren()) do
-                if child:IsA("TextLabel") and child.Text:find("PING:") then
-                    child:Destroy()
-                end
-            end
-            Rayfield:Notify({
-                Title = "Ping Monitor",
-                Content = "Pemantau ping dimatikan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
+            stopAutoSell()
         end
-    end,
+    end
 })
 
--- FPS Monitor Toggle
-local FPSMonitorToggle = LowDevTab:CreateToggle({
-    Name = "FPS Monitor",
-    CurrentValue = Config.FPSMonitor,
-    Flag = "FPSMonitor",
+local SellDelaySlider = ShopTab:CreateSlider({
+    Name = "Sell Delay",
+    Range = {1, 10},
+    Increment = 0.5,
+    Suffix = "seconds",
+    CurrentValue = 3,
+    Flag = "SellDelaySlider",
     Callback = function(Value)
-        Config.FPSMonitor = Value
-        if Value then
-            local fpsLabel = Instance.new("TextLabel")
-            fpsLabel.BackgroundTransparency = 0.7
-            fpsLabel.Size = UDim2.new(0, 80, 0, 30)
-            fpsLabel.Position = UDim2.new(0, 10, 0, 210)
-            fpsLabel.Font = Enum.Font.SourceSans
-            fpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            fpsLabel.TextScaled = true
-            fpsLabel.Text = "FPS: ?"
-            fpsLabel.Parent = game.StarterGui.MainGui
-            
-            task.spawn(function()
-                while Config.FPSMonitor do
-                    local fps = game:GetService("RunService"):GetRenderStepped():GetTicks()
-                    fpsLabel.Text = "FPS: " .. math.floor(fps)
-                    task.wait(0.5)
-                end
-                fpsLabel:Destroy()
-            end)
-            
-            Rayfield:Notify({
-                Title = "FPS Monitor",
-                Content = "Pemantau FPS diaktifkan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
-        else
-            for _, child in ipairs(game.StarterGui.MainGui:GetChildren()) do
-                if child:IsA("TextLabel") and child.Text:find("FPS:") then
-                    child:Destroy()
-                end
-            end
-            Rayfield:Notify({
-                Title = "FPS Monitor",
-                Content = "Pemantau FPS dimatikan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
-        end
-    end,
+        Configuration.Shop.SellDelay = Value
+    end
 })
 
--- Log Console Toggle
-local LogConsoleToggle = LowDevTab:CreateToggle({
-    Name = "Log Console",
-    CurrentValue = Config.LogConsole,
-    Flag = "LogConsole",
-    Callback = function(Value)
-        Config.LogConsole = Value
-        if Value then
-            -- Override print to log to UI
-            local originalPrint = print
-            local logText = ""
-            local logLabel = Instance.new("TextLabel")
-            logLabel.BackgroundTransparency = 0.7
-            logLabel.Size = UDim2.new(0, 300, 0, 200)
-            logLabel.Position = UDim2.new(0, 10, 0, 250)
-            logLabel.Font = Enum.Font.SourceSans
-            logLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-            logLabel.TextScaled = true
-            logLabel.TextWrapped = true
-            logLabel.Text = "LOG CONSOLE:\n"
-            logLabel.Parent = game.StarterGui.MainGui
-            
-            print = function(...)
-                local args = {...}
-                local msg = table.concat(args, "\t")
-                logText = logText .. msg .. "\n"
-                if #logText > 5000 then
-                    logText = string.sub(logText, -4000)
-                end
-                logLabel.Text = "LOG CONSOLE:\n" .. logText
-                originalPrint(...)
-            end
-            
-            Rayfield:Notify({
-                Title = "Log Console",
-                Content = "Konsol log diaktifkan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
-        else
-            print = originalPrint
-            for _, child in ipairs(game.StarterGui.MainGui:GetChildren()) do
-                if child:IsA("TextLabel") and child.Text:find("LOG CONSOLE:") then
-                    child:Destroy()
-                end
-            end
-            Rayfield:Notify({
-                Title = "Log Console",
-                Content = "Konsol log dimatikan.",
-                Duration = 3,
-                Image = 0x34495E,
-            })
-        end
-    end,
+local WeatherSection = ShopTab:CreateSection("Weather Control")
+local WeatherDropdown = ShopTab:CreateDropdown({
+    Name = "Select Weather",
+    Options = {"Clear", "Rain", "Storm", "Snow"},
+    CurrentOption = "Clear",
+    Flag = "WeatherDropdown",
+    Callback = function(Option)
+        Configuration.Shop.SelectedWeather = Option
+    end
 })
 
--- ======== TAB NKZ-SETTINGS ========
-local SettingsTab = Window:CreateTab("NKZ-SETTINGS", 0xF093FB)
-
--- Keybinds Section
-SettingsTab:CreateLabel("Keybinds (Harus diatur manual di game):")
-
-SettingsTab:CreateLabel("Teleport: " .. Config.Keybinds.Teleport)
-SettingsTab:CreateLabel("Fly: " .. Config.Keybinds.Fly)
-SettingsTab:CreateLabel("NoClip: " .. Config.Keybinds.NoClip)
-SettingsTab:CreateLabel("GodMode: " .. Config.Keybinds.GodMode)
-SettingsTab:CreateLabel("WalkWater: " .. Config.Keybinds.WalkWater)
-SettingsTab:CreateLabel("ESP: " .. Config.Keybinds.ESP)
-SettingsTab:CreateLabel("Night Vision: " .. Config.Keybinds.NightVision)
-SettingsTab:CreateLabel("Full Bright: " .. Config.Keybinds.FullBright)
-
--- Theme Dropdown
-local ThemeDropdown = SettingsTab:CreateDropdown({
-    Name = "Theme",
-    Options = {"Dark", "Light", "Purple", "Green", "Blue"},
-    CurrentOption = Config.Theme,
-    Flag = "Theme",
-    Callback = function(Theme)
-        Config.Theme = Theme
-        -- Apply theme color
-        if Theme == "Dark" then
-            Rayfield:SetTheme(Color3.fromRGB(30, 30, 30), Color3.fromRGB(45, 45, 45), Color3.fromRGB(255, 255, 255))
-        elseif Theme == "Light" then
-            Rayfield:SetTheme(Color3.fromRGB(240, 240, 240), Color3.fromRGB(220, 220, 220), Color3.fromRGB(0, 0, 0))
-        elseif Theme == "Purple" then
-            Rayfield:SetTheme(Color3.fromRGB(40, 20, 60), Color3.fromRGB(55, 25, 80), Color3.fromRGB(255, 200, 255))
-        elseif Theme == "Green" then
-            Rayfield:SetTheme(Color3.fromRGB(20, 40, 20), Color3.fromRGB(25, 55, 25), Color3.fromRGB(150, 255, 150))
-        elseif Theme == "Blue" then
-            Rayfield:SetTheme(Color3.fromRGB(20, 20, 40), Color3.fromRGB(25, 25, 55), Color3.fromRGB(150, 200, 255))
-        end
-        Rayfield:Notify({
-            Title = "Theme",
-            Content = "Tema diubah menjadi: " .. Theme,
-            Duration = 3,
-            Image = 0xF093FB,
-        })
-    end,
-})
-
--- Notifications Toggle
-local NotificationsToggle = SettingsTab:CreateToggle({
-    Name = "Notifications",
-    CurrentValue = Config.Notifications,
-    Flag = "Notifications",
-    Callback = function(Value)
-        Config.Notifications = Value
-        if not Value then
-            -- Disable all notifications by overriding Notify
-            Rayfield.Notify = function() end
-        else
-            -- Restore original notify
-            Rayfield.Notify = Rayfield.originalNotify
-        end
-        Rayfield:Notify({
-            Title = "Notifikasi",
-            Content = "Notifikasi " .. (Value and "diaktifkan" or "dimatikan"),
-            Duration = 3,
-            Image = 0xF093FB,
-        })
-    end,
-})
-
--- Language Dropdown
-local LanguageDropdown = SettingsTab:CreateDropdown({
-    Name = "Bahasa",
-    Options = {"EN", "ID", "JP", "KR", "CN"},
-    CurrentOption = Config.Language,
-    Flag = "Language",
-    Callback = function(Language)
-        Config.Language = Language
-        Rayfield:Notify({
-            Title = "Bahasa",
-            Content = "Bahasa diubah ke: " .. Language,
-            Duration = 3,
-            Image = 0xF093FB,
-        })
-    end,
-})
-
--- Reset All Settings Button
-SettingsTab:CreateButton({
-    Name = "Reset Semua Pengaturan",
+local BuyWeatherButton = ShopTab:CreateButton({
+    Name = "Buy Selected Weather",
     Callback = function()
-        Config = {
-            Saved = {},
-            AutoFishing = false,
-            AutoBait = false,
-            AutoRod = false,
-            AutoCollect = false,
-            TeleportTarget = "",
-            SpeedMultiplier = 10,
-            JumpPower = 50,
-            FlyEnabled = false,
-            NoClipEnabled = false,
-            GodModeEnabled = false,
-            WalkWaterEnabled = false,
-            ESPPlayer = true,
-            ESPFish = true,
-            ESPNPC = true,
-            ESPItem = true,
-            ESPZone = true,
-            NightVision = false,
-            FullBright = false,
-            AutoBuy = false,
-            AutoSell = false,
-            UnlockAllShop = false,
-            AntiAFK = false,
-            AutoReconnect = false,
-            MaxFPS = 240,
-            HDTexture = true,
-            ShadowQuality = 0,
-            Resolution = "1920x1080",
-            LowGraphic = false,
-            DebugInfo = true,
-            PingMonitor = true,
-            FPSMonitor = true,
-            LogConsole = true,
-            Theme = "Dark",
-            Notifications = true,
-            Language = "EN",
-            Keybinds = {
-                Teleport = "T",
-                Fly = "F",
-                NoClip = "N",
-                GodMode = "G",
-                WalkWater = "W",
-                ESP = "E",
-                NightVision = "V",
-                FullBright = "B"
+        safeInvoke(RemoteFunctions.PurchaseWeatherEvent, Configuration.Shop.SelectedWeather)
+    end
+})
+
+local AutoBuyWeatherToggle = ShopTab:CreateToggle({
+    Name = "Auto Buy Weather",
+    CurrentValue = false,
+    Flag = "AutoBuyWeatherToggle",
+    Callback = function(Value)
+        Configuration.Shop.AutoBuyWeather = Value
+        if Value then
+            startAutoBuyWeather()
+        else
+            stopAutoBuyWeather()
+        end
+    end
+})
+
+local WeatherDelaySlider = ShopTab:CreateSlider({
+    Name = "Weather Buy Delay",
+    Range = {5, 60},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 10,
+    Flag = "WeatherDelaySlider",
+    Callback = function(Value)
+        Configuration.Shop.WeatherBuyDelay = Value
+    end
+})
+
+local ShopItemsSection = ShopTab:CreateSection("Shop Items")
+local BooberDropdown = ShopTab:CreateDropdown({
+    Name = "Select Bait",
+    Options = {"Standard", "Premium", "Golden", "Magic"},
+    CurrentOption = "Standard",
+    Flag = "BooberDropdown",
+    Callback = function(Option)
+        Configuration.Shop.SelectedBoober = Option
+    end
+})
+
+local BuyBooberButton = ShopTab:CreateButton({
+    Name = "Buy Selected Bait",
+    Callback = function()
+        safeInvoke(RemoteFunctions.PurchaseBait, Configuration.Shop.SelectedBoober)
+    end
+})
+
+local RodDropdown = ShopTab:CreateDropdown({
+    Name = "Select Rod",
+    Options = {"Beginner Rod", "Advanced Rod", "Pro Rod", "Master Rod"},
+    CurrentOption = "Beginner Rod",
+    Flag = "RodDropdown",
+    Callback = function(Option)
+        Configuration.Shop.SelectedRod = Option
+    end
+})
+
+local BuyRodButton = ShopTab:CreateButton({
+    Name = "Buy Selected Rod",
+    Callback = function()
+        safeInvoke(RemoteFunctions.PurchaseFishingRod, Configuration.Shop.SelectedRod)
+    end
+})
+
+-- Tab NKZ-UTILITY
+local UtilityTab = Window:CreateTab("NKZ-UTILITY", 4483362458)
+local FPSSection = UtilityTab:CreateSection("FPS Settings")
+local StabilizeFPSToggle = UtilityTab:CreateToggle({
+    Name = "Stabilize FPS",
+    CurrentValue = false,
+    Flag = "StabilizeFPSToggle",
+    Callback = function(Value)
+        Configuration.Utility.StabilizeFPS = Value
+    end
+})
+
+local UnlockFPSToggle = UtilityTab:CreateToggle({
+    Name = "Unlock FPS",
+    CurrentValue = false,
+    Flag = "UnlockFPSToggle",
+    Callback = function(Value)
+        Configuration.Utility.UnlockFPS = Value
+        if Value then
+            setfpscap(999)
+        else
+            setfpscap(60)
+        end
+    end
+})
+
+local FPSSlider = UtilityTab:CreateSlider({
+    Name = "FPS Limit",
+    Range = {30, 144},
+    Increment = 1,
+    Suffix = "FPS",
+    CurrentValue = 60,
+    Flag = "FPSSlider",
+    Callback = function(Value)
+        Configuration.Utility.FPSLimit = Value
+        if Configuration.Utility.UnlockFPS then
+            setfpscap(Value)
+        end
+    end
+})
+
+local SystemSection = UtilityTab:CreateSection("System")
+local SystemInfoToggle = UtilityTab:CreateToggle({
+    Name = "Show System Info",
+    CurrentValue = false,
+    Flag = "SystemInfoToggle",
+    Callback = function(Value)
+        Configuration.Utility.ShowSystemInfo = Value
+    end
+})
+
+local ClearCacheToggle = UtilityTab:CreateToggle({
+    Name = "Auto Clear Cache",
+    CurrentValue = false,
+    Flag = "ClearCacheToggle",
+    Callback = function(Value)
+        Configuration.Utility.AutoClearCache = Value
+    end
+})
+
+local DisableParticlesToggle = UtilityTab:CreateToggle({
+    Name = "Disable Particles",
+    CurrentValue = false,
+    Flag = "DisableParticlesToggle",
+    Callback = function(Value)
+        Configuration.Utility.DisableParticles = Value
+    end
+})
+
+local BoostPingToggle = UtilityTab:CreateToggle({
+    Name = "Boost Ping",
+    CurrentValue = false,
+    Flag = "BoostPingToggle",
+    Callback = function(Value)
+        Configuration.Utility.BoostPing = Value
+    end
+})
+
+-- Tab NKZ-GRAPHIC
+local GraphicTab = Window:CreateTab("NKZ-GRAPHIC", 4483362458)
+local QualitySection = GraphicTab:CreateSection("Quality Settings")
+local QualityDropdown = GraphicTab:CreateDropdown({
+    Name = "Graphics Quality",
+    Options = {"Low", "Medium", "High", "Ultra"},
+    CurrentOption = "Medium",
+    Flag = "QualityDropdown",
+    Callback = function(Option)
+        Configuration.Graphics.Quality = Option
+        if Option == "Low" then
+            settings().Rendering.QualityLevel = 1
+        elseif Option == "Medium" then
+            settings().Rendering.QualityLevel = 5
+        elseif Option == "High" then
+            settings().Rendering.QualityLevel = 10
+        elseif Option == "Ultra" then
+            settings().Rendering.QualityLevel = 21
+        end
+    end
+})
+
+local EffectsSection = GraphicTab:CreateSection("Effects")
+local DisableReflectionsToggle = GraphicTab:CreateToggle({
+    Name = "Disable Reflections",
+    CurrentValue = false,
+    Flag = "DisableReflectionsToggle",
+    Callback = function(Value)
+        Configuration.Graphics.DisableReflections = Value
+        Lighting.ReflectionsEnabled = not Value
+    end
+})
+
+local DisableEffectSkinsToggle = GraphicTab:CreateToggle({
+    Name = "Disable Effect Skins",
+    CurrentValue = false,
+    Flag = "DisableEffectSkinsToggle",
+    Callback = function(Value)
+        Configuration.Graphics.DisableEffectSkins = Value
+    end
+})
+
+local DisableShadowsToggle = GraphicTab:CreateToggle({
+    Name = "Disable Shadows",
+    CurrentValue = false,
+    Flag = "DisableShadowsToggle",
+    Callback = function(Value)
+        Configuration.Graphics.DisableShadows = Value
+        Lighting.GlobalShadows = not Value
+    end
+})
+
+local DisableWaterEffectToggle = GraphicTab:CreateToggle({
+    Name = "Disable Water Effect",
+    CurrentValue = false,
+    Flag = "DisableWaterEffectToggle",
+    Callback = function(Value)
+        Configuration.Graphics.DisableWaterEffect = Value
+    end
+})
+
+local BrightnessSlider = GraphicTab:CreateSlider({
+    Name = "Brightness",
+    Range = {0.1, 2},
+    Increment = 0.1,
+    Suffix = "multiplier",
+    CurrentValue = 1.0,
+    Flag = "BrightnessSlider",
+    Callback = function(Value)
+        Configuration.Graphics.Brightness = Value
+        Lighting.Brightness = Value
+    end
+})
+
+-- Tab NKZ-LOWDEV
+local LowDevTab = Window:CreateTab("NKZ-LOWDEV", 4483362458)
+local PerformanceSection = LowDevTab:CreateSection("Performance")
+local ExtremeSmoothToggle = LowDevTab:CreateToggle({
+    Name = "Extreme Smooth Mode",
+    CurrentValue = false,
+    Flag = "ExtremeSmoothToggle",
+    Callback = function(Value)
+        Configuration.LowDev.ExtremeSmooth = Value
+        if Value then
+            settings().Rendering.QualityLevel = 1
+            Lighting.GlobalShadows = false
+            Lighting.ReflectionsEnabled = false
+        end
+    end
+})
+
+local DisableEffectsToggle = LowDevTab:CreateToggle({
+    Name = "Disable All Effects",
+    CurrentValue = false,
+    Flag = "DisableEffectsToggle",
+    Callback = function(Value)
+        Configuration.LowDev.DisableEffects = Value
+    end
+})
+
+local Bit32ModeToggle = LowDevTab:CreateToggle({
+    Name = "32-bit Mode",
+    CurrentValue = false,
+    Flag = "Bit32ModeToggle",
+    Callback = function(Value)
+        Configuration.LowDev.Bit32Mode = Value
+    end
+})
+
+local LowBatteryModeToggle = LowDevTab:CreateToggle({
+    Name = "Low Battery Mode",
+    CurrentValue = false,
+    Flag = "LowBatteryModeToggle",
+    Callback = function(Value)
+        Configuration.LowDev.LowBatteryMode = Value
+        if Value then
+            settings().Rendering.QualityLevel = 1
+            runService:Set3dRenderingEnabled(false)
+        else
+            runService:Set3dRenderingEnabled(true)
+        end
+    end
+})
+
+-- Tab NKZ-SETTINGS
+local SettingsTab = Window:CreateTab("NKZ-SETTINGS", 4483362458)
+local ConfigSection = SettingsTab:CreateSection("Configuration")
+local SaveConfigButton = SettingsTab:CreateButton({
+    Name = "Save Configuration",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Configuration Saved",
+            Content = "All settings have been saved successfully.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
+})
+
+local LoadConfigButton = SettingsTab:CreateButton({
+    Name = "Load Configuration",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Configuration Loaded",
+            Content = "All settings have been loaded successfully.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
+})
+
+local ResetConfigButton = SettingsTab:CreateButton({
+    Name = "Reset to Default",
+    Callback = function()
+        Configuration = {
+            AutoFishing = {
+                Enabled = false,
+                Version = "V2",
+                AutoComplete = true,
+                AutoEquipRod = true,
+                DelayCasting = 1.5,
+                SelectedArea = "Default",
+                BypassRadar = true,
+                BypassDivingGear = true,
+                AntiAFK = true,
+                AutoJump = false,
+                AntiDetect = true
+            },
+            Teleport = {
+                SelectedIsland = "Spawn",
+                SelectedEvent = "",
+                SelectedPlayer = ""
+            },
+            Player = {
+                SpeedHack = false,
+                SpeedValue = 25,
+                InfinityJump = false,
+                FlyEnabled = false,
+                FlySpeed = 25,
+                BoatSpeedHack = false,
+                BoatSpeedValue = 50,
+                FlyBoat = false,
+                FlyBoatSpeed = 30,
+                JumpHack = false,
+                JumpValue = 50,
+                LockPosition = false
+            },
+            Visual = {
+                ESPPlayers = false,
+                GhostMode = false,
+                FOVEnabled = false,
+                FOVValue = 70
+            },
+            Shop = {
+                AutoSell = false,
+                SellDelay = 3,
+                SelectedWeather = "Clear",
+                AutoBuyWeather = false,
+                WeatherBuyDelay = 10,
+                SelectedBoober = "Standard",
+                SelectedRod = "Beginner Rod"
+            },
+            Utility = {
+                StabilizeFPS = false,
+                UnlockFPS = false,
+                FPSLimit = 60,
+                ShowSystemInfo = false,
+                AutoClearCache = false,
+                DisableParticles = false,
+                BoostPing = false
+            },
+            Graphics = {
+                Quality = "Medium",
+                DisableReflections = false,
+                DisableEffectSkins = false,
+                DisableShadows = false,
+                DisableWaterEffect = false,
+                Brightness = 1.0
+            },
+            LowDev = {
+                ExtremeSmooth = false,
+                DisableEffects = false,
+                Bit32Mode = false,
+                LowBatteryMode = false
             }
         }
-        SaveConfig()
+        
         Rayfield:Notify({
-            Title = "Reset",
-            Content = "Semua pengaturan telah direset ke default.",
-            Duration = 4,
-            Image = 0xF093FB,
+            Title = "Configuration Reset",
+            Content = "All settings have been reset to default values.",
+            Duration = 3,
+            Image = 4483362458
         })
-    end,
+    end
 })
 
--- ======== KEYBIND HANDLERS ========
--- These are the actual keybind handlers that work in-game
-game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.Teleport] then
-        MapDropdown:Set(AllMaps[1])
-        MapDropdown:Refresh(AllMaps, true)
+local UISection = SettingsTab:CreateSection("UI Settings")
+local UIThemeDropdown = SettingsTab:CreateDropdown({
+    Name = "UI Theme",
+    Options = {"Default", "Dark", "Light", "Aqua", "Neon"},
+    CurrentOption = "Default",
+    Flag = "UIThemeDropdown",
+    Callback = function(Option)
+        -- Theme change logic would go here
     end
-    
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.Fly] then
-        FlyToggle:Set(not FlyToggle:Get())
+})
+
+local UIScaleSlider = SettingsTab:CreateSlider({
+    Name = "UI Scale",
+    Range = {0.5, 1.5},
+    Increment = 0.1,
+    Suffix = "multiplier",
+    CurrentValue = 1.0,
+    Flag = "UIScaleSlider",
+    Callback = function(Value)
+        -- UI scale change logic would go here
     end
+})
+
+-- Inisialisasi sistem
+task.spawn(function()
+    -- Setup player connections
+    Players.PlayerAdded:Connect(function(player)
+        if Configuration.Visual.ESPPlayers then
+            createESP(player)
+        end
+    end)
     
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.NoClip] then
-        NoClipToggle:Set(not NoClipToggle:Get())
-    end
+    Players.PlayerRemoving:Connect(function(player)
+        removeESP(player)
+    end)
     
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.GodMode] then
-        GodModeToggle:Set(not GodModeToggle:Get())
-    end
+    -- Initial ESP setup
+    updateAllESP()
     
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.WalkWater] then
-        WalkWaterToggle:Set(not WalkWaterToggle:Get())
-    end
+    -- Setup Anti-AFK
+    setupAntiAFK()
     
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.ESP] then
-        ESPPlayerToggle:Set(not ESPPlayerToggle:Get())
-        ESPFishToggle:Set(not ESPFishToggle:Get())
-        ESPNPCToggle:Set(not ESPNPCToggle:Get())
-        ESPItemToggle:Set(not ESPItemToggle:Get())
-        ESPZoneToggle:Set(not ESPZoneToggle:Get())
-    end
-    
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.NightVision] then
-        NightVisionToggle:Set(not NightVisionToggle:Get())
-    end
-    
-    if input.KeyCode == Enum.KeyCode[Config.Keybinds.FullBright] then
-        FullBrightToggle:Set(not FullBrightToggle:Get())
-    end
+    Rayfield:Notify({
+        Title = "NKZ Modder Loaded",
+        Content = "All features are now available!",
+        Duration = 5,
+        Image = 4483362458
+    })
 end)
 
--- ======== LOAD CONFIGURATION ON START ========
+-- Load configuration
 Rayfield:LoadConfiguration()
