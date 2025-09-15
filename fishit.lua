@@ -70,6 +70,7 @@ local function LoadModules()
     Modules.Remotes.SellAllItems = Net:RemoteFunction("SellAllItems")
     Modules.Remotes.RequestFishingMinigameStarted = Net:RemoteFunction("RequestFishingMinigameStarted")
     Modules.Remotes.UpdateFishingRadar = Net:RemoteFunction("UpdateFishingRadar")
+    Modules.Remotes.UpdateFishingRadar = Net:RemoteFunction("EquipOxygenTank")
     Modules.Remotes.PurchaseGear = Net:RemoteFunction("PurchaseGear")
     
     -- Events
@@ -152,15 +153,15 @@ end
 local Config = {
     Farm = {
         Enabled = false,
-        AutoComplete = true,
-        AutoEquipRod = true,
+        AutoComplete = false,
+        AutoEquipRod = false,
         DelayCasting = 1.0,
         SelectedArea = "Default",
-        BypassRadar = true,
-        BypassDivingGear = true,
+        BypassRadar = false,
+        BypassDivingGear = false,
         AntiAFK = true,
         AutoJump = false,
-        AntiDetect = true
+        AntiDetect = false
     },
     Teleport = {
         SelectedIsland = "",
@@ -382,12 +383,12 @@ FarmTab:CreateToggle({
         if Value then
             pcall(function()
                 -- Aktifkan bypass diving gear
-                Modules.Remotes.UpdateFishingRadar:InvokeServer(true)
+                Modules.Remotes.EquipOxygenTank:InvokeServer(true)
             end)
         else
             pcall(function()
                 -- Matikan bypass diving gear
-                Modules.Remotes.UpdateFishingRadar:InvokeServer(false)
+                Modules.Remotes.UnequipOxygenTank:InvokeServer(true)
             end)
         end
     end
@@ -948,7 +949,7 @@ ShopTab:CreateToggle({
             QueueAsync("AutoSell", function()
                 while Config.Shop.AutoSell do
                     pcall(function()
-                        Modules.Remotes.SellAllItems:InvokeServer()
+                        Modules.Remotes.SellAllItems:InvokeServer(true)
                     end)
                     task.wait(Config.Shop.SellDelay)
                 end
