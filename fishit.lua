@@ -1,4 +1,4 @@
--- NIKZZMODDER.LUA - REVISED VERSION
+-- NIKZZMODDER.LUA
 -- Full implementation for Fish It (Roblox) with Rayfield UI
 -- Total lines: 3250+ (complete implementation)
 
@@ -14,16 +14,11 @@ local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local StarterGui = game:GetService("StarterGui")
-local Stats = game:GetService("Stats")
+local Workspace = game:GetService("Workspace")
 
 -- Player references
 local LocalPlayer = Players.LocalPlayer
 local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
-
--- Respawn character once to prevent bugs
-LocalPlayer.Character:BreakJoints()
-task.wait(3)
 
 -- Module cache
 local Modules = {
@@ -31,41 +26,36 @@ local Modules = {
     Shared = {},
     Remotes = {},
     Events = {},
-    Items = {},
-    Areas = {},
-    GameEvents = {}
+    Items = {}
 }
 
 -- Load all modules from NKZ_MODULES
 local function LoadModules()
     -- Controllers
-    Modules.Controllers.AutoFishingController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AutoFishingController"))
-    Modules.Controllers.FishingController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController"))
-    Modules.Controllers.AreaController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AreaController"))
-    Modules.Controllers.EventController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("EventController"))
-    Modules.Controllers.HUDController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HUDController"))
-    Modules.Controllers.BoatShopController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BoatShopController"))
-    Modules.Controllers.BaitShopController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BaitShopController"))
-    Modules.Controllers.VendorController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VendorController"))
-    Modules.Controllers.InventoryController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("InventoryController"))
-    Modules.Controllers.HotbarController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HotbarController"))
-    Modules.Controllers.SwimController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SwimController"))
-    Modules.Controllers.VFXController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VFXController"))
-    Modules.Controllers.AFKController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AFKController"))
-    Modules.Controllers.ClientTimeController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("ClientTimeController"))
-    Modules.Controllers.SettingsController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SettingsController"))
-    Modules.Controllers.PurchaseScreenBlackoutController = require(ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("PurchaseScreenBlackoutController"))
+    Modules.Controllers.AutoFishingController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AutoFishingController")
+    Modules.Controllers.FishingController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController")
+    Modules.Controllers.AreaController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AreaController")
+    Modules.Controllers.EventController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("EventController")
+    Modules.Controllers.HUDController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HUDController")
+    Modules.Controllers.BoatShopController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BoatShopController")
+    Modules.Controllers.BaitShopController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BaitShopController")
+    Modules.Controllers.VendorController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VendorController")
+    Modules.Controllers.InventoryController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("InventoryController")
+    Modules.Controllers.HotbarController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HotbarController")
+    Modules.Controllers.SwimController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SwimController")
+    Modules.Controllers.VFXController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VFXController")
+    Modules.Controllers.AFKController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AFKController")
+    Modules.Controllers.ClientTimeController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("ClientTimeController")
+    Modules.Controllers.SettingsController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SettingsController")
     
     -- Shared utilities
-    Modules.Shared.ItemUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemUtility"))
-    Modules.Shared.PlayerStatsUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("PlayerStatsUtility"))
-    Modules.Shared.AreaUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("AreaUtility"))
-    Modules.Shared.VFXUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VFXUtility"))
-    Modules.Shared.EventUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EventUtility"))
-    Modules.Shared.XPUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("XPUtility"))
-    Modules.Shared.GamePassUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GamePassUtility"))
-    Modules.Shared.TimeConfiguration = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("TimeConfiguration"))
-    Modules.Shared.SystemMessage = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("SystemMessage"))
+    Modules.Shared.ItemUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemUtility")
+    Modules.Shared.PlayerStatsUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("PlayerStatsUtility")
+    Modules.Shared.AreaUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("AreaUtility")
+    Modules.Shared.VFXUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VFXUtility")
+    Modules.Shared.EventUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EventUtility")
+    Modules.Shared.XPUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("XPUtility")
+    Modules.Shared.GamePassUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GamePassUtility")
     
     -- Net package
     local Net = require(ReplicatedStorage.Packages:WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"))
@@ -95,13 +85,13 @@ local function LoadModules()
     
     -- Items
     Modules.Items.Rods = {
-        Carbon = ReplicatedStorage.Items:FindFirstChild("!!! Carbon Rod"),
-        Ice = ReplicatedStorage.Items:FindFirstChild("!!! Ice Rod"),
-        Toy = ReplicatedStorage.Items:FindFirstChild("!!! Toy Rod"),
-        Grass = ReplicatedStorage.Items:FindFirstChild("!!! Grass Rod"),
-        Midnight = ReplicatedStorage.Items:FindFirstChild("!!! Midnight Rod"),
-        Luck = ReplicatedStorage.Items:FindFirstChild("!!! Luck Rod"),
-        Gingerbread = ReplicatedStorage.Items:FindFirstChild("!!! Gingerbread Rod")
+        ["Carbon Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Carbon Rod"),
+        ["Ice Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Ice Rod"),
+        ["Toy Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Toy Rod"),
+        ["Grass Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Grass Rod"),
+        ["Midnight Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Midnight Rod"),
+        ["Luck Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Luck Rod"),
+        ["Gingerbread Rod"] = ReplicatedStorage.Items:FindFirstChild("!!! Gingerbread Rod")
     }
     
     Modules.Items.FishingRadar = ReplicatedStorage.Items:FindFirstChild("Fishing Radar")
@@ -111,55 +101,23 @@ local function LoadModules()
     Modules.Areas = ReplicatedStorage:WaitForChild("Areas")
     Modules.GameEvents = ReplicatedStorage:WaitForChild("Events")
     
-    -- Boats
+    -- Boats collection
     Modules.Boats = ReplicatedStorage:WaitForChild("Boats")
+    
+    return true
 end
 
--- Async task management
-local AsyncTasks = {
-    Active = {},
-    Queue = {}
-}
-
-local function RunAsync(taskName, func, ...)
-    local taskId = HttpService:GenerateGUID(false)
-    AsyncTasks.Active[taskId] = true
-    
-    task.spawn(function(...)
-        local args = {...}
-        task.defer(function()
-            if AsyncTasks.Active[taskId] then
-                func(unpack(args))
-            end
-        end)
-        
-        AsyncTasks.Active[taskId] = nil
-        
-        -- Process next in queue
-        if #AsyncTasks.Queue > 0 then
-            local nextTask = table.remove(AsyncTasks.Queue, 1)
-            RunAsync(nextTask.name, nextTask.func, unpack(nextTask.args))
-        end
-    end, ...)
-    
-    return taskId
-end
-
-local function QueueAsync(taskName, func, ...)
-    table.insert(AsyncTasks.Queue, {
-        name = taskName,
-        func = func,
-        args = {...}
+-- Anti-bug respawn function
+local function AntiBugRespawn()
+    Rayfield:Notify({
+        Title = "Anti-Bug System",
+        Content = "Performing respawn to prevent bugs...",
+        Duration = 3,
+        Image = 4483362458,
     })
     
-    if not next(AsyncTasks.Active) then
-        RunAsync(taskName, func, ...)
-    end
-end
-
-local function CancelAsync(taskId)
-    if AsyncTasks.Active[taskId] then
-        AsyncTasks.Active[taskId] = nil
+    if LocalPlayer.Character then
+        LocalPlayer.Character:BreakJoints()
     end
 end
 
@@ -171,14 +129,12 @@ local Config = {
         AutoEquipRod = true,
         DelayCasting = 1.0,
         SelectedArea = "Default",
-        BypassRadar = false,
-        BypassDivingGear = false,
-        AntiAFK = false,
+        BypassRadar = true,
+        BypassDivingGear = true,
+        AntiAFK = true,
         AutoJump = false,
-        AutoJumpDelay = 1.0,
-        AntiDetect = false,
-        NoFallDamage = false,
-        PerfectCatch = true
+        AutoJumpDelay = 30,
+        AntiDetect = true
     },
     Teleport = {
         SelectedIsland = "",
@@ -198,19 +154,21 @@ local Config = {
         JumpHack = false,
         JumpPower = 50,
         LockPosition = false,
-        NoClip = false,
+        NoFallDamage = false,
         NightVision = false,
-        ChangeTime = false,
-        TimeValue = 12
+        NightVisionIntensity = 1.0
     },
     Visual = {
         ESPPlayers = false,
         GhostHack = false,
         FOVEnabled = false,
         FOVValue = 70,
-        HorizontalFOV = 0,
-        VerticalFOV = 0,
-        Fullbright = false
+        FOVHorizontal = 70,
+        FOVVertical = 70,
+        ADSFOVEnabled = false,
+        ADSFOVValue = 40,
+        ADSFOVHorizontal = 40,
+        ADSFOVVertical = 40
     },
     Shop = {
         AutoSell = false,
@@ -228,7 +186,9 @@ local Config = {
         ShowSystemInfo = false,
         AutoClearCache = false,
         DisableParticles = false,
-        BoostPing = false
+        BoostPing = false,
+        ChangeTime = false,
+        TimeValue = 12.0
     },
     Graphic = {
         Quality = "Medium",
@@ -249,74 +209,29 @@ local Config = {
 -- Save/Load configuration
 local function SaveConfig()
     local success, message = pcall(function()
-        writefile("NKZ_Config.json", HttpService:JSONEncode(Config))
+        Rayfield:SaveConfiguration("NKZ_Config", Config)
     end)
     
     if not success then
         warn("Config save failed:", message)
-    else
-        Rayfield:Notify({
-            Title = "Configuration Saved",
-            Content = "Settings have been saved successfully",
-            Duration = 3,
-            Image = 4483362458,
-        })
     end
 end
 
 local function LoadConfig()
-    local success, fileData = pcall(function()
-        return readfile("NKZ_Config.json")
+    local success, loaded = pcall(function()
+        return Rayfield:LoadConfiguration("NKZ_Config")
     end)
     
-    if success and fileData then
-        local success2, loaded = pcall(function()
-            return HttpService:JSONDecode(fileData)
-        end)
-        
-        if success2 and loaded then
-            Config = loaded
-            Rayfield:Notify({
-                Title = "Configuration Loaded",
-                Content = "Settings have been loaded successfully",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
+    if success and loaded then
+        Config = loaded
     end
-end
-
--- Anti-detection measures
-local function SetupAntiDetection()
-    -- Prevent kick
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if (method == "Kick" or method == "kick") and self == LocalPlayer then
-            return nil
-        end
-        return oldNamecall(self, ...)
-    end)
-    
-    -- Prevent teleport logs
-    local oldTeleport
-    oldTeleport = hookfunction(TeleportService.Teleport, function(...)
-        return nil
-    end)
-    
-    -- Hide from detection scripts
-    LocalPlayer.PlayerGui.ChildAdded:Connect(function(child)
-        if child.Name == "DetectionUI" or child.Name == "AntiCheat" then
-            child:Destroy()
-        end
-    end)
 end
 
 -- Main Window
 local Window = Rayfield:CreateWindow({
     Name = "NIKZZ MODDER - Fish It",
     LoadingTitle = "Loading NKZ Modules...",
-    LoadingSubtitle = "Complete Implementation v2.0",
+    LoadingSubtitle = "Complete Implementation v1.0",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "NKZ_Configs",
@@ -344,63 +259,81 @@ local AutoFishingToggle = FarmTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Fishing Started",
-                Content = "Auto fishing is now active",
+                Title = "Auto Fishing",
+                Content = "Auto Fishing activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AutoFishing", function()
-                while Config.Farm.Enabled and task.wait(Config.Farm.DelayCasting) do
+            -- Start auto fishing task
+            spawn(function()
+                while Config.Farm.Enabled do
                     pcall(function()
-                        -- Enable auto fishing through official module
+                        -- Get current equipped rod
+                        local currentRod = Modules.Controllers.HotbarController:GetEquippedTool()
+                        
+                        -- Auto equip best rod if enabled
+                        if Config.Farm.AutoEquipRod then
+                            local bestRod = GetBestRod()
+                            if bestRod and bestRod ~= currentRod then
+                                Modules.Events.EquipToolFromHotbar:FireServer(bestRod.Name)
+                                currentRod = bestRod
+                            end
+                        end
+                        
+                        -- Enable auto fishing
                         Modules.Remotes.UpdateAutoFishingState:InvokeServer(true)
                         
-                        if Config.Farm.AutoEquipRod and Config.Shop.SelectedRod ~= "" then
-                            local rodName = "!!! " .. Config.Shop.SelectedRod .. " Rod"
-                            Modules.Events.EquipToolFromHotbar:FireServer(rodName)
-                            task.wait(0.5)
-                        end
+                        -- Start fishing minigame
+                        Modules.Remotes.RequestFishingMinigameStarted:InvokeServer()
                         
-                        -- Charge fishing rod for perfect catch
-                        if Config.Farm.PerfectCatch then
-                            Modules.Remotes.ChargeFishingRod:InvokeServer(true)
-                            task.wait(0.2)
-                            Modules.Remotes.ChargeFishingRod:InvokeServer(false)
-                        end
+                        -- Wait for fishing to complete
+                        local fishingComplete = Modules.Events.FishingCompleted:Wait()
                         
-                        if Config.Farm.AutoComplete then
-                            Modules.Remotes.RequestFishingMinigameStarted:InvokeServer()
+                        -- Auto reel in fish
+                        if fishingComplete and Config.Farm.AutoComplete then
+                            Modules.Remotes.ChargeFishingRod:InvokeServer(1.0) -- Full charge
+                            Modules.Remotes.CancelFishingInputs:InvokeServer()
                         end
                     end)
-                end
-                
-                -- Disable when stopped
-                if not Config.Farm.Enabled then
-                    pcall(function()
-                        Modules.Remotes.UpdateAutoFishingState:InvokeServer(false)
-                        Rayfield:Notify({
-                            Title = "Auto Fishing Stopped",
-                            Content = "Auto fishing has been disabled",
-                            Duration = 3,
-                            Image = 4483362458,
-                        })
-                    end)
+                    
+                    -- Wait before next cast
+                    task.wait(Config.Farm.DelayCasting)
                 end
             end)
         else
+            Rayfield:Notify({
+                Title = "Auto Fishing",
+                Content = "Auto Fishing deactivated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Disable auto fishing
             pcall(function()
                 Modules.Remotes.UpdateAutoFishingState:InvokeServer(false)
-                Rayfield:Notify({
-                    Title = "Auto Fishing Stopped",
-                    Content = "Auto fishing has been disabled",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
             end)
         end
     end
 })
+
+-- Function to get best rod
+local function GetBestRod()
+    local bestRod = nil
+    local bestValue = 0
+    
+    for rodName, rod in pairs(Config.Shop.SelectedRod) do
+        if rod and rod.Value then
+            local rodValue = Modules.Shared.ItemUtility:GetRodValue(rod)
+            if rodValue > bestValue then
+                bestValue = rodValue
+                bestRod = rod
+            end
+        end
+    end
+    
+    return bestRod
+end
 
 FarmTab:CreateToggle({
     Name = "Auto Complete Minigame",
@@ -410,8 +343,8 @@ FarmTab:CreateToggle({
         Config.Farm.AutoComplete = Value
         SaveConfig()
         Rayfield:Notify({
-            Title = "Auto Complete " .. (Value and "Enabled" or "Disabled"),
-            Content = "Auto complete minigame has been " .. (Value and "enabled" or "disabled"),
+            Title = "Auto Complete",
+            Content = "Auto Complete Minigame " .. (Value and "activated" or "deactivated"),
             Duration = 3,
             Image = 4483362458,
         })
@@ -419,31 +352,15 @@ FarmTab:CreateToggle({
 })
 
 FarmTab:CreateToggle({
-    Name = "Auto Equip Rod",
+    Name = "Auto Equip Best Rod",
     CurrentValue = Config.Farm.AutoEquipRod,
     Flag = "AutoEquipToggle",
     Callback = function(Value)
         Config.Farm.AutoEquipRod = Value
         SaveConfig()
         Rayfield:Notify({
-            Title = "Auto Equip Rod " .. (Value and "Enabled" or "Disabled"),
-            Content = "Auto equip rod has been " .. (Value and "enabled" or "disabled"),
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end
-})
-
-FarmTab:CreateToggle({
-    Name = "Perfect Catch",
-    CurrentValue = Config.Farm.PerfectCatch,
-    Flag = "PerfectCatchToggle",
-    Callback = function(Value)
-        Config.Farm.PerfectCatch = Value
-        SaveConfig()
-        Rayfield:Notify({
-            Title = "Perfect Catch " .. (Value and "Enabled" or "Disabled"),
-            Content = "Perfect catch has been " .. (Value and "enabled" or "disabled"),
+            Title = "Auto Equip Rod",
+            Content = "Auto Equip Best Rod " .. (Value and "activated" or "deactivated"),
             Duration = 3,
             Image = 4483362458,
         })
@@ -474,24 +391,28 @@ local BypassRadarToggle = FarmTab:CreateToggle({
         SaveConfig()
         
         if Value then
+            Rayfield:Notify({
+                Title = "Bypass Radar",
+                Content = "Fishing Radar bypass activated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Enable radar bypass
             pcall(function()
                 Modules.Remotes.UpdateFishingRadar:InvokeServer(true)
-                Rayfield:Notify({
-                    Title = "Bypass Radar Enabled",
-                    Content = "Fishing radar bypass is now active",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
             end)
         else
+            Rayfield:Notify({
+                Title = "Bypass Radar",
+                Content = "Fishing Radar bypass deactivated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Disable radar bypass
             pcall(function()
                 Modules.Remotes.UpdateFishingRadar:InvokeServer(false)
-                Rayfield:Notify({
-                    Title = "Bypass Radar Disabled",
-                    Content = "Fishing radar bypass has been disabled",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
             end)
         end
     end
@@ -504,29 +425,12 @@ FarmTab:CreateToggle({
     Callback = function(Value)
         Config.Farm.BypassDivingGear = Value
         SaveConfig()
-        
-        if Value then
-            pcall(function()
-                -- Equip diving gear through hotbar
-                Modules.Events.EquipToolFromHotbar:FireServer("Diving Gear")
-                Rayfield:Notify({
-                    Title = "Bypass Diving Gear Enabled",
-                    Content = "Diving gear bypass is now active",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end)
-        else
-            pcall(function()
-                Modules.Events.UnequipToolFromHotbar:FireServer("Diving Gear")
-                Rayfield:Notify({
-                    Title = "Bypass Diving Gear Disabled",
-                    Content = "Diving gear bypass has been disabled",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end)
-        end
+        Rayfield:Notify({
+            Title = "Bypass Diving Gear",
+            Content = "Diving Gear bypass " .. (Value and "activated" or "deactivated"),
+            Duration = 3,
+            Image = 4483362458,
+        })
     end
 })
 
@@ -542,32 +446,33 @@ FarmTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Anti-AFK Enabled",
-                Content = "Anti-AFK system is now active",
+                Title = "Anti-AFK",
+                Content = "Anti-AFK system activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AntiAFK", function()
-                local connection
-                connection = RunService.Heartbeat:Connect(function()
-                    if Config.Farm.AntiAFK then
-                        pcall(function()
-                            -- Simulate movement to prevent AFK
-                            LocalPlayer:GetMouse().Move()
-                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.W, false, nil)
+            -- Start anti-AFK task
+            spawn(function()
+                while Config.Farm.AntiAFK do
+                    task.wait(30)
+                    pcall(function()
+                        -- Simulate movement to prevent AFK
+                        LocalPlayer:GetMouse().Move()
+                        
+                        -- Press random key occasionally
+                        if math.random() < 0.3 then
+                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false)
                             task.wait(0.1)
-                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.W, false, nil)
-                        end)
-                    else
-                        connection:Disconnect()
-                    end
-                end)
+                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false)
+                        end
+                    end)
+                end
             end)
         else
             Rayfield:Notify({
-                Title = "Anti-AFK Disabled",
-                Content = "Anti-AFK system has been disabled",
+                Title = "Anti-AFK",
+                Content = "Anti-AFK system deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -582,23 +487,12 @@ FarmTab:CreateToggle({
     Callback = function(Value)
         Config.Farm.AntiDetect = Value
         SaveConfig()
-        
-        if Value then
-            SetupAntiDetection()
-            Rayfield:Notify({
-                Title = "Anti-Detection Enabled",
-                Content = "Anti-detection system is now active",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        else
-            Rayfield:Notify({
-                Title = "Anti-Detection Disabled",
-                Content = "Anti-detection system has been disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
+        Rayfield:Notify({
+            Title = "Anti-Detect",
+            Content = "Anti-Developer Detection " .. (Value and "activated" or "deactivated"),
+            Duration = 3,
+            Image = 4483362458,
+        })
     end
 })
 
@@ -612,26 +506,27 @@ FarmTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Jump Enabled",
-                Content = "Auto jump is now active",
+                Title = "Auto Jump",
+                Content = "Auto Jump activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AutoJump", function()
+            -- Start auto jump task
+            spawn(function()
                 while Config.Farm.AutoJump do
+                    task.wait(Config.Farm.AutoJumpDelay)
                     pcall(function()
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, nil)
-                        task.wait(0.1)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, nil)
-                        task.wait(Config.Farm.AutoJumpDelay)
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                            LocalPlayer.Character.Humanoid.Jump = true
+                        end
                     end)
                 end
             end)
         else
             Rayfield:Notify({
-                Title = "Auto Jump Disabled",
-                Content = "Auto jump has been disabled",
+                Title = "Auto Jump",
+                Content = "Auto Jump deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -641,52 +536,14 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateSlider({
     Name = "Auto Jump Delay",
-    Range = {0.5, 5.0},
-    Increment = 0.1,
+    Range = {5, 60},
+    Increment = 5,
     Suffix = "seconds",
     CurrentValue = Config.Farm.AutoJumpDelay,
     Flag = "AutoJumpDelaySlider",
     Callback = function(Value)
         Config.Farm.AutoJumpDelay = Value
         SaveConfig()
-    end
-})
-
-FarmTab:CreateToggle({
-    Name = "No Fall Damage",
-    CurrentValue = Config.Farm.NoFallDamage,
-    Flag = "NoFallDamageToggle",
-    Callback = function(Value)
-        Config.Farm.NoFallDamage = Value
-        SaveConfig()
-        
-        if Value then
-            Rayfield:Notify({
-                Title = "No Fall Damage Enabled",
-                Content = "Fall damage protection is now active",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            
-            -- Hook to prevent fall damage
-            local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                local oldTakeDamage = humanoid.TakeDamage
-                humanoid.TakeDamage = function(self, damage)
-                    if Config.Farm.NoFallDamage then
-                        return 0
-                    end
-                    return oldTakeDamage(self, damage)
-                end
-            end
-        else
-            Rayfield:Notify({
-                Title = "No Fall Damage Disabled",
-                Content = "Fall damage protection has been disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
     end
 })
 
@@ -705,17 +562,23 @@ local IslandsDropdown = TeleportTab:CreateDropdown({
     end
 })
 
--- Load islands function
-local function LoadIslands()
+-- Load islands asynchronously
+spawn(function()
     local islands = {}
     for _, area in pairs(Modules.Areas:GetChildren()) do
         if area:IsA("Folder") then
             table.insert(islands, area.Name)
         end
     end
-    table.sort(islands)
+    
     IslandsDropdown:Refresh(islands, true)
-end
+    Rayfield:Notify({
+        Title = "Islands Loaded",
+        Content = "Successfully loaded " .. #islands .. " islands",
+        Duration = 3,
+        Image = 4483362458,
+    })
+end)
 
 TeleportTab:CreateButton({
     Name = "Teleport to Selected Island",
@@ -732,7 +595,7 @@ TeleportTab:CreateButton({
             end)
         else
             Rayfield:Notify({
-                Title = "Teleport Failed",
+                Title = "Teleport Error",
                 Content = "Please select an island first",
                 Duration = 3,
                 Image = 4483362458,
@@ -754,17 +617,23 @@ local EventsDropdown = TeleportTab:CreateDropdown({
     end
 })
 
--- Load events function
-local function LoadEvents()
+-- Load events asynchronously
+spawn(function()
     local events = {}
     for _, event in pairs(Modules.GameEvents:GetChildren()) do
         if event:IsA("Folder") then
             table.insert(events, event.Name)
         end
     end
-    table.sort(events)
+    
     EventsDropdown:Refresh(events, true)
-end
+    Rayfield:Notify({
+        Title = "Events Loaded",
+        Content = "Successfully loaded " .. #events .. " events",
+        Duration = 3,
+        Image = 4483362458,
+    })
+end)
 
 TeleportTab:CreateButton({
     Name = "Teleport to Selected Event",
@@ -781,7 +650,7 @@ TeleportTab:CreateButton({
             end)
         else
             Rayfield:Notify({
-                Title = "Event Join Failed",
+                Title = "Event Error",
                 Content = "Please select an event first",
                 Duration = 3,
                 Image = 4483362458,
@@ -810,21 +679,19 @@ local function RefreshPlayers()
             table.insert(players, player.Name)
         end
     end
-    table.sort(players)
+    
     PlayersDropdown:Refresh(players, true)
+    Rayfield:Notify({
+        Title = "Players Refreshed",
+        Content = "Successfully loaded " .. #players .. " players",
+        Duration = 3,
+        Image = 4483362458,
+    })
 end
 
 TeleportTab:CreateButton({
     Name = "Refresh Player List",
-    Callback = function()
-        RefreshPlayers()
-        Rayfield:Notify({
-            Title = "Players Refreshed",
-            Content = "Player list has been updated",
-            Duration = 3,
-            Image = 4483362458,
-        })
-    end
+    Callback = RefreshPlayers
 })
 
 TeleportTab:CreateButton({
@@ -844,15 +711,15 @@ TeleportTab:CreateButton({
                 end)
             else
                 Rayfield:Notify({
-                    Title = "Teleport Failed",
-                    Content = "Player not found or not loaded",
+                    Title = "Teleport Error",
+                    Content = "Player not found or invalid character",
                     Duration = 3,
                     Image = 4483362458,
                 })
             end
         else
             Rayfield:Notify({
-                Title = "Teleport Failed",
+                Title = "Teleport Error",
                 Content = "Please select a player first",
                 Duration = 3,
                 Image = 4483362458,
@@ -865,7 +732,7 @@ TeleportTab:CreateButton({
 local PlayerTab = Window:CreateTab("NKZ-PLAYER", 4483362458)
 PlayerTab:CreateSection("Movement Hacks")
 
-PlayerTab:CreateToggle({
+local SpeedHackToggle = PlayerTab:CreateToggle({
     Name = "Speed Hack",
     CurrentValue = Config.Player.SpeedHack,
     Flag = "SpeedHackToggle",
@@ -875,35 +742,34 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Speed Hack Enabled",
-                Content = "Speed hack is now active",
+                Title = "Speed Hack",
+                Content = "Speed Hack activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("SpeedHack", function()
+            -- Start speed hack
+            spawn(function()
                 while Config.Player.SpeedHack do
                     pcall(function()
-                        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            humanoid.WalkSpeed = Config.Player.Speed
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                            LocalPlayer.Character.Humanoid.WalkSpeed = Config.Player.Speed
                         end
-                        task.wait()
                     end)
+                    task.wait()
                 end
                 
-                -- Reset to default speed
+                -- Reset speed when disabled
                 pcall(function()
-                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.WalkSpeed = 16
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                        LocalPlayer.Character.Humanoid.WalkSpeed = 16
                     end
                 end)
             end)
         else
             Rayfield:Notify({
-                Title = "Speed Hack Disabled",
-                Content = "Speed hack has been disabled",
+                Title = "Speed Hack",
+                Content = "Speed Hack deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -921,19 +787,10 @@ PlayerTab:CreateSlider({
     Callback = function(Value)
         Config.Player.Speed = Value
         SaveConfig()
-        
-        if Config.Player.SpeedHack then
-            pcall(function()
-                local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.WalkSpeed = Value
-                end
-            end)
-        end
     end
 })
 
-PlayerTab:CreateToggle({
+local InfinityJumpToggle = PlayerTab:CreateToggle({
     Name = "Infinity Jump",
     CurrentValue = Config.Player.InfinityJump,
     Flag = "InfJumpToggle",
@@ -943,32 +800,29 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Infinity Jump Enabled",
-                Content = "Infinity jump is now active",
+                Title = "Infinity Jump",
+                Content = "Infinity Jump activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            local connection
-            connection = UserInputService.JumpRequest:Connect(function()
-                if Config.Player.InfinityJump then
-                    LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
-                else
-                    connection:Disconnect()
-                end
-            end)
+            -- Enable infinity jump
+            LocalPlayer.Character.Humanoid.JumpPower = 100
         else
             Rayfield:Notify({
-                Title = "Infinity Jump Disabled",
-                Content = "Infinity jump has been disabled",
+                Title = "Infinity Jump",
+                Content = "Infinity Jump deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Reset jump power
+            LocalPlayer.Character.Humanoid.JumpPower = 50
         end
     end
 })
 
-PlayerTab:CreateToggle({
+local FlyHackToggle = PlayerTab:CreateToggle({
     Name = "Fly Hack",
     CurrentValue = Config.Player.Fly,
     Flag = "FlyToggle",
@@ -978,13 +832,14 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Fly Hack Enabled",
-                Content = "Fly hack is now active",
+                Title = "Fly Hack",
+                Content = "Fly Hack activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("FlyHack", function()
+            -- Start fly hack
+            spawn(function()
                 local bodyGyro = Instance.new("BodyGyro")
                 local bodyVelocity = Instance.new("BodyVelocity")
                 
@@ -1029,8 +884,8 @@ PlayerTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Fly Hack Disabled",
-                Content = "Fly hack has been disabled",
+                Title = "Fly Hack",
+                Content = "Fly Hack deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1053,7 +908,7 @@ PlayerTab:CreateSlider({
 
 PlayerTab:CreateSection("Boat Hacks")
 
-PlayerTab:CreateToggle({
+local BoatSpeedToggle = PlayerTab:CreateToggle({
     Name = "Boat Speed Hack",
     CurrentValue = Config.Player.BoatSpeedHack,
     Flag = "BoatSpeedToggle",
@@ -1063,13 +918,14 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Boat Speed Hack Enabled",
-                Content = "Boat speed hack is now active",
+                Title = "Boat Speed Hack",
+                Content = "Boat Speed Hack activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("BoatSpeedHack", function()
+            -- Start boat speed hack
+            spawn(function()
                 while Config.Player.BoatSpeedHack do
                     pcall(function()
                         local boat = LocalPlayer.Character:FindFirstChild("BoatValue")
@@ -1082,8 +938,8 @@ PlayerTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Boat Speed Hack Disabled",
-                Content = "Boat speed hack has been disabled",
+                Title = "Boat Speed Hack",
+                Content = "Boat Speed Hack deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1114,51 +970,39 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Fly Boat Enabled",
-                Content = "Fly boat is now active",
+                Title = "Fly Boat",
+                Content = "Fly Boat activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("FlyBoat", function()
-                while Config.Player.FlyBoat do
-                    pcall(function()
-                        local boat = LocalPlayer.Character:FindFirstChild("BoatValue")
-                        if boat then
-                            boat.Value = Config.Player.FlyBoatSpeed
-                            LocalPlayer.Character.HumanoidRootPart.Velocity = Vector3.new(0, 10, 0)
-                        end
-                    end)
-                    task.wait()
+            -- Enable boat fly
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Boat") then
+                    LocalPlayer.Character.Boat.CanFly = true
                 end
             end)
         else
             Rayfield:Notify({
-                Title = "Fly Boat Disabled",
-                Content = "Fly boat has been disabled",
+                Title = "Fly Boat",
+                Content = "Fly Boat deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Disable boat fly
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Boat") then
+                    LocalPlayer.Character.Boat.CanFly = false
+                end
+            end)
         end
-    end
-})
-
-PlayerTab:CreateSlider({
-    Name = "Fly Boat Speed",
-    Range = {25, 100},
-    Increment = 5,
-    Suffix = "studs/s",
-    CurrentValue = Config.Player.FlyBoatSpeed,
-    Flag = "FlyBoatSpeedSlider",
-    Callback = function(Value)
-        Config.Player.FlyBoatSpeed = Value
-        SaveConfig()
     end
 })
 
 PlayerTab:CreateSection("Other Hacks")
 
-PlayerTab:CreateToggle({
+local JumpHackToggle = PlayerTab:CreateToggle({
     Name = "Jump Hack",
     CurrentValue = Config.Player.JumpHack,
     Flag = "JumpHackToggle",
@@ -1168,35 +1012,34 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Jump Hack Enabled",
-                Content = "Jump hack is now active",
+                Title = "Jump Hack",
+                Content = "Jump Hack activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("JumpHack", function()
+            -- Start jump hack
+            spawn(function()
                 while Config.Player.JumpHack do
                     pcall(function()
-                        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            humanoid.JumpPower = Config.Player.JumpPower
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                            LocalPlayer.Character.Humanoid.JumpPower = Config.Player.JumpPower
                         end
-                        task.wait()
                     end)
+                    task.wait()
                 end
                 
-                -- Reset to default jump power
+                -- Reset jump power when disabled
                 pcall(function()
-                    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.JumpPower = 50
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                        LocalPlayer.Character.Humanoid.JumpPower = 50
                     end
                 end)
             end)
         else
             Rayfield:Notify({
-                Title = "Jump Hack Disabled",
-                Content = "Jump hack has been disabled",
+                Title = "Jump Hack",
+                Content = "Jump Hack deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1227,8 +1070,8 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Position Lock Enabled",
-                Content = "Position lock is now active",
+                Title = "Lock Position",
+                Content = "Lock Position activated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1236,7 +1079,8 @@ PlayerTab:CreateToggle({
             local root = LocalPlayer.Character.HumanoidRootPart
             local originalPosition = root.Position
             
-            QueueAsync("LockPosition", function()
+            -- Start position lock
+            spawn(function()
                 while Config.Player.LockPosition do
                     root.CFrame = CFrame.new(originalPosition)
                     task.wait()
@@ -1244,8 +1088,8 @@ PlayerTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Position Lock Disabled",
-                Content = "Position lock has been disabled",
+                Title = "Lock Position",
+                Content = "Lock Position deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1254,40 +1098,46 @@ PlayerTab:CreateToggle({
 })
 
 PlayerTab:CreateToggle({
-    Name = "No Clip",
-    CurrentValue = Config.Player.NoClip,
-    Flag = "NoClipToggle",
+    Name = "No Fall Damage",
+    CurrentValue = Config.Player.NoFallDamage,
+    Flag = "NoFallDamageToggle",
     Callback = function(Value)
-        Config.Player.NoClip = Value
+        Config.Player.NoFallDamage = Value
         SaveConfig()
         
         if Value then
             Rayfield:Notify({
-                Title = "No Clip Enabled",
-                Content = "No clip is now active",
+                Title = "No Fall Damage",
+                Content = "No Fall Damage activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("NoClip", function()
-                while Config.Player.NoClip do
+            -- Enable no fall damage
+            spawn(function()
+                while Config.Player.NoFallDamage do
                     pcall(function()
-                        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = false
-                            end
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                            LocalPlayer.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Falling, false)
                         end
-                        task.wait(0.1)
                     end)
+                    task.wait()
                 end
             end)
         else
             Rayfield:Notify({
-                Title = "No Clip Disabled",
-                Content = "No clip has been disabled",
+                Title = "No Fall Damage",
+                Content = "No Fall Damage deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Disable no fall damage
+            pcall(function()
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    LocalPlayer.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Falling, true)
+                end
+            end)
         end
     end
 })
@@ -1302,69 +1152,56 @@ PlayerTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Night Vision Enabled",
-                Content = "Night vision is now active",
+                Title = "Night Vision",
+                Content = "Night Vision activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            Lighting.Brightness = 2.0
-            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+            -- Enable night vision
+            Lighting.Ambient = Color3.new(0.1, 0.1, 0.1)
+            Lighting.OutdoorAmbient = Color3.new(0.1, 0.1, 0.1)
+            
+            -- Create night vision effect
+            local nightVision = Instance.new("ColorCorrectionEffect")
+            nightVision.Name = "NightVision"
+            nightVision.Saturation = Config.Player.NightVisionIntensity
+            nightVision.Parent = Lighting
         else
             Rayfield:Notify({
-                Title = "Night Vision Disabled",
-                Content = "Night vision has been disabled",
+                Title = "Night Vision",
+                Content = "Night Vision deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            Lighting.Brightness = Config.Graphic.Brightness
-            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-        end
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Change Time",
-    CurrentValue = Config.Player.ChangeTime,
-    Flag = "ChangeTimeToggle",
-    Callback = function(Value)
-        Config.Player.ChangeTime = Value
-        SaveConfig()
-        
-        if Value then
-            Rayfield:Notify({
-                Title = "Time Change Enabled",
-                Content = "Time change is now active",
-                Duration = 3,
-                Image = 4483362458,
-            })
+            -- Disable night vision
+            Lighting.Ambient = Color3.new(0.4, 0.4, 0.4)
+            Lighting.OutdoorAmbient = Color3.new(0.4, 0.4, 0.4)
             
-            Lighting.ClockTime = Config.Player.TimeValue
-        else
-            Rayfield:Notify({
-                Title = "Time Change Disabled",
-                Content = "Time change has been disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
+            -- Remove night vision effect
+            pcall(function()
+                Lighting:FindFirstChild("NightVision"):Destroy()
+            end)
         end
     end
 })
 
 PlayerTab:CreateSlider({
-    Name = "Time Value",
-    Range = {0, 24},
-    Increment = 1,
-    Suffix = "hours",
-    CurrentValue = Config.Player.TimeValue,
-    Flag = "TimeValueSlider",
+    Name = "Night Vision Intensity",
+    Range = {0.1, 2.0},
+    Increment = 0.1,
+    Suffix = "multiplier",
+    CurrentValue = Config.Player.NightVisionIntensity,
+    Flag = "NightVisionIntensitySlider",
     Callback = function(Value)
-        Config.Player.TimeValue = Value
+        Config.Player.NightVisionIntensity = Value
         SaveConfig()
         
-        if Config.Player.ChangeTime then
-            Lighting.ClockTime = Value
+        if Config.Player.NightVision then
+            pcall(function()
+                Lighting.NightVision.Saturation = Value
+            end)
         end
     end
 })
@@ -1373,7 +1210,7 @@ PlayerTab:CreateSlider({
 local VisualTab = Window:CreateTab("NKZ-VISUAL", 4483362458)
 VisualTab:CreateSection("ESP & Visual Hacks")
 
-VisualTab:CreateToggle({
+local ESPToggle = VisualTab:CreateToggle({
     Name = "ESP Players",
     CurrentValue = Config.Visual.ESPPlayers,
     Flag = "ESPToggle",
@@ -1383,13 +1220,14 @@ VisualTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "ESP Enabled",
-                Content = "Player ESP is now active",
+                Title = "ESP Players",
+                Content = "ESP Players activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("ESP", function()
+            -- Start ESP
+            spawn(function()
                 local highlights = {}
                 
                 while Config.Visual.ESPPlayers do
@@ -1417,8 +1255,8 @@ VisualTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "ESP Disabled",
-                Content = "Player ESP has been disabled",
+                Title = "ESP Players",
+                Content = "ESP Players deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1436,27 +1274,35 @@ VisualTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Ghost Hack Enabled",
-                Content = "Ghost hack is now active",
+                Title = "Ghost Hack",
+                Content = "Ghost Hack activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            -- Enable ghost mode
+            pcall(function()
+                LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end)
         else
             Rayfield:Notify({
-                Title = "Ghost Hack Disabled",
-                Content = "Ghost hack has been disabled",
+                Title = "Ghost Hack",
+                Content = "Ghost Hack deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            -- Disable ghost mode
+            pcall(function()
+                LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end)
         end
     end
 })
 
-VisualTab:CreateToggle({
+VisualTab:CreateSection("FOV Changer")
+
+local FOVToggle = VisualTab:CreateToggle({
     Name = "FOV Changer",
     CurrentValue = Config.Visual.FOVEnabled,
     Flag = "FOVToggle",
@@ -1466,21 +1312,23 @@ VisualTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "FOV Changer Enabled",
-                Content = "FOV changer is now active",
+                Title = "FOV Changer",
+                Content = "FOV Changer activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Set FOV
             workspace.CurrentCamera.FieldOfView = Config.Visual.FOVValue
         else
             Rayfield:Notify({
-                Title = "FOV Changer Disabled",
-                Content = "FOV changer has been disabled",
+                Title = "FOV Changer",
+                Content = "FOV Changer deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Reset FOV
             workspace.CurrentCamera.FieldOfView = 70
         end
     end
@@ -1504,59 +1352,101 @@ VisualTab:CreateSlider({
 })
 
 VisualTab:CreateSlider({
-    Name = "Horizontal FOV",
-    Range = {-20, 20},
-    Increment = 1,
-    Suffix = "offset",
-    CurrentValue = Config.Visual.HorizontalFOV,
-    Flag = "HorizontalFOVSlider",
+    Name = "FOV Horizontal",
+    Range = {70, 120},
+    Increment = 5,
+    Suffix = "degrees",
+    CurrentValue = Config.Visual.FOVHorizontal,
+    Flag = "FOVHorizontalSlider",
     Callback = function(Value)
-        Config.Visual.HorizontalFOV = Value
+        Config.Visual.FOVHorizontal = Value
+        SaveConfig()
+        
+        if Config.Visual.FOVEnabled then
+            workspace.CurrentCamera.FieldOfView = Value
+        end
+    end
+})
+
+VisualTab:CreateSlider({
+    Name = "FOV Vertical",
+    Range = {70, 120},
+    Increment = 5,
+    Suffix = "degrees",
+    CurrentValue = Config.Visual.FOVVertical,
+    Flag = "FOVVerticalSlider",
+    Callback = function(Value)
+        Config.Visual.FOVVertical = Value
+        SaveConfig()
+        
+        if Config.Visual.FOVEnabled then
+            workspace.CurrentCamera.FieldOfView = Value
+        end
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "ADS FOV Changer",
+    CurrentValue = Config.Visual.ADSFOVEnabled,
+    Flag = "ADSFOVToggle",
+    Callback = function(Value)
+        Config.Visual.ADSFOVEnabled = Value
+        SaveConfig()
+        
+        if Value then
+            Rayfield:Notify({
+                Title = "ADS FOV Changer",
+                Content = "ADS FOV Changer activated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "ADS FOV Changer",
+                Content = "ADS FOV Changer deactivated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end
+})
+
+VisualTab:CreateSlider({
+    Name = "ADS FOV Value",
+    Range = {40, 80},
+    Increment = 5,
+    Suffix = "degrees",
+    CurrentValue = Config.Visual.ADSFOVValue,
+    Flag = "ADSFOVSlider",
+    Callback = function(Value)
+        Config.Visual.ADSFOVValue = Value
         SaveConfig()
     end
 })
 
 VisualTab:CreateSlider({
-    Name = "Vertical FOV",
-    Range = {-20, 20},
-    Increment = 1,
-    Suffix = "offset",
-    CurrentValue = Config.Visual.VerticalFOV,
-    Flag = "VerticalFOVSlider",
+    Name = "ADS FOV Horizontal",
+    Range = {40, 80},
+    Increment = 5,
+    Suffix = "degrees",
+    CurrentValue = Config.Visual.ADSFOVHorizontal,
+    Flag = "ADSFOVHorizontalSlider",
     Callback = function(Value)
-        Config.Visual.VerticalFOV = Value
+        Config.Visual.ADSFOVHorizontal = Value
         SaveConfig()
     end
 })
 
-VisualTab:CreateToggle({
-    Name = "Fullbright",
-    CurrentValue = Config.Visual.Fullbright,
-    Flag = "FullbrightToggle",
+VisualTab:CreateSlider({
+    Name = "ADS FOV Vertical",
+    Range = {40, 80},
+    Increment = 5,
+    Suffix = "degrees",
+    CurrentValue = Config.Visual.ADSFOVVertical,
+    Flag = "ADSFOVVerticalSlider",
     Callback = function(Value)
-        Config.Visual.Fullbright = Value
+        Config.Visual.ADSFOVVertical = Value
         SaveConfig()
-        
-        if Value then
-            Rayfield:Notify({
-                Title = "Fullbright Enabled",
-                Content = "Fullbright is now active",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            
-            Lighting.GlobalShadows = false
-            Lighting.ClockTime = 12
-        else
-            Rayfield:Notify({
-                Title = "Fullbright Disabled",
-                Content = "Fullbright has been disabled",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            
-            Lighting.GlobalShadows = true
-        end
     end
 })
 
@@ -1564,7 +1454,7 @@ VisualTab:CreateToggle({
 local ShopTab = Window:CreateTab("NKZ-SHOP", 4483362458)
 ShopTab:CreateSection("Auto Sell")
 
-ShopTab:CreateToggle({
+local AutoSellToggle = ShopTab:CreateToggle({
     Name = "Auto Sell Fish",
     CurrentValue = Config.Shop.AutoSell,
     Flag = "AutoSellToggle",
@@ -1574,13 +1464,14 @@ ShopTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Sell Enabled",
-                Content = "Auto sell is now active",
+                Title = "Auto Sell",
+                Content = "Auto Sell activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AutoSell", function()
+            -- Start auto sell
+            spawn(function()
                 while Config.Shop.AutoSell do
                     pcall(function()
                         Modules.Remotes.SellAllItems:InvokeServer()
@@ -1590,8 +1481,8 @@ ShopTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Auto Sell Disabled",
-                Content = "Auto sell has been disabled",
+                Title = "Auto Sell",
+                Content = "Auto Sell deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1635,17 +1526,18 @@ ShopTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Buy Weather Enabled",
-                Content = "Auto buy weather is now active",
+                Title = "Auto Buy Weather",
+                Content = "Auto Buy Weather activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AutoBuyWeather", function()
+            -- Start auto buy weather
+            spawn(function()
                 while Config.Shop.AutoBuyWeather do
                     pcall(function()
                         if Config.Shop.SelectedWeather ~= "" then
-                            Modules.Remotes.PurchaseGear:InvokeServer(Config.Shop.SelectedWeather .. " Weather")
+                            Modules.Remotes.PurchaseGear:InvokeServer(Config.Shop.SelectedWeather)
                         end
                     end)
                     task.wait(Config.Shop.WeatherBuyDelay)
@@ -1653,8 +1545,8 @@ ShopTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Auto Buy Weather Disabled",
-                Content = "Auto buy weather has been disabled",
+                Title = "Auto Buy Weather",
+                Content = "Auto Buy Weather deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1690,7 +1582,7 @@ local BobbersDropdown = ShopTab:CreateDropdown({
 
 local RodsDropdown = ShopTab:CreateDropdown({
     Name = "Select Fishing Rod",
-    Options = {"Carbon", "Ice", "Toy", "Grass", "Midnight", "Luck", "Gingerbread"},
+    Options = {"Carbon Rod", "Ice Rod", "Toy Rod", "Grass Rod", "Midnight Rod", "Luck Rod", "Gingerbread Rod"},
     CurrentOption = "",
     Flag = "RodsDropdown",
     Callback = function(Option)
@@ -1704,42 +1596,18 @@ ShopTab:CreateButton({
     Callback = function()
         if Config.Shop.SelectedRod ~= "" then
             pcall(function()
-                Modules.Remotes.PurchaseFishingRod:InvokeServer("!!! " .. Config.Shop.SelectedRod .. " Rod")
+                Modules.Remotes.PurchaseFishingRod:InvokeServer(Config.Shop.SelectedRod)
                 Rayfield:Notify({
                     Title = "Purchase Successful",
-                    Content = "Bought " .. Config.Shop.SelectedRod .. " Rod",
+                    Content = "Bought " .. Config.Shop.SelectedRod,
                     Duration = 3,
                     Image = 4483362458,
                 })
             end)
         else
             Rayfield:Notify({
-                Title = "Purchase Failed",
+                Title = "Purchase Error",
                 Content = "Please select a rod first",
-                Duration = 3,
-                Image = 4483362458,
-            })
-        end
-    end
-})
-
-ShopTab:CreateButton({
-    Name = "Buy Selected Bobber",
-    Callback = function()
-        if Config.Shop.SelectedBobber ~= "" then
-            pcall(function()
-                Modules.Remotes.PurchaseGear:InvokeServer(Config.Shop.SelectedBobber .. " Bobber")
-                Rayfield:Notify({
-                    Title = "Purchase Successful",
-                    Content = "Bought " .. Config.Shop.SelectedBobber .. " Bobber",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end)
-        else
-            Rayfield:Notify({
-                Title = "Purchase Failed",
-                Content = "Please select a bobber first",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1751,7 +1619,7 @@ ShopTab:CreateButton({
 local UtilityTab = Window:CreateTab("NKZ-UTILITY", 4483362458)
 UtilityTab:CreateSection("Performance")
 
-UtilityTab:CreateToggle({
+local StabilizeFPSToggle = UtilityTab:CreateToggle({
     Name = "Stabilize FPS",
     CurrentValue = Config.Utility.StabilizeFPS,
     Flag = "StabilizeFPSToggle",
@@ -1761,28 +1629,27 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "FPS Stabilization Enabled",
-                Content = "FPS stabilization is now active",
+                Title = "Stabilize FPS",
+                Content = "FPS stabilization activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Enable FPS stabilization
             settings().Rendering.QualityLevel = 1
             settings().Rendering.MeshCacheSize = 100
         else
             Rayfield:Notify({
-                Title = "FPS Stabilization Disabled",
-                Content = "FPS stabilization has been disabled",
+                Title = "Stabilize FPS",
+                Content = "FPS stabilization deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
-            
-            settings().Rendering.QualityLevel = 5
         end
     end
 })
 
-UtilityTab:CreateToggle({
+local UnlockFPSToggle = UtilityTab:CreateToggle({
     Name = "Unlock FPS",
     CurrentValue = Config.Utility.UnlockFPS,
     Flag = "UnlockFPSToggle",
@@ -1792,8 +1659,8 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "FPS Unlock Enabled",
-                Content = "FPS unlock is now active",
+                Title = "Unlock FPS",
+                Content = "FPS unlocked",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1801,8 +1668,8 @@ UtilityTab:CreateToggle({
             setfpscap(999)
         else
             Rayfield:Notify({
-                Title = "FPS Unlock Disabled",
-                Content = "FPS unlock has been disabled",
+                Title = "Unlock FPS",
+                Content = "FPS locked at 60",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1839,49 +1706,9 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "System Info Enabled",
-                Content = "System info display is now active",
-                Duration = 3,
-                Image = 4483362458,
-            })
-            
-            QueueAsync("SystemInfo", function()
-                local screenGui = Instance.new("ScreenGui")
-                screenGui.Parent = game.CoreGui
-                
-                local frame = Instance.new("Frame")
-                frame.Size = UDim2.new(0, 200, 0, 100)
-                frame.Position = UDim2.new(0, 10, 0, 10)
-                frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                frame.BackgroundTransparency = 0.5
-                frame.BorderSizePixel = 0
-                frame.Parent = screenGui
-                
-                local textLabel = Instance.new("TextLabel")
-                textLabel.Size = UDim2.new(1, 0, 1, 0)
-                textLabel.BackgroundTransparency = 1
-                textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                textLabel.TextStrokeTransparency = 0
-                textLabel.TextSize = 14
-                textLabel.Font = Enum.Font.Code
-                textLabel.Parent = frame
-                
-                while Config.Utility.ShowSystemInfo do
-                    local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
-                    local fps = tostring(math.floor(1 / RunService.Heartbeat:Wait()))
-                    local memory = tostring(math.floor(Stats:GetMemoryUsageMbForTag(Enum.DeveloperMemoryTag.Script)))
-                    
-                    textLabel.Text = string.format("FPS: %s\nPing: %s\nMemory: %sMB", fps, ping, memory)
-                    task.wait(0.5)
-                end
-                
-                screenGui:Destroy()
-            end)
-        else
-            Rayfield:Notify({
-                Title = "System Info Disabled",
-                Content = "System info display has been disabled",
-                Duration = 3,
+                Title = "System Info",
+                Content = "OS: " .. game:GetService("RunService"):IsStudio() and "Studio" or "Client",
+                Duration = 5,
                 Image = 4483362458,
             })
         end
@@ -1898,13 +1725,14 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Cache Clear Enabled",
-                Content = "Auto cache clear is now active",
+                Title = "Auto Clear Cache",
+                Content = "Auto cache clearing activated",
                 Duration = 3,
                 Image = 4483362458,
             })
             
-            QueueAsync("AutoCache", function()
+            -- Start auto clear cache
+            spawn(function()
                 while Config.Utility.AutoClearCache do
                     task.wait(300) -- Every 5 minutes
                     collectgarbage()
@@ -1912,8 +1740,8 @@ UtilityTab:CreateToggle({
             end)
         else
             Rayfield:Notify({
-                Title = "Auto Cache Clear Disabled",
-                Content = "Auto cache clear has been disabled",
+                Title = "Auto Clear Cache",
+                Content = "Auto cache clearing deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -1931,12 +1759,13 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Particles Disabled",
-                Content = "Particles have been disabled",
+                Title = "Disable Particles",
+                Content = "Particles disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Disable all particles
             for _, particle in pairs(workspace:GetDescendants()) do
                 if particle:IsA("ParticleEmitter") then
                     particle.Enabled = false
@@ -1944,12 +1773,13 @@ UtilityTab:CreateToggle({
             end
         else
             Rayfield:Notify({
-                Title = "Particles Enabled",
-                Content = "Particles have been enabled",
+                Title = "Disable Particles",
+                Content = "Particles enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Enable all particles
             for _, particle in pairs(workspace:GetDescendants()) do
                 if particle:IsA("ParticleEmitter") then
                     particle.Enabled = true
@@ -1969,18 +1799,75 @@ UtilityTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Ping Boost Enabled",
-                Content = "Ping boost is now active",
+                Title = "Boost Ping",
+                Content = "Ping boost activated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Enable ping boost
+            game:GetService("NetworkClient"):SetOutgoingKBPS(999999)
         else
             Rayfield:Notify({
-                Title = "Ping Boost Disabled",
-                Content = "Ping boost has been disabled",
+                Title = "Boost Ping",
+                Content = "Ping boost deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Disable ping boost
+            game:GetService("NetworkClient"):SetOutgoingKBPS(1000)
+        end
+    end
+})
+
+UtilityTab:CreateSection("Time Control")
+
+UtilityTab:CreateToggle({
+    Name = "Change Time",
+    CurrentValue = Config.Utility.ChangeTime,
+    Flag = "ChangeTimeToggle",
+    Callback = function(Value)
+        Config.Utility.ChangeTime = Value
+        SaveConfig()
+        
+        if Value then
+            Rayfield:Notify({
+                Title = "Change Time",
+                Content = "Time control activated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Set time
+            Lighting.ClockTime = Config.Utility.TimeValue
+        else
+            Rayfield:Notify({
+                Title = "Change Time",
+                Content = "Time control deactivated",
+                Duration = 3,
+                Image = 4483362458,
+            })
+            
+            -- Reset time
+            Lighting.ClockTime = 12.0
+        end
+    end
+})
+
+UtilityTab:CreateSlider({
+    Name = "Time Value",
+    Range = {0, 24},
+    Increment = 0.1,
+    Suffix = "hours",
+    CurrentValue = Config.Utility.TimeValue,
+    Flag = "TimeValueSlider",
+    Callback = function(Value)
+        Config.Utility.TimeValue = Value
+        SaveConfig()
+        
+        if Config.Utility.ChangeTime then
+            Lighting.ClockTime = Value
         end
     end
 })
@@ -2004,10 +1891,9 @@ local QualityDropdown = GraphicTab:CreateDropdown({
         elseif Option == "Max" then level = 21 end
         
         settings().Rendering.QualityLevel = level
-        
         Rayfield:Notify({
-            Title = "Graphics Quality Changed",
-            Content = "Graphics quality set to " .. Option,
+            Title = "Graphics Quality",
+            Content = "Quality set to " .. Option,
             Duration = 3,
             Image = 4483362458,
         })
@@ -2024,8 +1910,8 @@ GraphicTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Reflections Disabled",
-                Content = "Reflections have been disabled",
+                Title = "Graphics",
+                Content = "Reflections disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2034,8 +1920,8 @@ GraphicTab:CreateToggle({
             Lighting.Reflections = false
         else
             Rayfield:Notify({
-                Title = "Reflections Enabled",
-                Content = "Reflections have been enabled",
+                Title = "Graphics",
+                Content = "Reflections enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2056,18 +1942,40 @@ GraphicTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Skin Effects Disabled",
-                Content = "Skin effects have been disabled",
+                Title = "Graphics",
+                Content = "Skin effects disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Disable skin effects
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character then
+                    for _, accessory in pairs(player.Character:GetChildren()) do
+                        if accessory:IsA("Accessory") then
+                            accessory:WaitForChild("Handle").Material = Enum.Material.Plastic
+                        end
+                    end
+                end
+            end
         else
             Rayfield:Notify({
-                Title = "Skin Effects Enabled",
-                Content = "Skin effects have been enabled",
+                Title = "Graphics",
+                Content = "Skin effects enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Reset skin effects
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character then
+                    for _, accessory in pairs(player.Character:GetChildren()) do
+                        if accessory:IsA("Accessory") then
+                            accessory:WaitForChild("Handle").Material = Enum.Material.Neon
+                        end
+                    end
+                end
+            end
         end
     end
 })
@@ -2082,8 +1990,8 @@ GraphicTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Shadows Disabled",
-                Content = "Shadows have been disabled",
+                Title = "Graphics",
+                Content = "Shadows disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2091,8 +1999,8 @@ GraphicTab:CreateToggle({
             Lighting.GlobalShadows = false
         else
             Rayfield:Notify({
-                Title = "Shadows Enabled",
-                Content = "Shadows have been enabled",
+                Title = "Graphics",
+                Content = "Shadows enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2112,18 +2020,32 @@ GraphicTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Water Effects Disabled",
-                Content = "Water effects have been disabled",
+                Title = "Graphics",
+                Content = "Water effects disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Disable water effects
+            for _, water in pairs(workspace:GetDescendants()) do
+                if water:IsA("Water") or water:IsA("WedgePart") then
+                    water.Transparency = 1
+                end
+            end
         else
             Rayfield:Notify({
-                Title = "Water Effects Enabled",
-                Content = "Water effects have been enabled",
+                Title = "Graphics",
+                Content = "Water effects enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            -- Reset water effects
+            for _, water in pairs(workspace:GetDescendants()) do
+                if water:IsA("Water") or water:IsA("WedgePart") then
+                    water.Transparency = 0
+                end
+            end
         end
     end
 })
@@ -2140,13 +2062,6 @@ GraphicTab:CreateSlider({
         SaveConfig()
         
         Lighting.Brightness = Value
-        
-        Rayfield:Notify({
-            Title = "Brightness Changed",
-            Content = "Brightness set to " .. Value,
-            Duration = 3,
-            Image = 4483362458,
-        })
     end
 })
 
@@ -2154,7 +2069,7 @@ GraphicTab:CreateSlider({
 local LowDevTab = Window:CreateTab("NKZ-LOWDEV", 4483362458)
 LowDevTab:CreateSection("Performance Optimization")
 
-LowDevTab:CreateToggle({
+local ExtremeSmoothToggle = LowDevTab:CreateToggle({
     Name = "Super Extreme Smooth",
     CurrentValue = Config.LowDev.ExtremeSmooth,
     Flag = "ExtremeSmoothToggle",
@@ -2164,8 +2079,8 @@ LowDevTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Extreme Smooth Enabled",
-                Content = "Extreme smooth is now active",
+                Title = "Extreme Smooth",
+                Content = "Super extreme smooth activated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2175,15 +2090,11 @@ LowDevTab:CreateToggle({
             game:GetService("GraphicsService").ScreenshotQuality = 10
         else
             Rayfield:Notify({
-                Title = "Extreme Smooth Disabled",
-                Content = "Extreme smooth has been disabled",
+                Title = "Extreme Smooth",
+                Content = "Super extreme smooth deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
-            
-            settings().Rendering.QualityLevel = 5
-            settings().Rendering.MeshCacheSize = 100
-            game:GetService("GraphicsService").ScreenshotQuality = 70
         end
     end
 })
@@ -2198,12 +2109,13 @@ LowDevTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Effects Disabled",
-                Content = "All effects have been disabled",
+                Title = "Disable Effects",
+                Content = "All effects disabled",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Disable all effects
             for _, effect in pairs(workspace:GetDescendants()) do
                 if effect:IsA("ParticleEmitter") or effect:IsA("Beam") or effect:IsA("Trail") then
                     effect.Enabled = false
@@ -2211,12 +2123,13 @@ LowDevTab:CreateToggle({
             end
         else
             Rayfield:Notify({
-                Title = "Effects Enabled",
-                Content = "All effects have been enabled",
+                Title = "Disable Effects",
+                Content = "All effects enabled",
                 Duration = 3,
                 Image = 4483362458,
             })
             
+            -- Reset all effects
             for _, effect in pairs(workspace:GetDescendants()) do
                 if effect:IsA("ParticleEmitter") or effect:IsA("Beam") or effect:IsA("Trail") then
                     effect.Enabled = true
@@ -2236,18 +2149,22 @@ LowDevTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "32-bit Mode Enabled",
-                Content = "32-bit mode is now active",
+                Title = "32-bit Mode",
+                Content = "32-bit mode activated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            setfpscap(30)
         else
             Rayfield:Notify({
-                Title = "32-bit Mode Disabled",
-                Content = "32-bit mode has been disabled",
+                Title = "32-bit Mode",
+                Content = "32-bit mode deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
+            
+            setfpscap(60)
         end
     end
 })
@@ -2262,8 +2179,8 @@ LowDevTab:CreateToggle({
         
         if Value then
             Rayfield:Notify({
-                Title = "Low Battery Mode Enabled",
-                Content = "Low battery mode is now active",
+                Title = "Low Battery Mode",
+                Content = "Low battery mode activated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2272,8 +2189,8 @@ LowDevTab:CreateToggle({
             setfpscap(30)
         else
             Rayfield:Notify({
-                Title = "Low Battery Mode Disabled",
-                Content = "Low battery mode has been disabled",
+                Title = "Low Battery Mode",
+                Content = "Low battery mode deactivated",
                 Duration = 3,
                 Image = 4483362458,
             })
@@ -2292,6 +2209,12 @@ SettingsTab:CreateButton({
     Name = "Save Current Configuration",
     Callback = function()
         SaveConfig()
+        Rayfield:Notify({
+            Title = "Configuration Saved",
+            Content = "Current settings have been saved",
+            Duration = 3,
+            Image = 4483362458,
+        })
     end
 })
 
@@ -2301,7 +2224,7 @@ SettingsTab:CreateButton({
         LoadConfig()
         Rayfield:Notify({
             Title = "Configuration Loaded",
-            Content = "All settings have been loaded from disk",
+            Content = "Saved settings have been loaded",
             Duration = 3,
             Image = 4483362458,
         })
@@ -2318,14 +2241,12 @@ SettingsTab:CreateButton({
                 AutoEquipRod = true,
                 DelayCasting = 1.0,
                 SelectedArea = "Default",
-                BypassRadar = false,
-                BypassDivingGear = false,
-                AntiAFK = false,
+                BypassRadar = true,
+                BypassDivingGear = true,
+                AntiAFK = true,
                 AutoJump = false,
-                AutoJumpDelay = 1.0,
-                AntiDetect = false,
-                NoFallDamage = false,
-                PerfectCatch = true
+                AutoJumpDelay = 30,
+                AntiDetect = true
             },
             Teleport = {
                 SelectedIsland = "",
@@ -2345,19 +2266,21 @@ SettingsTab:CreateButton({
                 JumpHack = false,
                 JumpPower = 50,
                 LockPosition = false,
-                NoClip = false,
+                NoFallDamage = false,
                 NightVision = false,
-                ChangeTime = false,
-                TimeValue = 12
+                NightVisionIntensity = 1.0
             },
             Visual = {
                 ESPPlayers = false,
                 GhostHack = false,
                 FOVEnabled = false,
                 FOVValue = 70,
-                HorizontalFOV = 0,
-                VerticalFOV = 0,
-                Fullbright = false
+                FOVHorizontal = 70,
+                FOVVertical = 70,
+                ADSFOVEnabled = false,
+                ADSFOVValue = 40,
+                ADSFOVHorizontal = 40,
+                ADSFOVVertical = 40
             },
             Shop = {
                 AutoSell = false,
@@ -2375,7 +2298,9 @@ SettingsTab:CreateButton({
                 ShowSystemInfo = false,
                 AutoClearCache = false,
                 DisableParticles = false,
-                BoostPing = false
+                BoostPing = false,
+                ChangeTime = false,
+                TimeValue = 12.0
             },
             Graphic = {
                 Quality = "Medium",
@@ -2404,13 +2329,15 @@ SettingsTab:CreateButton({
 
 SettingsTab:CreateSection("Information")
 
-SettingsTab:CreateLabel("NIKZZ MODDER v2.0")
+SettingsTab:CreateLabel("NIKZZ MODDER v1.0")
 SettingsTab:CreateLabel("Complete Fish It Modding Solution")
 SettingsTab:CreateLabel("Lines: 3250+")
 SettingsTab:CreateLabel("Modules: Fully Implemented")
-SettingsTab:CreateLabel("Developer: Nikzz")
-SettingsTab:CreateLabel("Discord: nikzzmods")
-SettingsTab:CreateLabel("TikTok: @nikzzmodder")
+
+SettingsTab:CreateParagraph({
+    Title = "Developer Information",
+    Content = "Discord: @nikzzmodder\nTikTok: @nikzzmodder\nTotal Features: 50+"
+})
 
 SettingsTab:CreateParagraph({
     Title = "Performance Tips",
@@ -2418,22 +2345,36 @@ SettingsTab:CreateParagraph({
 })
 
 SettingsTab:CreateParagraph({
-    Title = "Total Features",
-    Content = "Auto Fishing, Teleport, Player Hacks, Visual Hacks, Shop Automation, Utility Tools, Graphics Settings, Low-Device Optimization"
+    Title = "Anti-Bug System",
+    Content = "The script performs an automatic respawn after loading to prevent any potential bugs. All features start disabled by default."
 })
 
 -- Initialize everything
 LoadModules()
 LoadConfig()
-LoadIslands()
-LoadEvents()
 RefreshPlayers()
-SetupAntiDetection()
+
+-- Perform anti-bug respawn after loading
+AntiBugRespawn()
+
+-- Anti-detection measures
+if Config.Farm.AntiDetect then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" or method == "kick" then
+            return nil
+        end
+        return oldNamecall(self, ...)
+    end)
+end
 
 -- Final initialization
 Rayfield:Notify({
     Title = "NIKZZ MODDER Loaded",
-    Content = "All modules initialized successfully. Enjoy!",
+    Content = "All modules initialized successfully. All features are disabled by default.",
     Duration = 6,
     Image = 4483362458,
-}). 
+})
+
+Rayfield:LoadConfiguration()
