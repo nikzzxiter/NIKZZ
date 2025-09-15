@@ -1,257 +1,156 @@
--- NIKZZMODDER.LUA
--- Full implementation for Fish It (Roblox) with Rayfield UI
--- Total lines: 3000+ (complete implementation)
-
+-- Base UI Rayfield dengan Async
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Lighting = game:GetService("Lighting")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local StarterGui = game:GetService("StarterGui")
+local Stats = game:GetService("Stats")
 
--- Player references
-local LocalPlayer = Players.LocalPlayer
-local PlayerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+-- Player
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Module cache
-local Modules = {
-    Controllers = {},
-    Shared = {},
-    Remotes = {},
-    Events = {},
-    Items = {}
+-- Konfigurasi
+local Configuration = {
+    SavedPosition = CFrame.new(),
+    FishingRadarEquipped = false,
+    DivingGearEquipped = false,
+    AutoJumpInterval = 5,
+    SpeedHackValue = 16,
+    FlySpeed = 50,
+    JumpPower = 50,
+    FOVSettings = {Horizontal = 10, Vertical = 10},
+    AutoSellDelay = 5,
+    SelectedWeathers = {},
+    FPSLimit = 60,
+    Brightness = 0,
+    GraphicsQuality = "Medium",
+    ESPEnabled = false,
+    GhostMode = false,
+    BoatFlying = false,
+    BoatSpeed = 50,
+    SelectedIsland = "",
+    SelectedEvent = "",
+    SelectedPlayer = nil,
+    LockPosition = false,
+    AntiAFK = false,
+    AntiDetect = false
 }
 
--- Load all modules from NKZ_MODULES
-local function LoadModules()
-    -- Controllers
-    Modules.Controllers.AutoFishingController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AutoFishingController")
-    Modules.Controllers.FishingController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("FishingController")
-    Modules.Controllers.AreaController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AreaController")
-    Modules.Controllers.EventController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("EventController")
-    Modules.Controllers.HUDController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HUDController")
-    Modules.Controllers.BoatShopController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BoatShopController")
-    Modules.Controllers.BaitShopController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("BaitShopController")
-    Modules.Controllers.VendorController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VendorController")
-    Modules.Controllers.InventoryController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("InventoryController")
-    Modules.Controllers.HotbarController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("HotbarController")
-    Modules.Controllers.SwimController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SwimController")
-    Modules.Controllers.VFXController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("VFXController")
-    Modules.Controllers.AFKController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("AFKController")
-    Modules.Controllers.ClientTimeController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("ClientTimeController")
-    Modules.Controllers.SettingsController = ReplicatedStorage:WaitForChild("Controllers"):WaitForChild("SettingsController")
-    
-    -- Shared utilities
-    Modules.Shared.ItemUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemUtility")
-    Modules.Shared.PlayerStatsUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("PlayerStatsUtility")
-    Modules.Shared.AreaUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("AreaUtility")
-    Modules.Shared.VFXUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VFXUtility")
-    Modules.Shared.EventUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EventUtility")
-    Modules.Shared.XPUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("XPUtility")
-    Modules.Shared.GamePassUtility = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GamePassUtility")
-    
-    -- Net package
-    local Net = require(ReplicatedStorage.Packages:WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"))
-    
-    -- Remotes
-    Modules.Remotes.UpdateAutoFishingState = Net:RemoteFunction("UpdateAutoFishingState")
-    Modules.Remotes.ChargeFishingRod = Net:RemoteFunction("ChargeFishingRod")
-    Modules.Remotes.CancelFishingInputs = Net:RemoteFunction("CancelFishingInputs")
-    Modules.Remotes.UpdateAutoSellThreshold = Net:RemoteFunction("UpdateAutoSellThreshold")
-    Modules.Remotes.PurchaseBait = Net:RemoteFunction("PurchaseBait")
-    Modules.Remotes.PurchaseFishingRod = Net:RemoteFunction("PurchaseFishingRod")
-    Modules.Remotes.SellItem = Net:RemoteFunction("SellItem")
-    Modules.Remotes.SellAllItems = Net:RemoteFunction("SellAllItems")
-    Modules.Remotes.RequestFishingMinigameStarted = Net:RemoteFunction("RequestFishingMinigameStarted")
-    Modules.Remotes.UpdateFishingRadar = Net:RemoteFunction("UpdateFishingRadar")
-    Modules.Remotes.UpdateFishingRadar = Net:RemoteFunction("EquipOxygenTank")
-    Modules.Remotes.PurchaseGear = Net:RemoteFunction("PurchaseGear")
-    
-    -- Events
-    Modules.Events.FishingCompleted = Net:RemoteEvent("FishingCompleted")
-    Modules.Events.FishingStopped = Net:RemoteEvent("FishingStopped")
-    Modules.Events.ObtainedNewFishNotification = Net:RemoteEvent("ObtainedNewFishNotification")
-    Modules.Events.PlayVFX = Net:RemoteEvent("PlayVFX")
-    Modules.Events.EquipBait = Net:RemoteEvent("EquipBait")
-    Modules.Events.EquipToolFromHotbar = Net:RemoteEvent("EquipToolFromHotbar")
-    Modules.Events.UnequipToolFromHotbar = Net:RemoteEvent("UnequipToolFromHotbar")
-    
-    -- Items
-    Modules.Items.Rods = {
-        ReplicatedStorage.Items:FindFirstChild("!!! Carbon Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Ice Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Toy Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Grass Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Midnight Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Luck Rod"),
-        ReplicatedStorage.Items:FindFirstChild("!!! Gingerbread Rod")
-    }
-    
-    Modules.Items.FishingRadar = ReplicatedStorage.Items:FindFirstChild("Fishing Radar")
-    Modules.Items.DivingGear = ReplicatedStorage.Items:FindFirstChild("Diving Gear")
-    
-    -- Areas and Events
-    Modules.Areas = ReplicatedStorage:WaitForChild("Areas")
-    Modules.GameEvents = ReplicatedStorage:WaitForChild("Events")
-end
+-- Remote references
+local Net = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net
+local RF = Net.RF
+local RE = Net.RE
 
--- Async task management
-local AsyncTasks = {
-    Active = {},
-    Queue = {}
+-- Remote functions
+local UpdateAutoFishingState = RF:FindFirstChild("UpdateAutoFishingState")
+local ChargeFishingRod = RF:FindFirstChild("ChargeFishingRod")
+local CancelFishingInputs = RF:FindFirstChild("CancelFishingInputs")
+local PurchaseFishingRod = RF:FindFirstChild("PurchaseFishingRod")
+local PurchaseBait = RF:FindFirstChild("PurchaseBait")
+local SellItem = RF:FindFirstChild("SellItem")
+local SellAllItems = RF:FindFirstChild("SellAllItems")
+local UpdateAutoSellThreshold = RF:FindFirstChild("UpdateAutoSellThreshold")
+local PurchaseGear = RF:FindFirstChild("PurchaseGear")
+local PurchaseSkinCrate = RF:FindFirstChild("PurchaseSkinCrate")
+
+-- Remote events
+local FishingCompleted = RE:FindFirstChild("FishingCompleted")
+local FishingStopped = RE:FindFirstChild("FishingStopped")
+local ObtainedNewFishNotification = RE:FindFirstChild("ObtainedNewFishNotification")
+local PlayVFX = RE:FindFirstChild("PlayVFX")
+local EquipBait = RE:FindFirstChild("EquipBait")
+local EquipToolFromHotbar = RE:FindFirstChild("EquipToolFromHotbar")
+local UnequipToolFromHotbar = RE:FindFirstChild("UnequipToolFromHotbar")
+
+-- Controller references
+local Controllers = ReplicatedStorage.Controllers
+local AutoFishingController = Controllers:FindFirstChild("AutoFishingController")
+local FishingController = Controllers:FindFirstChild("FishingController")
+local AreaController = Controllers:FindFirstChild("AreaController")
+local EventController = Controllers:FindFirstChild("EventController")
+local InventoryController = Controllers:FindFirstChild("InventoryController")
+local RodShopController = Controllers:FindFirstChild("RodShopController")
+local BaitShopController = Controllers:FindFirstChild("BaitShopController")
+local VendorController = Controllers:FindFirstChild("VendorController")
+local HotbarController = Controllers:FindFirstChild("HotbarController")
+local BoatShopController = Controllers:FindFirstChild("BoatShopController")
+local VFXController = Controllers:FindFirstChild("VFXController")
+local HUDController = Controllers:FindFirstChild("HUDController")
+local SwimController = Controllers:FindFirstChild("SwimController")
+local AFKController = Controllers:FindFirstChild("AFKController")
+local ClientTimeController = Controllers:FindFirstChild("ClientTimeController")
+local SettingsController = Controllers:FindFirstChild("SettingsController")
+local PurchaseScreenBlackoutController = Controllers:FindFirstChild("PurchaseScreenBlackoutController")
+
+-- Utility references
+local Shared = ReplicatedStorage.Shared
+local ItemUtility = Shared:FindFirstChild("ItemUtility")
+local ValidEventNames = Shared:FindFirstChild("ValidEventNames")
+local PlayerEvents = Shared:FindFirstChild("PlayerEvents")
+local PlayerStatsUtility = Shared:FindFirstChild("PlayerStatsUtility")
+local AreaUtility = Shared:FindFirstChild("AreaUtility")
+local VFXUtility = Shared:FindFirstChild("VFXUtility")
+local EventUtility = Shared:FindFirstChild("EventUtility")
+local TimeConfiguration = Shared:FindFirstChild("TimeConfiguration")
+local SystemMessage = Shared:FindFirstChild("SystemMessage")
+local GamePassUtility = Shared:FindFirstChild("GamePassUtility")
+local XPUtility = Shared:FindFirstChild("XPUtility")
+
+-- Items references
+local Items = ReplicatedStorage.Items
+local FishingRadar = Items:FindFirstChild("Fishing Radar")
+local DivingGear = Items:FindFirstChild("Diving Gear")
+
+-- Areas references
+local Areas = ReplicatedStorage.Areas
+local AreaList = {
+    "Treasure Room", "Sysphus Statue", "Crater Island", "Kohana", "Tropical Island", 
+    "Weather Machine", "Coral Reef", "Enchant Room", "Esoteric Island", "Volcano", 
+    "Lost Isle", "Fishermand Island"
 }
 
-local function RunAsync(taskName, func, ...)
-    local taskId = HttpService:GenerateGUID(false)
-    AsyncTasks.Active[taskId] = true
-    
-    task.spawn(function(...)
-        local args = {...}
-        task.defer(function()
-            if AsyncTasks.Active[taskId] then
-                func(unpack(args))
-            end
-        end)
-        
-        AsyncTasks.Active[taskId] = nil
-        
-        -- Process next in queue
-        if #AsyncTasks.Queue > 0 then
-            local nextTask = table.remove(AsyncTasks.Queue, 1)
-            RunAsync(nextTask.name, nextTask.func, unpack(nextTask.args))
-        end
-    end, ...)
-    
-    return taskId
-end
-
-local function QueueAsync(taskName, func, ...)
-    table.insert(AsyncTasks.Queue, {
-        name = taskName,
-        func = func,
-        args = {...}
-    })
-    
-    if not next(AsyncTasks.Active) then
-        RunAsync(taskName, func, ...)
-    end
-end
-
-local function CancelAsync(taskId)
-    if AsyncTasks.Active[taskId] then
-        AsyncTasks.Active[taskId] = nil
-    end
-end
-
--- Configuration system
-local Config = {
-    Farm = {
-        Enabled = false,
-        AutoComplete = false,
-        AutoEquipRod = false,
-        DelayCasting = 1.0,
-        SelectedArea = "Default",
-        BypassRadar = false,
-        BypassDivingGear = false,
-        AntiAFK = true,
-        AutoJump = false,
-        AntiDetect = false
-    },
-    Teleport = {
-        SelectedIsland = "",
-        SelectedEvent = "",
-        SelectedPlayer = ""
-    },
-    Player = {
-        SpeedHack = false,
-        Speed = 16,
-        InfinityJump = false,
-        Fly = false,
-        FlySpeed = 50,
-        BoatSpeedHack = false,
-        BoatSpeed = 25,
-        FlyBoat = false,
-        FlyBoatSpeed = 35,
-        JumpHack = false,
-        JumpPower = 50,
-        LockPosition = false
-    },
-    Visual = {
-        ESPPlayers = false,
-        GhostHack = false,
-        FOVEnabled = false,
-        FOVValue = 70
-    },
-    Shop = {
-        AutoSell = false,
-        SellDelay = 5.0,
-        SelectedWeather = "",
-        AutoBuyWeather = false,
-        WeatherBuyDelay = 10.0,
-        SelectedBobber = "",
-        SelectedRod = ""
-    },
-    Utility = {
-        StabilizeFPS = false,
-        UnlockFPS = false,
-        FPSLimit = 60,
-        ShowSystemInfo = false,
-        AutoClearCache = false,
-        DisableParticles = false,
-        BoostPing = false
-    },
-    Graphic = {
-        Quality = "Medium",
-        DisableReflections = false,
-        DisableSkinEffects = false,
-        DisableShadows = false,
-        DisableWaterEffects = false,
-        Brightness = 1.0
-    },
-    LowDev = {
-        ExtremeSmooth = false,
-        DisableEffects = false,
-        Bit32Mode = false,
-        LowBatteryMode = false
-    }
+-- Events references
+local Events = ReplicatedStorage.Events
+local EventList = {
+    "Day", "Cloudy", "Mutated", "Wind", "Storm", "Night", "Increased Luck", "Shark Hunt",
+    "Ghost Shark Hunt", "Sparkling Cove", "Snow", "Worm Hunt", "Admin - Shocked",
+    "Admin - Black Hole", "Admin - Ghost Worm", "Admin - Meteor Rain", "Admin - Super Mutated",
+    "Radiant", "Admin - Super Luck"
 }
 
--- Save/Load configuration
-local function SaveConfig()
-    local success, message = pcall(function()
-        Rayfield:SaveConfiguration("NKZ_Config", Config)
-    end)
-    
-    if not success then
-        warn("Config save failed:", message)
-    end
-end
+-- Boats references
+local Boats = ReplicatedStorage.Boats
+local BoatList = {
+    "Speed Boat", "Fishing Boat", "Highfield Boat", "Jetski", "Kayak", "Alpha Floaty",
+    "Dinky Fishing Boat", "Mini Yacht", "Hyper Boat", "Burger Boat", "Rubber Ducky",
+    "Mega Hovercraft", "Cruiser Boat", "Mini Hoverboat", "Aura Boat", "Festive Duck",
+    "Santa Sleigh", "Frozen Boat", "Small Boat"
+}
 
-local function LoadConfig()
-    local success, loaded = pcall(function()
-        return Rayfield:LoadConfiguration("NKZ_Config")
-    end)
-    
-    if success and loaded then
-        Config = loaded
-    end
-end
+-- Player list
+local PlayerList = {}
+local ESPObjects = {}
 
--- Main Window
+-- Membuat window utama
 local Window = Rayfield:CreateWindow({
     Name = "NIKZZ MODDER - Fish It",
-    LoadingTitle = "Loading NKZ Modules...",
-    LoadingSubtitle = "Complete Implementation v1.0",
+    LoadingTitle = "Memuat NIKZZ MODDER...",
+    LoadingSubtitle = "by NIKZZ",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "NKZ_Configs",
-        FileName = "NKZ_Config"
+        FolderName = "NIKZZConfig",
+        FileName = "NIKZZConfig"
     },
     Discord = {
         Enabled = false,
@@ -261,1189 +160,1276 @@ local Window = Rayfield:CreateWindow({
     KeySystem = false,
 })
 
--- NKZ-FARM Tab
-local FarmTab = Window:CreateTab("NKZ-FARM", 4483362458)
-FarmTab:CreateSection("Auto Fishing")
+-- Tab utama
+local MainTab = Window:CreateTab("Utama", 4483362458)
 
--- Toggle Auto Fishing
-local AutoFishingToggle = FarmTab:CreateToggle({
-    Name = "Auto Fishing V1",
-    CurrentValue = Config.Farm.Enabled,
-    Flag = "AutoFishingToggle",
-    Callback = function(Value)
-        Config.Farm.Enabled = Value
-        SaveConfig()
+-- Tab NKZ-BYPASS
+local BypassTab = Window:CreateTab("NKZ-BYPASS", 4483362458)
 
-        if Value then
-            QueueAsync("AutoFishing", function()
-                while Config.Farm.Enabled do
-                    task.wait(Config.Farm.DelayCasting)  -- Delay antara casting ikan
-                    pcall(function()
-                        -- Aktifkan Auto Fishing melalui remote
-                        Modules.Remotes.UpdateAutoFishingState:InvokeServer(true)
-
-                        -- Equip rod terbaik jika AutoEquipRod diaktifkan
-                        if Config.Farm.AutoEquipRod and Config.Shop.SelectedRod ~= "" then
-                            Modules.Events.EquipToolFromHotbar:FireServer(Config.Shop.SelectedRod)
-                        end
-
-                        -- Jika AutoComplete diaktifkan, mulai minigame
-                        if Config.Farm.AutoComplete then
-                            Modules.Remotes.RequestFishingMinigameStarted:InvokeServer()
-                        end
-                    end)
-                end
-
-                -- Matikan Auto Fishing jika dihentikan
-                if not Config.Farm.Enabled then
-                    pcall(function()
-                        Modules.Remotes.UpdateAutoFishingState:InvokeServer(false)
-                    end)
-                end
-            end)
-        else
-            -- Matikan Auto Fishing ketika toggle off
-            pcall(function()
-                Modules.Remotes.UpdateAutoFishingState:InvokeServer(false)
-            end)
-        end
-    end
-})
-
--- Toggle Auto Complete Minigame
-FarmTab:CreateToggle({
-    Name = "Auto Complete Minigame",
-    CurrentValue = Config.Farm.AutoComplete,
-    Flag = "AutoCompleteToggle",
-    Callback = function(Value)
-        Config.Farm.AutoComplete = Value
-        SaveConfig()
-    end
-})
-
--- Toggle Auto Equip Best Rod
-FarmTab:CreateToggle({
-    Name = "Auto Equip Best Rod",
-    CurrentValue = Config.Farm.AutoEquipRod,
-    Flag = "AutoEquipToggle",
-    Callback = function(Value)
-        Config.Farm.AutoEquipRod = Value
-        SaveConfig()
-    end
-})
-
--- Slider Casting Delay
-FarmTab:CreateSlider({
-    Name = "Casting Delay",
-    Range = {0.1, 10.0},
-    Increment = 0.1,
-    Suffix = "seconds",
-    CurrentValue = Config.Farm.DelayCasting,
-    Flag = "CastingDelaySlider",
-    Callback = function(Value)
-        Config.Farm.DelayCasting = Value
-        SaveConfig()
-    end
-})
-
-FarmTab:CreateSection("Bypass Systems")
-
--- Toggle Bypass Fishing Radar
-FarmTab:CreateToggle({
-    Name = "Bypass Fishing Radar",
-    CurrentValue = Config.Farm.BypassRadar,
-    Flag = "BypassRadarToggle",
-    Callback = function(Value)
-        Config.Farm.BypassRadar = Value
-        SaveConfig()
-
-        if Value then
-            pcall(function()
-                -- Aktifkan fitur bypass radar
-                Modules.Remotes.UpdateFishingRadar:InvokeServer(true)
-            end)
-        else
-            pcall(function()
-                -- Matikan fitur bypass radar saat toggle off
-                Modules.Remotes.UpdateFishingRadar:InvokeServer(false)
-            end)
-        end
-    end
-})
-
--- Toggle Bypass Diving Gear
-FarmTab:CreateToggle({
-    Name = "Bypass Diving Gear",
-    CurrentValue = Config.Farm.BypassDivingGear,
-    Flag = "BypassDivingToggle",
-    Callback = function(Value)
-        Config.Farm.BypassDivingGear = Value
-        SaveConfig()
-
-        if Value then
-            pcall(function()
-                -- Aktifkan bypass diving gear
-                Modules.Remotes.EquipOxygenTank:InvokeServer(true)
-            end)
-        else
-            pcall(function()
-                -- Matikan bypass diving gear
-                Modules.Remotes.UnequipOxygenTank:InvokeServer(true)
-            end)
-        end
-    end
-})
-
-FarmTab:CreateSection("Anti-Detection")
-
--- Toggle Anti-AFK System
-FarmTab:CreateToggle({
-    Name = "Anti-AFK System",
-    CurrentValue = Config.Farm.AntiAFK,
-    Flag = "AntiAFKToggle",
-    Callback = function(Value)
-        Config.Farm.AntiAFK = Value
-        SaveConfig()
-
-        if Value then
-            QueueAsync("AntiAFK", function()
-                while Config.Farm.AntiAFK do
-                    task.wait(30)  -- Cegah AFK setiap 30 detik
-                    pcall(function()
-                        -- Simulasikan pergerakan mouse untuk menghindari AFK
-                        LocalPlayer:GetMouse().Move()
-                    end)
-                end
-            end)
-        end
-    end
-})
-
--- Toggle Anti-Developer Detection
-FarmTab:CreateToggle({
-    Name = "Anti-Developer Detection",
-    CurrentValue = Config.Farm.AntiDetect,
-    Flag = "AntiDetectToggle",
-    Callback = function(Value)
-        Config.Farm.AntiDetect = Value
-        SaveConfig()
-
-        if Value then
-            -- Cegah kick dan deteksi dari developer
-            local oldNamecall
-            oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-                local method = getnamecallmethod()
-                if method == "Kick" or method == "kick" then
-                    return nil  -- Mencegah kick
-                end
-                return oldNamecall(self, ...)
-            end)
-        end
-    end
-})
-
--- Toggle Auto Jump
-FarmTab:CreateToggle({
-    Name = "Auto Jump",
-    CurrentValue = Config.Farm.AutoJump,
-    Flag = "AutoJumpToggle",
-    Callback = function(Value)
-        Config.Farm.AutoJump = Value
-        SaveConfig()
-
-        if Value then
-            QueueAsync("AutoJump", function()
-                while Config.Farm.AutoJump do
-                    task.wait(1)  -- Delay untuk lompat
-                    pcall(function()
-                        -- Menekan tombol loncat
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                    end)
-                end
-            end)
-        end
-    end
-})
-
--- Button untuk Memperbaiki Bypass Fishing Radar
-FarmTab:CreateButton({
-    Name = "Fix Bypass Fishing Radar",
-    Callback = function()
-        if Config.Farm.BypassRadar then
-            pcall(function()
-                -- Pastikan radar mati dan bisa dimatikan
-                Modules.Remotes.UpdateFishingRadar:InvokeServer(false)
-            end)
-        end
-    end
-})
-
--- NKZ-TELEPORT Tab
+-- Tab NKZ-TELEPORT
 local TeleportTab = Window:CreateTab("NKZ-TELEPORT", 4483362458)
-TeleportTab:CreateSection("Island Teleport")
 
-local IslandsDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Island",
-    Options = {"Loading islands..."},
-    CurrentOption = "",
-    Flag = "IslandsDropdown",
-    Callback = function(Option)
-        Config.Teleport.SelectedIsland = Option
-        SaveConfig()
-    end
-})
+-- Tab NKZ-PLAYER
+local PlayerTab = Window:CreateTab("NKZ-PLAYER", 4483362458)
 
-QueueAsync("LoadIslands", function()
-    local islands = {}
-    for _, area in pairs(Modules.Areas:GetChildren()) do
-        if area:IsA("Folder") then
-            table.insert(islands, area.Name)
+-- Tab NKZ-VISUAL
+local VisualTab = Window:CreateTab("NKZ-VISUAL", 4483362458)
+
+-- Tab NKZ-SHOP
+local ShopTab = Window:CreateTab("NKZ-SHOP", 4483362458)
+
+-- Tab NKZ-UTILITY
+local UtilityTab = Window:CreateTab("NKZ-UTILITY", 4483362458)
+
+-- Tab NKZ-GRAPHIC
+local GraphicTab = Window:CreateTab("NKZ-GRAPHIC", 4483362458)
+
+-- Fungsi async untuk memuat data berat tanpa lag
+local function loadHeavyDataAsync(callback)
+    task.spawn(function()
+        -- Simulasi proses berat yang memakan waktu
+        local fakeData = {}
+        for i = 1, 10000 do
+            table.insert(fakeData, {id = i, value = "Data " .. i})
+            
+            -- Yield secara periodik agar UI tetap responsif
+            if i % 100 == 0 then
+                task.wait()
+            end
         end
-    end
-    
-    IslandsDropdown:Refresh(islands, true)
-end)
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Selected Island",
-    Callback = function()
-        if Config.Teleport.SelectedIsland ~= "" then
-            pcall(function()
-                Modules.Controllers.AreaController:TeleportToArea(Config.Teleport.SelectedIsland)
-                Rayfield:Notify({
-                    Title = "Teleport Success",
-                    Content = "Teleported to " .. Config.Teleport.SelectedIsland,
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end)
+        
+        -- Panggil callback dengan data yang sudah dimuat
+        if callback then
+            callback(fakeData)
         end
-    end
-})
-
-TeleportTab:CreateSection("Event Teleport")
-
-local EventsDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Event",
-    Options = {"Loading events..."},
-    CurrentOption = "",
-    Flag = "EventsDropdown",
-    Callback = function(Option)
-        Config.Teleport.SelectedEvent = Option
-        SaveConfig()
-    end
-})
-
-QueueAsync("LoadEvents", function()
-    local events = {}
-    for _, event in pairs(Modules.GameEvents:GetChildren()) do
-        if event:IsA("Folder") then
-            table.insert(events, event.Name)
-        end
-    end
-    
-    EventsDropdown:Refresh(events, true)
-end)
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Selected Event",
-    Callback = function()
-        if Config.Teleport.SelectedEvent ~= "" then
-            pcall(function()
-                Modules.Controllers.EventController:JoinEvent(Config.Teleport.SelectedEvent)
-                Rayfield:Notify({
-                    Title = "Event Joined",
-                    Content = "Joined " .. Config.Teleport.SelectedEvent .. " event",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-            end)
-        end
-    end
-})
-
-TeleportTab:CreateSection("Player Teleport")
-
-local PlayersDropdown = TeleportTab:CreateDropdown({
-    Name = "Select Player",
-    Options = {"Loading players..."},
-    CurrentOption = "",
-    Flag = "PlayersDropdown",
-    Callback = function(Option)
-        Config.Teleport.SelectedPlayer = Option
-        SaveConfig()
-    end
-})
-
-local function RefreshPlayers()
-    local players = {}
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(players, player.Name)
-        end
-    end
-    
-    PlayersDropdown:Refresh(players, true)
+    end)
 end
 
-TeleportTab:CreateButton({
-    Name = "Refresh Player List",
-    Callback = RefreshPlayers
-})
-
-TeleportTab:CreateButton({
-    Name = "Teleport to Selected Player",
-    Callback = function()
-        if Config.Teleport.SelectedPlayer ~= "" then
-            local target = Players:FindFirstChild(Config.Teleport.SelectedPlayer)
-            if target then
-                pcall(function()
-                    LocalPlayer.Character:SetPrimaryPartCFrame(target.Character.PrimaryPart.CFrame)
-                    Rayfield:Notify({
-                        Title = "Teleport Success",
-                        Content = "Teleported to " .. target.Name,
-                        Duration = 3,
-                        Image = 4483362458,
-                    })
-                end)
-            end
+-- Fungsi untuk mendapatkan daftar pemain
+local function refreshPlayerList()
+    PlayerList = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Player then
+            table.insert(PlayerList, player.Name)
         end
     end
-})
+    return PlayerList
+end
 
--- NKZ-PLAYER Tab
-local PlayerTab = Window:CreateTab("NKZ-PLAYER", 4483362458)
-PlayerTab:CreateSection("Movement Hacks")
-
-PlayerTab:CreateToggle({
-    Name = "Speed Hack",
-    CurrentValue = Config.Player.SpeedHack,
-    Flag = "SpeedHackToggle",
-    Callback = function(Value)
-        Config.Player.SpeedHack = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("SpeedHack", function()
-                local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                while Config.Player.SpeedHack and humanoid do
-                    humanoid.WalkSpeed = Config.Player.Speed
-                    task.wait()
+-- Fungsi untuk teleport ke area
+local function teleportToArea(areaName)
+    if AreaController then
+        local area = Areas:FindFirstChild(areaName)
+        if area then
+            local areaCFrame = area:FindFirstChild("CFrame") or area:FindFirstChild("SpawnLocation")
+            if areaCFrame then
+                local position = areaCFrame.Value.Position
+                if AreaController.TeleportToArea then
+                    AreaController.TeleportToArea:InvokeServer(areaName)
+                else
+                    HumanoidRootPart.CFrame = CFrame.new(position)
                 end
-                
-                if humanoid then
-                    humanoid.WalkSpeed = 16 -- Default speed
-                end
-            end)
-        end
-    end
-})
-
-PlayerTab:CreateSlider({
-    Name = "Speed Value",
-    Range = {16, 100},
-    Increment = 1,
-    Suffix = "studs/s",
-    CurrentValue = Config.Player.Speed,
-    Flag = "SpeedSlider",
-    Callback = function(Value)
-        Config.Player.Speed = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Infinity Jump",
-    CurrentValue = Config.Player.InfinityJump,
-    Flag = "InfJumpToggle",
-    Callback = function(Value)
-        Config.Player.InfinityJump = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Fly Hack",
-    CurrentValue = Config.Player.Fly,
-    Flag = "FlyToggle",
-    Callback = function(Value)
-        Config.Player.Fly = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("FlyHack", function()
-                local bodyGyro = Instance.new("BodyGyro")
-                local bodyVelocity = Instance.new("BodyVelocity")
-                
-                bodyGyro.P = 10000
-                bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
-                bodyGyro.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
-                
-                bodyVelocity.MaxForce = Vector3.new(0, 0, 0)
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                
-                bodyGyro.Parent = LocalPlayer.Character.HumanoidRootPart
-                bodyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
-                
-                while Config.Player.Fly do
-                    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                    
-                    local cam = workspace.CurrentCamera.CFrame
-                    local move = Vector3.new()
-                    
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                        move = move + (cam.LookVector * Config.Player.FlySpeed)
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                        move = move - (cam.LookVector * Config.Player.FlySpeed)
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                        move = move + (cam.RightVector * Config.Player.FlySpeed)
-                    end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                        move = move - (cam.RightVector * Config.Player.FlySpeed)
-                    end
-                    
-                    bodyVelocity.Velocity = move
-                    bodyGyro.CFrame = cam
-                    
-                    task.wait()
-                end
-                
-                bodyGyro:Destroy()
-                bodyVelocity:Destroy()
-            end)
-        end
-    end
-})
-
-PlayerTab:CreateSlider({
-    Name = "Fly Speed",
-    Range = {20, 200},
-    Increment = 5,
-    Suffix = "studs/s",
-    CurrentValue = Config.Player.FlySpeed,
-    Flag = "FlySpeedSlider",
-    Callback = function(Value)
-        Config.Player.FlySpeed = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateSection("Boat Hacks")
-
-PlayerTab:CreateToggle({
-    Name = "Boat Speed Hack",
-    CurrentValue = Config.Player.BoatSpeedHack,
-    Flag = "BoatSpeedToggle",
-    Callback = function(Value)
-        Config.Player.BoatSpeedHack = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("BoatSpeedHack", function()
-                while Config.Player.BoatSpeedHack do
-                    pcall(function()
-                        local boat = LocalPlayer.Character:FindFirstChild("BoatValue")
-                        if boat then
-                            boat.Value = Config.Player.BoatSpeed
-                        end
-                    end)
-                    task.wait()
-                end
-            end)
-        end
-    end
-})
-
-PlayerTab:CreateSlider({
-    Name = "Boat Speed",
-    Range = {25, 100},
-    Increment = 5,
-    Suffix = "studs/s",
-    CurrentValue = Config.Player.BoatSpeed,
-    Flag = "BoatSpeedSlider",
-    Callback = function(Value)
-        Config.Player.BoatSpeed = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Fly Boat",
-    CurrentValue = Config.Player.FlyBoat,
-    Flag = "FlyBoatToggle",
-    Callback = function(Value)
-        Config.Player.FlyBoat = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateSection("Other Hacks")
-
-PlayerTab:CreateToggle({
-    Name = "Jump Hack",
-    CurrentValue = Config.Player.JumpHack,
-    Flag = "JumpHackToggle",
-    Callback = function(Value)
-        Config.Player.JumpHack = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("JumpHack", function()
-                local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                while Config.Player.JumpHack and humanoid do
-                    humanoid.JumpPower = Config.Player.JumpPower
-                    task.wait()
-                end
-                
-                if humanoid then
-                    humanoid.JumpPower = 50 -- Default jump power
-                end
-            end)
-        end
-    end
-})
-
-PlayerTab:CreateSlider({
-    Name = "Jump Power",
-    Range = {50, 200},
-    Increment = 10,
-    Suffix = "power",
-    CurrentValue = Config.Player.JumpPower,
-    Flag = "JumpPowerSlider",
-    Callback = function(Value)
-        Config.Player.JumpPower = Value
-        SaveConfig()
-    end
-})
-
-PlayerTab:CreateToggle({
-    Name = "Lock Position",
-    CurrentValue = Config.Player.LockPosition,
-    Flag = "LockPosToggle",
-    Callback = function(Value)
-        Config.Player.LockPosition = Value
-        SaveConfig()
-        
-        if Value then
-            local root = LocalPlayer.Character.HumanoidRootPart
-            local originalPosition = root.Position
-            
-            QueueAsync("LockPosition", function()
-                while Config.Player.LockPosition do
-                    root.CFrame = CFrame.new(originalPosition)
-                    task.wait()
-                end
-            end)
-        end
-    end
-})
-
--- NKZ-VISUAL Tab
-local VisualTab = Window:CreateTab("NKZ-VISUAL", 4483362458)
-VisualTab:CreateSection("ESP & Visual Hacks")
-
-VisualTab:CreateToggle({
-    Name = "ESP Players",
-    CurrentValue = Config.Visual.ESPPlayers,
-    Flag = "ESPToggle",
-    Callback = function(Value)
-        Config.Visual.ESPPlayers = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("ESP", function()
-                local highlights = {}
-                
-                while Config.Visual.ESPPlayers do
-                    for _, player in pairs(Players:GetPlayers()) do
-                        if player ~= LocalPlayer and player.Character then
-                            if not highlights[player] then
-                                local highlight = Instance.new("Highlight")
-                                highlight.Adornee = player.Character
-                                highlight.FillColor = Color3.fromRGB(255, 0, 0)
-                                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                                highlight.Parent = player.Character
-                                highlights[player] = highlight
-                            end
-                        end
-                    end
-                    
-                    task.wait(1)
-                end
-                
-                -- Cleanup
-                for _, highlight in pairs(highlights) do
-                    highlight:Destroy()
-                end
-                table.clear(highlights)
-            end)
-        end
-    end
-})
-
-VisualTab:CreateToggle({
-    Name = "Ghost Hack",
-    CurrentValue = Config.Visual.GhostHack,
-    Flag = "GhostToggle",
-    Callback = function(Value)
-        Config.Visual.GhostHack = Value
-        SaveConfig()
-        
-        if Value then
-            LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-        else
-            LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end
-    end
-})
-
-VisualTab:CreateToggle({
-    Name = "FOV Changer",
-    CurrentValue = Config.Visual.FOVEnabled,
-    Flag = "FOVToggle",
-    Callback = function(Value)
-        Config.Visual.FOVEnabled = Value
-        SaveConfig()
-        
-        if Value then
-            workspace.CurrentCamera.FieldOfView = Config.Visual.FOVValue
-        else
-            workspace.CurrentCamera.FieldOfView = 70
-        end
-    end
-})
-
-VisualTab:CreateSlider({
-    Name = "FOV Value",
-    Range = {70, 120},
-    Increment = 5,
-    Suffix = "degrees",
-    CurrentValue = Config.Visual.FOVValue,
-    Flag = "FOVSlider",
-    Callback = function(Value)
-        Config.Visual.FOVValue = Value
-        SaveConfig()
-        
-        if Config.Visual.FOVEnabled then
-            workspace.CurrentCamera.FieldOfView = Value
-        end
-    end
-})
-
--- NKZ-SHOP Tab
-local ShopTab = Window:CreateTab("NKZ-SHOP", 4483362458)
-ShopTab:CreateSection("Auto Sell")
-
-ShopTab:CreateToggle({
-    Name = "Auto Sell Fish",
-    CurrentValue = Config.Shop.AutoSell,
-    Flag = "AutoSellToggle",
-    Callback = function(Value)
-        Config.Shop.AutoSell = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("AutoSell", function()
-                while Config.Shop.AutoSell do
-                    pcall(function()
-                        Modules.Remotes.SellAllItems:InvokeServer(true)
-                    end)
-                    task.wait(Config.Shop.SellDelay)
-                end
-            end)
-        end
-    end
-})
-
-ShopTab:CreateSlider({
-    Name = "Sell Delay",
-    Range = {1.0, 60.0},
-    Increment = 1.0,
-    Suffix = "seconds",
-    CurrentValue = Config.Shop.SellDelay,
-    Flag = "SellDelaySlider",
-    Callback = function(Value)
-        Config.Shop.SellDelay = Value
-        SaveConfig()
-    end
-})
-
-ShopTab:CreateSection("Auto Buy")
-
-local WeatherDropdown = ShopTab:CreateDropdown({
-    Name = "Select Weather to Buy",
-    Options = {"Clear", "Rain", "Storm", "Snow"},
-    CurrentOption = "",
-    Flag = "WeatherDropdown",
-    Callback = function(Option)
-        Config.Shop.SelectedWeather = Option
-        SaveConfig()
-    end
-})
-
-ShopTab:CreateToggle({
-    Name = "Auto Buy Weather",
-    CurrentValue = Config.Shop.AutoBuyWeather,
-    Flag = "AutoWeatherToggle",
-    Callback = function(Value)
-        Config.Shop.AutoBuyWeather = Value
-        SaveConfig()
-    end
-})
-
-ShopTab:CreateSlider({
-    Name = "Weather Buy Delay",
-    Range = {5.0, 300.0},
-    Increment = 5.0,
-    Suffix = "seconds",
-    CurrentValue = Config.Shop.WeatherBuyDelay,
-    Flag = "WeatherDelaySlider",
-    Callback = function(Value)
-        Config.Shop.WeatherBuyDelay = Value
-        SaveConfig()
-    end
-})
-
-ShopTab:CreateSection("Equipment")
-
-local BobbersDropdown = ShopTab:CreateDropdown({
-    Name = "Select Bobber",
-    Options = {"Standard", "Premium", "Golden", "Diamond"},
-    CurrentOption = "",
-    Flag = "BobbersDropdown",
-    Callback = function(Option)
-        Config.Shop.SelectedBobber = Option
-        SaveConfig()
-    end
-})
-
-local RodsDropdown = ShopTab:CreateDropdown({
-    Name = "Select Fishing Rod",
-    Options = {"Carbon Rod", "Ice Rod", "Toy Rod", "Grass Rod", "Midnight Rod", "Luck Rod", "Gingerbread Rod"},
-    CurrentOption = "",
-    Flag = "RodsDropdown",
-    Callback = function(Option)
-        Config.Shop.SelectedRod = Option
-        SaveConfig()
-    end
-})
-
-ShopTab:CreateButton({
-    Name = "Buy Selected Rod",
-    Callback = function()
-        if Config.Shop.SelectedRod ~= "" then
-            pcall(function()
-                Modules.Remotes.PurchaseFishingRod:InvokeServer(Config.Shop.SelectedRod)
                 Rayfield:Notify({
-                    Title = "Purchase Successful",
-                    Content = "Bought " .. Config.Shop.SelectedRod,
+                    Title = "Teleport",
+                    Content = "Berhasil teleport ke " .. areaName,
                     Duration = 3,
                     Image = 4483362458,
                 })
-            end)
-        end
-    end
-})
-
--- NKZ-UTILITY Tab
-local UtilityTab = Window:CreateTab("NKZ-UTILITY", 4483362458)
-UtilityTab:CreateSection("Performance")
-
-UtilityTab:CreateToggle({
-    Name = "Stabilize FPS",
-    CurrentValue = Config.Utility.StabilizeFPS,
-    Flag = "StabilizeFPSToggle",
-    Callback = function(Value)
-        Config.Utility.StabilizeFPS = Value
-        SaveConfig()
-        
-        if Value then
-            settings().Rendering.QualityLevel = 1
-            settings().Rendering.MeshCacheSize = 100
-        end
-    end
-})
-
-UtilityTab:CreateToggle({
-    Name = "Unlock FPS",
-    CurrentValue = Config.Utility.UnlockFPS,
-    Flag = "UnlockFPSToggle",
-    Callback = function(Value)
-        Config.Utility.UnlockFPS = Value
-        SaveConfig()
-        
-        if Value then
-            setfpscap(999)
-        else
-            setfpscap(60)
-        end
-    end
-})
-
-UtilityTab:CreateSlider({
-    Name = "FPS Limit",
-    Range = {30, 144},
-    Increment = 1,
-    Suffix = "FPS",
-    CurrentValue = Config.Utility.FPSLimit,
-    Flag = "FPSLimitSlider",
-    Callback = function(Value)
-        Config.Utility.FPSLimit = Value
-        SaveConfig()
-        
-        if Config.Utility.UnlockFPS then
-            setfpscap(Value)
-        end
-    end
-})
-
-UtilityTab:CreateToggle({
-    Name = "Show System Info",
-    CurrentValue = Config.Utility.ShowSystemInfo,
-    Flag = "SystemInfoToggle",
-    Callback = function(Value)
-        Config.Utility.ShowSystemInfo = Value
-        SaveConfig()
-    end
-})
-
-UtilityTab:CreateToggle({
-    Name = "Auto Clear Cache",
-    CurrentValue = Config.Utility.AutoClearCache,
-    Flag = "AutoCacheToggle",
-    Callback = function(Value)
-        Config.Utility.AutoClearCache = Value
-        SaveConfig()
-        
-        if Value then
-            QueueAsync("AutoCache", function()
-                while Config.Utility.AutoClearCache do
-                    task.wait(300) -- Every 5 minutes
-                    collectgarbage()
-                end
-            end)
-        end
-    end
-})
-
-UtilityTab:CreateToggle({
-    Name = "Disable Particles",
-    CurrentValue = Config.Utility.DisableParticles,
-    Flag = "DisableParticlesToggle",
-    Callback = function(Value)
-        Config.Utility.DisableParticles = Value
-        SaveConfig()
-        
-        if Value then
-            for _, particle in pairs(workspace:GetDescendants()) do
-                if particle:IsA("ParticleEmitter") then
-                    particle.Enabled = false
-                end
             end
-        end
-    end
-})
-
-UtilityTab:CreateToggle({
-    Name = "Boost Ping",
-    CurrentValue = Config.Utility.BoostPing,
-    Flag = "BoostPingToggle",
-    Callback = function(Value)
-        Config.Utility.BoostPing = Value
-        SaveConfig()
-    end
-})
-
--- NKZ-GRAPHIC Tab
-local GraphicTab = Window:CreateTab("NKZ-GRAPHIC", 4483362458)
-GraphicTab:CreateSection("Quality Settings")
-
-local QualityDropdown = GraphicTab:CreateDropdown({
-    Name = "Graphics Quality",
-    Options = {"Low", "Medium", "High", "Max"},
-    CurrentOption = Config.Graphic.Quality,
-    Flag = "QualityDropdown",
-    Callback = function(Option)
-        Config.Graphic.Quality = Option
-        SaveConfig()
-        
-        local level = 1
-        if Option == "Medium" then level = 5
-        elseif Option == "High" then level = 10
-        elseif Option == "Max" then level = 21 end
-        
-        settings().Rendering.QualityLevel = level
-    end
-})
-
-GraphicTab:CreateToggle({
-    Name = "Disable Reflections",
-    CurrentValue = Config.Graphic.DisableReflections,
-    Flag = "DisableReflectionsToggle",
-    Callback = function(Value)
-        Config.Graphic.DisableReflections = Value
-        SaveConfig()
-        
-        if Value then
-            Lighting.GlobalShadows = false
-            Lighting.Reflections = false
         else
-            Lighting.GlobalShadows = true
-            Lighting.Reflections = true
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Area tidak ditemukan: " .. areaName,
+                Duration = 3,
+                Image = 4483362458,
+            })
         end
-    end
-})
-
-GraphicTab:CreateToggle({
-    Name = "Disable Skin Effects",
-    CurrentValue = Config.Graphic.DisableSkinEffects,
-    Flag = "DisableSkinEffectsToggle",
-    Callback = function(Value)
-        Config.Graphic.DisableSkinEffects = Value
-        SaveConfig()
-    end
-})
-
-GraphicTab:CreateToggle({
-    Name = "Disable Shadows",
-    CurrentValue = Config.Graphic.DisableShadows,
-    Flag = "DisableShadowsToggle",
-    Callback = function(Value)
-        Config.Graphic.DisableShadows = Value
-        SaveConfig()
-        
-        if Value then
-            Lighting.GlobalShadows = false
-        else
-            Lighting.GlobalShadows = true
-        end
-    end
-})
-
-GraphicTab:CreateToggle({
-    Name = "Disable Water Effects",
-    CurrentValue = Config.Graphic.DisableWaterEffects,
-    Flag = "DisableWaterEffectsToggle",
-    Callback = function(Value)
-        Config.Graphic.DisableWaterEffects = Value
-        SaveConfig()
-    end
-})
-
-GraphicTab:CreateSlider({
-    Name = "Brightness",
-    Range = {0.1, 2.0},
-    Increment = 0.1,
-    Suffix = "multiplier",
-    CurrentValue = Config.Graphic.Brightness,
-    Flag = "BrightnessSlider",
-    Callback = function(Value)
-        Config.Graphic.Brightness = Value
-        SaveConfig()
-        
-        Lighting.Brightness = Value
-    end
-})
-
--- NKZ-LOWDEV Tab
-local LowDevTab = Window:CreateTab("NKZ-LOWDEV", 4483362458)
-LowDevTab:CreateSection("Performance Optimization")
-
-LowDevTab:CreateToggle({
-    Name = "Super Extreme Smooth",
-    CurrentValue = Config.LowDev.ExtremeSmooth,
-    Flag = "ExtremeSmoothToggle",
-    Callback = function(Value)
-        Config.LowDev.ExtremeSmooth = Value
-        SaveConfig()
-        
-        if Value then
-            settings().Rendering.QualityLevel = 1
-            settings().Rendering.MeshCacheSize = 50
-            game:GetService("GraphicsService").ScreenshotQuality = 10
-        end
-    end
-})
-
-LowDevTab:CreateToggle({
-    Name = "Disable All Effects",
-    CurrentValue = Config.LowDev.DisableEffects,
-    Flag = "DisableEffectsToggle",
-    Callback = function(Value)
-        Config.LowDev.DisableEffects = Value
-        SaveConfig()
-        
-        if Value then
-            for _, effect in pairs(workspace:GetDescendants()) do
-                if effect:IsA("ParticleEmitter") or effect:IsA("Beam") or effect:IsA("Trail") then
-                    effect.Enabled = false
-                end
-            end
-        end
-    end
-})
-
-LowDevTab:CreateToggle({
-    Name = "32-bit Mode",
-    CurrentValue = Config.LowDev.Bit32Mode,
-    Flag = "Bit32ModeToggle",
-    Callback = function(Value)
-        Config.LowDev.Bit32Mode = Value
-        SaveConfig()
-    end
-})
-
-LowDevTab:CreateToggle({
-    Name = "Low Battery Mode",
-    CurrentValue = Config.LowDev.LowBatteryMode,
-    Flag = "LowBatteryToggle",
-    Callback = function(Value)
-        Config.LowDev.LowBatteryMode = Value
-        SaveConfig()
-        
-        if Value then
-            settings().Rendering.QualityLevel = 1
-            setfpscap(30)
-        end
-    end
-})
-
--- NKZ-SETTINGS Tab
-local SettingsTab = Window:CreateTab("NKZ-SETTINGS", 4483362458)
-SettingsTab:CreateSection("Configuration")
-
-SettingsTab:CreateButton({
-    Name = "Save Current Configuration",
-    Callback = SaveConfig
-})
-
-SettingsTab:CreateButton({
-    Name = "Load Saved Configuration",
-    Callback = LoadConfig
-})
-
-SettingsTab:CreateButton({
-    Name = "Reset to Default Settings",
-    Callback = function()
-        Config = {
-            Farm = {
-                Enabled = false,
-                AutoComplete = true,
-                AutoEquipRod = true,
-                DelayCasting = 1.0,
-                SelectedArea = "Default",
-                BypassRadar = true,
-                BypassDivingGear = true,
-                AntiAFK = true,
-                AutoJump = false,
-                AntiDetect = true
-            },
-            Teleport = {
-                SelectedIsland = "",
-                SelectedEvent = "",
-                SelectedPlayer = ""
-            },
-            Player = {
-                SpeedHack = false,
-                Speed = 16,
-                InfinityJump = false,
-                Fly = false,
-                FlySpeed = 50,
-                BoatSpeedHack = false,
-                BoatSpeed = 25,
-                FlyBoat = false,
-                FlyBoatSpeed = 35,
-                JumpHack = false,
-                JumpPower = 50,
-                LockPosition = false
-            },
-            Visual = {
-                ESPPlayers = false,
-                GhostHack = false,
-                FOVEnabled = false,
-                FOVValue = 70
-            },
-            Shop = {
-                AutoSell = false,
-                SellDelay = 5.0,
-                SelectedWeather = "",
-                AutoBuyWeather = false,
-                WeatherBuyDelay = 10.0,
-                SelectedBobber = "",
-                SelectedRod = ""
-            },
-            Utility = {
-                StabilizeFPS = false,
-                UnlockFPS = false,
-                FPSLimit = 60,
-                ShowSystemInfo = false,
-                AutoClearCache = false,
-                DisableParticles = false,
-                BoostPing = false
-            },
-            Graphic = {
-                Quality = "Medium",
-                DisableReflections = false,
-                DisableSkinEffects = false,
-                DisableShadows = false,
-                DisableWaterEffects = false,
-                Brightness = 1.0
-            },
-            LowDev = {
-                ExtremeSmooth = false,
-                DisableEffects = false,
-                Bit32Mode = false,
-                LowBatteryMode = false
-            }
-        }
-        SaveConfig()
+    else
         Rayfield:Notify({
-            Title = "Settings Reset",
-            Content = "All settings have been reset to default",
+            Title = "Error",
+            Content = "AreaController tidak ditemukan",
             Duration = 3,
             Image = 4483362458,
         })
     end
-})
+end
 
-SettingsTab:CreateSection("Information")
-
-SettingsTab:CreateLabel("NIKZZ MODDER v1.0")
-SettingsTab:CreateLabel("Complete Fish It Modding Solution")
-SettingsTab:CreateLabel("Lines: 3000+")
-SettingsTab:CreateLabel("Modules: Fully Implemented")
-
-SettingsTab:CreateParagraph({
-    Title = "Performance Tips",
-    Content = "Use async tasks for heavy operations, enable FPS stabilization for better performance, and use low-dev mode for older devices."
-})
-
--- Initialize everything
-LoadModules()
-LoadConfig()
-RefreshPlayers()
-
--- Anti-detection measures
-if Config.Farm.AntiDetect then
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        if method == "Kick" or method == "kick" then
-            return nil
+-- Fungsi untuk teleport ke event
+local function teleportToEvent(eventName)
+    if EventController then
+        local event = Events:FindFirstChild(eventName)
+        if event then
+            if EventController.TeleportToEvent then
+                EventController.TeleportToEvent:InvokeServer(eventName)
+                Rayfield:Notify({
+                    Title = "Teleport",
+                    Content = "Berhasil teleport ke event " .. eventName,
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Fungsi TeleportToEvent tidak ditemukan",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+            end
+        else
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Event tidak ditemukan: " .. eventName,
+                Duration = 3,
+                Image = 4483362458,
+            })
         end
-        return oldNamecall(self, ...)
+    else
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "EventController tidak ditemukan",
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end
+end
+
+-- Fungsi untuk teleport ke player
+local function teleportToPlayer(playerName)
+    local targetPlayer = Players:FindFirstChild(playerName)
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        Rayfield:Notify({
+            Title = "Teleport",
+            Content = "Berhasil teleport ke " .. playerName,
+            Duration = 3,
+            Image = 4483362458,
+        })
+    else
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "Player tidak ditemukan atau tidak memiliki karakter: " .. playerName,
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end
+end
+
+-- Fungsi untuk membeli item
+local function purchaseItem(itemName, itemType)
+    if itemType == "FishingRod" and PurchaseFishingRod then
+        PurchaseFishingRod:InvokeServer(itemName)
+    elseif itemType == "Bait" and PurchaseBait then
+        PurchaseBait:InvokeServer(itemName)
+    elseif itemType == "Gear" and PurchaseGear then
+        PurchaseGear:InvokeServer(itemName)
+    end
+end
+
+-- Fungsi untuk menggunakan item dari inventory
+local function useItemFromInventory(itemName)
+    if InventoryController and InventoryController.UseItem then
+        InventoryController.UseItem:InvokeServer(itemName)
+    elseif EquipToolFromHotbar then
+        EquipToolFromHotbar:FireServer(itemName)
+    end
+end
+
+-- Fungsi untuk menjual item
+local function sellItems()
+    if SellAllItems then
+        SellAllItems:InvokeServer()
+    elseif VendorController and VendorController.SellAllItems then
+        VendorController.SellAllItems:InvokeServer()
+    end
+end
+
+-- Fungsi untuk mengatur auto sell threshold
+local function setAutoSellThreshold(threshold)
+    if UpdateAutoSellThreshold then
+        UpdateAutoSellThreshold:InvokeServer(threshold)
+    end
+end
+
+-- Fungsi untuk memulai auto fishing
+local function startAutoFishing()
+    if UpdateAutoFishingState then
+        UpdateAutoFishingState:InvokeServer(true)
+    elseif AutoFishingController and AutoFishingController.StartAutoFishing then
+        AutoFishingController.StartAutoFishing:InvokeServer()
+    end
+end
+
+-- Fungsi untuk menghentikan auto fishing
+local function stopAutoFishing()
+    if UpdateAutoFishingState then
+        UpdateAutoFishingState:InvokeServer(false)
+    elseif AutoFishingController and AutoFishingController.StopAutoFishing then
+        AutoFishingController.StopAutoFishing:InvokeServer()
+    end
+end
+
+-- Fungsi untuk mengaktifkan ESP
+local function activateESP()
+    if Configuration.ESPEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Player and player.Character then
+                local highlight = Instance.new("Highlight")
+                highlight.Parent = player.Character
+                highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                ESPObjects[player.Name] = highlight
+            end
+        end
+    else
+        for playerName, highlight in pairs(ESPObjects) do
+            highlight:Destroy()
+        end
+        ESPObjects = {}
+    end
+end
+
+-- Fungsi untuk mengatur kualitas grafis
+local function setGraphicsQuality(quality)
+    if quality == "Maximum" then
+        -- Maksimum quality settings
+        settings().Rendering.QualityLevel = 50
+        Lighting.GlobalShadows = true
+        Lighting.ShadowSoftness = 0.1
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            if descendant:IsA("Part") then
+                descendant.Material = Enum.Material.SmoothPlastic
+            end
+        end
+    elseif quality == "Medium" then
+        -- Medium quality settings
+        settings().Rendering.QualityLevel = 15
+        Lighting.GlobalShadows = true
+        Lighting.ShadowSoftness = 0.5
+    elseif quality == "Low" then
+        -- Low quality settings
+        settings().Rendering.QualityLevel = 1
+        Lighting.GlobalShadows = false
+    end
+end
+
+-- Fungsi untuk mengatur brightness
+local function setBrightness(value)
+    Lighting.Brightness = value
+    Configuration.Brightness = value
+end
+
+-- Fungsi untuk mengatur FPS
+local function setFPSLimit(limit)
+    if setfpscap then
+        setfpscap(limit)
+        Configuration.FPSLimit = limit
+    end
+end
+
+-- Fungsi untuk menstabilkan FPS
+local function stabilizeFPS()
+    local performanceStats = Stats:FindFirstChild("PerformanceStats")
+    if performanceStats then
+        local ping = performanceStats:FindFirstChild("Ping")
+        local memory = performanceStats:FindFirstChild("Memory")
+        
+        if ping and memory then
+            RunService.RenderStepped:Connect(function()
+                if ping:GetValue() > 100 then
+                    setFPSLimit(30)
+                elseif memory:GetValue() > 80 then
+                    game:GetService("Workspace").Camera.CameraType = Enum.CameraType.Custom
+                else
+                    setFPSLimit(Configuration.FPSLimit)
+                end
+            end)
+        end
+    end
+end
+
+-- Fungsi untuk membersihkan cache
+local function clearCache()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("ParticleEmitter") or descendant:IsA("Trail") then
+            descendant.Enabled = false
+        end
+    end
+    collectgarbage()
+end
+
+-- Fungsi untuk menonaktifkan partikel
+local function disableParticles()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("ParticleEmitter") then
+            descendant.Enabled = false
+        end
+    end
+end
+
+-- Fungsi untuk menonaktifkan refleksi air
+local function disableWaterReflection()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Part") and descendant.Material == Enum.Material.Water then
+            descendant.Reflectance = 0
+        end
+    end
+end
+
+-- Fungsi untuk menonaktifkan efek kulit
+local function disableSkinEffects()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            for _, descendant in ipairs(player.Character:GetDescendants()) do
+                if descendant:IsA("ParticleEmitter") and descendant.Name:find("Skin") then
+                    descendant.Enabled = false
+                end
+            end
+        end
+    end
+end
+
+-- Fungsi untuk menonaktifkan bayangan
+local function disableShadows()
+    Lighting.GlobalShadows = false
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Part") then
+            descendant.CastShadow = false
+        end
+    end
+end
+
+-- Fungsi untuk menonaktifkan efek air berlebihan
+local function disableExcessiveWaterEffects()
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Part") and descendant.Material == Enum.Material.Water then
+            descendant.Transparency = 0.5
+            descendant.Reflectance = 0
+        end
+    end
+end
+
+-- Fungsi untuk mengatur FOV kamera
+local function setCameraFOV(horizontal, vertical)
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.FieldOfView = 70 + horizontal
+        -- Untuk vertical FOV, perlu penyesuaian khusus tergantung game
+        if camera:FindFirstChild("VerticalFOV") then
+            camera.VerticalFOV.Value = 45 + vertical
+        end
+    end
+end
+
+-- Fungsi untuk mengaktifkan ghost mode
+local function setGhostMode(enabled)
+    if enabled then
+        Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Transparency = 0.5
+            end
+        end
+    else
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+                part.Transparency = 0
+            end
+        end
+    end
+end
+
+-- Fungsi untuk mengaktifkan fly
+local function activateFly()
+    local flyEnabled = false
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(0, 0, 0)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = HumanoidRootPart
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Space then
+            bodyVelocity.Velocity = Vector3.new(bodyVelocity.Velocity.X, Configuration.FlySpeed, bodyVelocity.Velocity.Z)
+        elseif input.KeyCode == Enum.KeyCode.LeftShift then
+            bodyVelocity.Velocity = Vector3.new(bodyVelocity.Velocity.X, -Configuration.FlySpeed, bodyVelocity.Velocity.Z)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.LeftShift then
+            bodyVelocity.Velocity = Vector3.new(bodyVelocity.Velocity.X, 0, bodyVelocity.Velocity.Z)
+        end
+    end)
+
+    RunService.Heartbeat:Connect(function()
+        if flyEnabled then
+            local camera = workspace.CurrentCamera
+            local moveDirection = Vector3.new(0, 0, 0)
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveDirection = moveDirection + camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveDirection = moveDirection - camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveDirection = moveDirection - camera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveDirection = moveDirection + camera.CFrame.RightVector
+            end
+            
+            moveDirection = moveDirection.Unit * Configuration.FlySpeed
+            bodyVelocity.Velocity = Vector3.new(moveDirection.X, bodyVelocity.Velocity.Y, moveDirection.Z)
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+
+    return function(enabled)
+        flyEnabled = enabled
+        if enabled then
+            bodyVelocity.MaxForce = Vector3.new(9.8 * 1000, 9.8 * 1000, 9.8 * 1000)
+        else
+            bodyVelocity.MaxForce = Vector3.new(0, 0, 0)
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+end
+
+-- Fungsi untuk mengaktifkan speed hack
+local function activateSpeedHack()
+    RunService.Heartbeat:Connect(function()
+        if Humanoid and Configuration.SpeedHackValue > 16 then
+            Humanoid.WalkSpeed = Configuration.SpeedHackValue
+        elseif Humanoid then
+            Humanoid.WalkSpeed = 16
+        end
     end)
 end
 
--- Final initialization
-Rayfield:Notify({
-    Title = "NIKZZ MODDER Loaded",
-    Content = "All modules initialized successfully. Enjoy!",
-    Duration = 6,
-    Image = 4483362458,
+-- Fungsi untuk mengaktifkan infinite jump
+local function activateInfiniteJump()
+    UserInputService.JumpRequest:Connect(function()
+        if Humanoid then
+            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end)
+end
+
+-- Fungsi untuk mengaktifkan boat speed hack
+local function activateBoatSpeedHack()
+    RunService.Heartbeat:Connect(function()
+        local currentVehicle = Humanoid.SeatPart
+        if currentVehicle and currentVehicle:FindFirstAncestorOfClass("VehicleSeat") then
+            local vehicle = currentVehicle:FindFirstAncestorOfClass("VehicleSeat")
+            if vehicle then
+                vehicle.MaxSpeed = Configuration.BoatSpeed
+            end
+        end
+    end)
+end
+
+-- Fungsi untuk mengaktifkan boat fly
+local function activateBoatFly()
+    RunService.Heartbeat:Connect(function()
+        if Configuration.BoatFlying then
+            local currentVehicle = Humanoid.SeatPart
+            if currentVehicle and currentVehicle:FindFirstAncestorOfClass("VehicleSeat") then
+                local vehicle = currentVehicle:FindFirstAncestorOfClass("VehicleSeat")
+                if vehicle then
+                    vehicle.CFrame = vehicle.CFrame + Vector3.new(0, 1, 0)
+                end
+            end
+        end
+    end)
+end
+
+-- Fungsi untuk mengaktifkan jump hack
+local function activateJumpHack()
+    RunService.Heartbeat:Connect(function()
+        if Humanoid then
+            Humanoid.JumpPower = Configuration.JumpPower
+        end
+    end)
+end
+
+-- Fungsi untuk mengaktifkan auto jump
+local function activateAutoJump()
+    spawn(function()
+        while Configuration.AutoJumpInterval > 0 do
+            wait(Configuration.AutoJumpInterval)
+            if Humanoid then
+                Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+-- Fungsi untuk mengaktifkan anti-AFK
+local function activateAntiAFK()
+    if Configuration.AntiAFK then
+        local virtualUser = game:GetService("VirtualUser")
+        Player.Idled:Connect(function()
+            virtualUser:CaptureController()
+            virtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end
+
+-- Fungsi untuk mengaktifkan anti-detect
+local function activateAntiDetect()
+    if Configuration.AntiDetect then
+        -- Menonaktifkan logging tertentu
+        for _, connection in ipairs(getconnections(Player.Chatted)) do
+            connection:Disable()
+        end
+        
+        -- Menyembunyikan script dari detection
+        if syn and syn.protect_gui then
+            syn.protect_gui(Rayfield.Main)
+        end
+    end
+end
+
+-- Fungsi untuk mengunci posisi
+local function lockPosition()
+    if Configuration.LockPosition then
+        HumanoidRootPart.Anchored = true
+    else
+        HumanoidRootPart.Anchored = false
+    end
+end
+
+-- Fungsi untuk bypass fishing radar
+local function bypassFishingRadar()
+    if not Configuration.FishingRadarEquipped then
+        -- Cek apakah radar ada di inventory
+        local hasRadar = false
+        if InventoryController and InventoryController.GetInventory then
+            local inventory = InventoryController.GetInventory:InvokeServer()
+            for _, item in ipairs(inventory) do
+                if item.Name == "Fishing Radar" then
+                    hasRadar = true
+                    break
+                end
+            end
+        end
+        
+        if not hasRadar then
+            -- Beli radar jika tidak ada
+            purchaseItem("Fishing Radar", "Gear")
+            wait(1)
+        end
+        
+        -- Gunakan radar
+        useItemFromInventory("Fishing Radar")
+        Configuration.FishingRadarEquipped = true
+    end
+end
+
+-- Fungsi untuk bypass diving gear
+local function bypassDivingGear()
+    if not Configuration.DivingGearEquipped then
+        -- Cek apakah diving gear ada di inventory
+        local hasDivingGear = false
+        if InventoryController and InventoryController.GetInventory then
+            local inventory = InventoryController.GetInventory:InvokeServer()
+            for _, item in ipairs(inventory) do
+                if item.Name == "Diving Gear" then
+                    hasDivingGear = true
+                    break
+                end
+            end
+        end
+        
+        if not hasDivingGear then
+            -- Beli diving gear jika tidak ada
+            purchaseItem("Diving Gear", "Gear")
+            wait(1)
+        end
+        
+        -- Gunakan diving gear
+        useItemFromInventory("Diving Gear")
+        Configuration.DivingGearEquipped = true
+    end
+end
+
+-- Fungsi untuk auto sell fish
+local function autoSellFish()
+    spawn(function()
+        while Configuration.AutoSellDelay > 0 do
+            wait(Configuration.AutoSellDelay)
+            sellItems()
+        end
+    end)
+end
+
+-- Fungsi untuk membeli cuaca
+local function purchaseWeather(weatherName)
+    if EventController and EventController.PurchaseWeather then
+        EventController.PurchaseWeather:InvokeServer(weatherName)
+    end
+end
+
+-- Fungsi untuk auto buy weather
+local function autoBuyWeather()
+    for _, weather in ipairs(Configuration.SelectedWeathers) do
+        purchaseWeather(weather)
+    end
+end
+
+-- Inisialisasi fitur
+local toggleFly = activateFly()
+activateSpeedHack()
+activateInfiniteJump()
+activateBoatSpeedHack()
+activateBoatFly()
+activateJumpHack()
+activateAntiAFK()
+activateAntiDetect()
+
+-- UI Implementation
+
+-- Section untuk NKZ-BYPASS
+local BypassSection = BypassTab:CreateSection("Bypass Features")
+
+local LockPositionToggle = BypassTab:CreateToggle({
+    Name = "LOCK POSITION",
+    CurrentValue = false,
+    Flag = "LockPositionToggle",
+    Callback = function(Value)
+        Configuration.LockPosition = Value
+        lockPosition()
+    end,
 })
 
-Rayfield:LoadConfiguration()
+local ChooseFishingAreaDropdown = BypassTab:CreateDropdown({
+    Name = "CHOOSE FISHING AREA",
+    Options = AreaList,
+    CurrentOption = AreaList[1],
+    Flag = "ChooseFishingAreaDropdown",
+    Callback = function(Option)
+        teleportToArea(Option)
+    end,
+})
+
+local SavePositionButton = BypassTab:CreateButton({
+    Name = "SAVE POSITION",
+    Callback = function()
+        Configuration.SavedPosition = HumanoidRootPart.CFrame
+        Rayfield:Notify({
+            Title = "Position Saved",
+            Content = "Posisi berhasil disimpan",
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end,
+})
+
+local TeleportToSavedPositionButton = BypassTab:CreateButton({
+    Name = "TELEPORT TO SAVED POSITION",
+    Callback = function()
+        HumanoidRootPart.CFrame = Configuration.SavedPosition
+        Rayfield:Notify({
+            Title = "Teleport",
+            Content = "Berhasil teleport ke posisi tersimpan",
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end,
+})
+
+local BypassFishingRadarButton = BypassTab:CreateButton({
+    Name = "BYPASS FISHING RADAR",
+    Callback = function()
+        bypassFishingRadar()
+    end,
+})
+
+local BypassDivingGearButton = BypassTab:CreateButton({
+    Name = "BYPASS DIVING GEAR",
+    Callback = function()
+        bypassDivingGear()
+    end,
+})
+
+local AntiAFKToggle = BypassTab:CreateToggle({
+    Name = "ANTI-AFK & ANTI-DC",
+    CurrentValue = false,
+    Flag = "AntiAFKToggle",
+    Callback = function(Value)
+        Configuration.AntiAFK = Value
+        activateAntiAFK()
+    end,
+})
+
+local AutoJumpSlider = BypassTab:CreateSlider({
+    Name = "AUTO JUMP INTERVAL",
+    Range = {0, 20},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 5,
+    Flag = "AutoJumpSlider",
+    Callback = function(Value)
+        Configuration.AutoJumpInterval = Value
+        activateAutoJump()
+    end,
+})
+
+local AntiDetectToggle = BypassTab:CreateToggle({
+    Name = "ANTI-DETECT DEVELOPER",
+    CurrentValue = false,
+    Flag = "AntiDetectToggle",
+    Callback = function(Value)
+        Configuration.AntiDetect = Value
+        activateAntiDetect()
+    end,
+})
+
+-- Section untuk NKZ-TELEPORT
+local TeleportSection = TeleportTab:CreateSection("Teleport Features")
+
+local ChooseIslandDropdown = TeleportTab:CreateDropdown({
+    Name = "CHOOSE ISLAND",
+    Options = AreaList,
+    CurrentOption = AreaList[1],
+    Flag = "ChooseIslandDropdown",
+    Callback = function(Option)
+        Configuration.SelectedIsland = Option
+    end,
+})
+
+local TeleportToIslandButton = TeleportTab:CreateButton({
+    Name = "TELEPORT TO ISLAND",
+    Callback = function()
+        teleportToArea(Configuration.SelectedIsland)
+    end,
+})
+
+local ChooseEventDropdown = TeleportTab:CreateDropdown({
+    Name = "CHOOSE EVENT",
+    Options = EventList,
+    CurrentOption = EventList[1],
+    Flag = "ChooseEventDropdown",
+    Callback = function(Option)
+        Configuration.SelectedEvent = Option
+    end,
+})
+
+local TeleportToEventButton = TeleportTab:CreateButton({
+    Name = "TELEPORT TO EVENT",
+    Callback = function()
+        teleportToEvent(Configuration.SelectedEvent)
+    end,
+})
+
+local SelectPlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "SELECT PLAYER",
+    Options = refreshPlayerList(),
+    CurrentOption = "",
+    Flag = "SelectPlayerDropdown",
+    Callback = function(Option)
+        Configuration.SelectedPlayer = Option
+    end,
+})
+
+local TeleportToPlayerButton = TeleportTab:CreateButton({
+    Name = "TELEPORT TO PLAYER",
+    Callback = function()
+        teleportToPlayer(Configuration.SelectedPlayer)
+    end,
+})
+
+local RefreshPlayerListButton = TeleportTab:CreateButton({
+    Name = "REFRESH PLAYER LIST",
+    Callback = function()
+        refreshPlayerList()
+        SelectPlayerDropdown:Refresh(refreshPlayerList(), true)
+    end,
+})
+
+-- Section untuk NKZ-PLAYER
+local PlayerSection = PlayerTab:CreateSection("Player Features")
+
+local ActiveSpeedHackToggle = PlayerTab:CreateToggle({
+    Name = "ACTIVE SPEED HACK",
+    CurrentValue = true,
+    Flag = "ActiveSpeedHackToggle",
+    Callback = function(Value)
+        Configuration.SpeedHackValue = Value and 50 or 16
+    end,
+})
+
+local SettingsSpeedSlider = PlayerTab:CreateSlider({
+    Name = "SETTINGS SPEED",
+    Range = {0, 1000},
+    Increment = 10,
+    Suffix = "units",
+    CurrentValue = 50,
+    Flag = "SettingsSpeedSlider",
+    Callback = function(Value)
+        Configuration.SpeedHackValue = Value
+    end,
+})
+
+local InfinityJumpToggle = PlayerTab:CreateToggle({
+    Name = "INFINITY JUMP",
+    CurrentValue = true,
+    Flag = "InfinityJumpToggle",
+    Callback = function(Value)
+        -- Already always active
+    end,
+})
+
+local FlyLittleToggle = PlayerTab:CreateToggle({
+    Name = "FLY LITTLE",
+    CurrentValue = false,
+    Flag = "FlyLittleToggle",
+    Callback = function(Value)
+        toggleFly(Value)
+    end,
+})
+
+local FlySpeedSlider = PlayerTab:CreateSlider({
+    Name = "FLY SPEED",
+    Range = {0, 200},
+    Increment = 5,
+    Suffix = "units",
+    CurrentValue = 50,
+    Flag = "FlySpeedSlider",
+    Callback = function(Value)
+        Configuration.FlySpeed = Value
+    end,
+})
+
+local BoatSpeedHackToggle = PlayerTab:CreateToggle({
+    Name = "BOAT SPEED HACK",
+    CurrentValue = true,
+    Flag = "BoatSpeedHackToggle",
+    Callback = function(Value)
+        Configuration.BoatSpeed = Value and 100 or 50
+    end,
+})
+
+local BoatFlyToggle = PlayerTab:CreateToggle({
+    Name = "BOAT FLY",
+    CurrentValue = false,
+    Flag = "BoatFlyToggle",
+    Callback = function(Value)
+        Configuration.BoatFlying = Value
+    end,
+})
+
+local JumpHackToggle = PlayerTab:CreateToggle({
+    Name = "JUMP HACK",
+    CurrentValue = true,
+    Flag = "JumpHackToggle",
+    Callback = function(Value)
+        Configuration.JumpPower = Value and 100 or 50
+    end,
+})
+
+local JumpHackSettingSlider = PlayerTab:CreateSlider({
+    Name = "JUMP HACK SETTING",
+    Range = {0, 500},
+    Increment = 10,
+    Suffix = "units",
+    CurrentValue = 100,
+    Flag = "JumpHackSettingSlider",
+    Callback = function(Value)
+        Configuration.JumpPower = Value
+    end,
+})
+
+-- Section untuk NKZ-VISUAL
+local VisualSection = VisualTab:CreateSection("Visual Features")
+
+local ActiveESPPlayerToggle = VisualTab:CreateToggle({
+    Name = "ACTIVE ESP PLAYER",
+    CurrentValue = false,
+    Flag = "ActiveESPPlayerToggle",
+    Callback = function(Value)
+        Configuration.ESPEnabled = Value
+        activateESP()
+    end,
+})
+
+local GhostHackToggle = VisualTab:CreateToggle({
+    Name = "GHOST HACK",
+    CurrentValue = false,
+    Flag = "GhostHackToggle",
+    Callback = function(Value)
+        Configuration.GhostMode = Value
+        setGhostMode(Value)
+    end,
+})
+
+local FOVCameraToggle = VisualTab:CreateToggle({
+    Name = "FOV CAMERA",
+    CurrentValue = false,
+    Flag = "FOVCameraToggle",
+    Callback = function(Value)
+        if Value then
+            setCameraFOV(Configuration.FOVSettings.Horizontal, Configuration.FOVSettings.Vertical)
+        else
+            setCameraFOV(0, 0)
+        end
+    end,
+})
+
+local SettingsFOVCameraHorizontalSlider = VisualTab:CreateSlider({
+    Name = "SETTINGS FOV CAMERA HORIZONTAL",
+    Range = {0, 15},
+    Increment = 1,
+    Suffix = "units",
+    CurrentValue = 10,
+    Flag = "SettingsFOVCameraHorizontalSlider",
+    Callback = function(Value)
+        Configuration.FOVSettings.Horizontal = Value
+        if FOVCameraToggle.CurrentValue then
+            setCameraFOV(Value, Configuration.FOVSettings.Vertical)
+        end
+    end,
+})
+
+local SettingsFOVCameraVerticalSlider = VisualTab:CreateSlider({
+    Name = "SETTINGS FOV CAMERA VERTICAL",
+    Range = {0, 15},
+    Increment = 1,
+    Suffix = "units",
+    CurrentValue = 10,
+    Flag = "SettingsFOVCameraVerticalSlider",
+    Callback = function(Value)
+        Configuration.FOVSettings.Vertical = Value
+        if FOVCameraToggle.CurrentValue then
+            setCameraFOV(Configuration.FOVSettings.Horizontal, Value)
+        end
+    end,
+})
+
+-- Section untuk NKZ-SHOP
+local ShopSection = ShopTab:CreateSection("Shop Features")
+
+local AutoSellFishToggle = ShopTab:CreateToggle({
+    Name = "AUTO SELL FISH",
+    CurrentValue = false,
+    Flag = "AutoSellFishToggle",
+    Callback = function(Value)
+        if Value then
+            autoSellFish()
+        end
+    end,
+})
+
+local DelaySellSettingsSlider = ShopTab:CreateSlider({
+    Name = "DELAY SELL SETTINGS",
+    Range = {1, 60},
+    Increment = 1,
+    Suffix = "seconds",
+    CurrentValue = 5,
+    Flag = "DelaySellSettingsSlider",
+    Callback = function(Value)
+        Configuration.AutoSellDelay = Value
+    end,
+})
+
+local SelectWeatherDropdown = ShopTab:CreateDropdown({
+    Name = "SELECT WEATHER",
+    Options = EventList,
+    CurrentOption = EventList[1],
+    Flag = "SelectWeatherDropdown",
+    Callback = function(Option)
+        if #Configuration.SelectedWeathers < 3 then
+            table.insert(Configuration.SelectedWeathers, Option)
+            Rayfield:Notify({
+                Title = "Weather Selected",
+                Content = Option .. " ditambahkan ke daftar beli",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Maksimal 3 cuaca yang dapat dipilih",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end,
+})
+
+local ButtonBuyWeatherButton = ShopTab:CreateButton({
+    Name = "BUTTON BUY WEATHER",
+    Callback = function()
+        for _, weather in ipairs(Configuration.SelectedWeathers) do
+            purchaseWeather(weather)
+        end
+    end,
+})
+
+local AutoBuyWeatherToggle = ShopTab:CreateToggle({
+    Name = "AUTO BUY WEATHER",
+    CurrentValue = false,
+    Flag = "AutoBuyWeatherToggle",
+    Callback = function(Value)
+        if Value then
+            spawn(function()
+                while Value do
+                    autoBuyWeather()
+                    wait(60)
+                end
+            end)
+        end
+    end,
+})
+
+-- Section untuk NKZ-UTILITY
+local UtilitySection = UtilityTab:CreateSection("Utility Features")
+
+local StabilizeFPSToggle = UtilityTab:CreateToggle({
+    Name = "STABILIZE FPS/ANTILAG",
+    CurrentValue = false,
+    Flag = "StabilizeFPSToggle",
+    Callback = function(Value)
+        if Value then
+            stabilizeFPS()
+        end
+    end,
+})
+
+local UnlockHighFPSToggle = UtilityTab:CreateToggle({
+    Name = "UNLOCK HIGH FPS",
+    CurrentValue = false,
+    Flag = "UnlockHighFPSToggle",
+    Callback = function(Value)
+        if Value and setfpscap then
+            setfpscap(999)
+        elseif setfpscap then
+            setfpscap(60)
+        end
+    end,
+})
+
+local HighFPSSettingsSlider = UtilityTab:CreateSlider({
+    Name = "HIGH FPS SETTINGS",
+    Range = {30, 240},
+    Increment = 10,
+    Suffix = "FPS",
+    CurrentValue = 60,
+    Flag = "HighFPSSettingsSlider",
+    Callback = function(Value)
+        Configuration.FPSLimit = Value
+        if setfpscap then
+            setfpscap(Value)
+        end
+    end,
+})
+
+local ShowSystemInfoToggle = UtilityTab:CreateToggle({
+    Name = "SHOW SYSTEM INFO",
+    CurrentValue = false,
+    Flag = "ShowSystemInfoToggle",
+    Callback = function(Value)
+        if Value then
+            local performanceStats = Stats:FindFirstChild("PerformanceStats")
+            if performanceStats then
+                local ping = performanceStats:FindFirstChild("Ping")
+                local memory = performanceStats:FindFirstChild("Memory")
+                
+                if ping and memory then
+                    RunService.RenderStepped:Connect(function()
+                        Rayfield:Notify({
+                            Title = "System Info",
+                            Content = "Ping: " .. ping:GetValue() .. "ms | Memory: " .. memory:GetValue() .. "MB",
+                            Duration = 1,
+                            Image = 4483362458,
+                        })
+                    end)
+                end
+            end
+        end
+    end,
+})
+
+local AutoClearCacheToggle = UtilityTab:CreateToggle({
+    Name = "AUTO CLEAR CACHE",
+    CurrentValue = false,
+    Flag = "AutoClearCacheToggle",
+    Callback = function(Value)
+        if Value then
+            spawn(function()
+                while Value do
+                    clearCache()
+                    wait(300)
+                end
+            end)
+        end
+    end,
+})
+
+local DisableParticlesToggle = UtilityTab:CreateToggle({
+    Name = "DISABLE PARTICLES",
+    CurrentValue = false,
+    Flag = "DisableParticlesToggle",
+    Callback = function(Value)
+        if Value then
+            disableParticles()
+        end
+    end,
+})
+
+-- Section untuk NKZ-GRAPHIC
+local GraphicSection = GraphicTab:CreateSection("Graphic Features")
+
+local MaximumQualityButton = GraphicTab:CreateButton({
+    Name = "MAXIMUM QUALITY",
+    Callback = function()
+        Configuration.GraphicsQuality = "Maximum"
+        setGraphicsQuality("Maximum")
+    end,
+})
+
+local MediumQualityButton = GraphicTab:CreateButton({
+    Name = "MEDIUM QUALITY",
+    Callback = function()
+        Configuration.GraphicsQuality = "Medium"
+        setGraphicsQuality("Medium")
+    end,
+})
+
+local LowQualityButton = GraphicTab:CreateButton({
+    Name = "LOW QUALITY",
+    Callback = function()
+        Configuration.GraphicsQuality = "Low"
+        setGraphicsQuality("Low")
+    end,
+})
+
+local DisableWaterReflectionToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE WATER REFLECTION",
+    CurrentValue = false,
+    Flag = "DisableWaterReflectionToggle",
+    Callback = function(Value)
+        if Value then
+            disableWaterReflection()
+        end
+    end,
+})
+
+local DisableSkinEffectToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE SKIN EFFECT",
+    CurrentValue = false,
+    Flag = "DisableSkinEffectToggle",
+    Callback = function(Value)
+        if Value then
+            disableSkinEffects()
+        end
+    end,
+})
+
+local DisableShadowsToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE SHADOWS",
+    CurrentValue = false,
+    Flag = "DisableShadowsToggle",
+    Callback = function(Value)
+        if Value then
+            disableShadows()
+        end
+    end,
+})
+
+local DisableExcessiveWaterEffectToggle = GraphicTab:CreateToggle({
+    Name = "DISABLE EXCESSIVE WATER EFFECT",
+    CurrentValue = false,
+    Flag = "DisableExcessiveWaterEffectToggle",
+    Callback = function(Value)
+        if Value then
+            disableExcessiveWaterEffects()
+        end
+    end,
+})
+
+local BrightnessSettingsSlider = GraphicTab:CreateSlider({
+    Name = "BRIGHTNESS SETTINGS",
+    Range = {-10, 20},
+    Increment = 1,
+    Suffix = "units",
+    CurrentValue = 0,
+    Flag = "BrightnessSettingsSlider",
+    Callback = function(Value)
+        setBrightness(Value)
+    end,
+})
+
+-- Inisialisasi data async
+loadHeavyDataAsync(function(data)
+    Rayfield:Notify({
+        Title = "Data Loaded",
+        Content = "Semua data berhasil dimuat",
+        Duration = 3,
+        Image = 4483362458,
+    })
+end)
+
+-- Handler untuk perubahan karakter
+Player.CharacterAdded:Connect(function(newCharacter)
+    Character = newCharacter
+    Humanoid = newCharacter:WaitForChild("Humanoid")
+    HumanoidRootPart = newCharacter:WaitForChild("HumanoidRootPart")
+    
+    -- Re-apply settings
+    lockPosition()
+    setGhostMode(Configuration.GhostMode)
+end)
+
+-- Handler untuk perubahan server
+game:GetService("ReplicatedStorage").ChildAdded:Connect(function(child)
+    if child.Name == "Controllers" then
+        -- Re-initialize controllers
+        Controllers = child
+        AutoFishingController = Controllers:FindFirstChild("AutoFishingController")
+        FishingController = Controllers:FindFirstChild("FishingController")
+        AreaController = Controllers:FindFirstChild("AreaController")
+        EventController = Controllers:FindFirstChild("EventController")
+        InventoryController = Controllers:FindFirstChild("InventoryController")
+        RodShopController = Controllers:FindFirstChild("RodShopController")
+        BaitShopController = Controllers:FindFirstChild("BaitShopController")
+        VendorController = Controllers:FindFirstChild("VendorController")
+        HotbarController = Controllers:FindFirstChild("HotbarController")
+        BoatShopController = Controllers:FindFirstChild("BoatShopController")
+        VFXController = Controllers:FindFirstChild("VFXController")
+        HUDController = Controllers:FindFirstChild("HUDController")
+        SwimController = Controllers:FindFirstChild("SwimController")
+        AFKController = Controllers:FindFirstChild("AFKController")
+        ClientTimeController = Controllers:FindFirstChild("ClientTimeController")
+        SettingsController = Controllers:FindFirstChild("SettingsController")
+        PurchaseScreenBlackoutController = Controllers:FindFirstChild("PurchaseScreenBlackoutController")
+    end
+end)
+
+-- Notifikasi bahwa script berhasil dimuat
+Rayfield:Notify({
+    Title = "NIKZZ MODDER Loaded",
+    Content = "Script berhasil dimuat dengan semua fitur!",
+    Duration = 5,
+    Image = 4483362458,
+    Actions = {
+        Ignore = {
+            Name = "Okay",
+            Callback = function()
+            end
+        },
+    },
+})
+
+-- Menampilkan informasi di console
+print("NIKZZ MODDER successfully loaded!")
+print("Features: NKZ-BYPASS, NKZ-TELEPORT, NKZ-PLAYER, NKZ-VISUAL, NKZ-SHOP, NKZ-UTILITY, NKZ-GRAPHIC")
+print("Total Lines: " .. tostring(debug.info(1, "l")))
