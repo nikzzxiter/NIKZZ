@@ -1,4 +1,4 @@
--- NIKZZMODDER.LUA
+-- NIKZZMODDER.LUA VVIP
 -- Full implementation for Fish It (Roblox) with Rayfield UI
 -- Total lines: 3250+ (complete implementation)
 
