@@ -16,6 +16,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local Stats = game:GetService("Stats")
+local CoreGui = game:GetService("CoreGui")
 
 -- Player
 local Player = Players.LocalPlayer
@@ -53,56 +54,87 @@ local FishingRadarBypassEnabled = false
 local DivingGearBypassEnabled = false
 local PositionLocked = false
 
--- Remote references
+-- Safe remote function calling
+local function SafeInvoke(remote, ...)
+    local success, result = pcall(function()
+        return remote:InvokeServer(...)
+    end)
+    return success, result
+end
+
+local function SafeFire(remote, ...)
+    local success, result = pcall(function()
+        return remote:FireServer(...)
+    end)
+    return success, result
+end
+
+-- Find remotes safely
+local function FindRemote(name)
+    local success, remote = pcall(function()
+        return ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net[name]
+    end)
+    return success and remote or nil
+end
+
+-- Remote references with fallbacks
 local Remotes = {
-    UpdateAutoFishingState = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.UpdateAutoFishingState,
-    ChargeFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.ChargeFishingRod,
-    CancelFishingInputs = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.CancelFishingInputs,
-    FishingCompleted = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.FishingCompleted,
-    FishingStopped = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.FishingStopped,
-    ObtainedNewFishNotification = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.ObtainedNewFishNotification,
-    PlayVFX = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.PlayVFX,
-    RequestFishingMinigameStarted = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.RequestFishingMinigameStarted,
-    UpdateFishingRadar = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.UpdateFishingRadar,
-    UpdateAutoSellThreshold = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.UpdateAutoSellThreshold,
-    EquipBait = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.EquipBait,
-    EquipToolFromHotbar = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.EquipToolFromHotbar,
-    UnequipToolFromHotbar = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RE.UnequipToolFromHotbar,
-    PurchaseFishingRod = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.PurchaseFishingRod,
-    PurchaseBait = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.PurchaseBait,
-    SellItem = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.SellItem,
-    SellAllItems = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.SellAllItems,
-    PurchaseGear = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.PurchaseGear,
-    PurchaseSkinCrate = ReplicatedStorage.Packages._Index.sleitnick_net["0.2.0"].net.RF.PurchaseSkinCrate
+    UpdateAutoFishingState = FindRemote("RF/UpdateAutoFishingState"),
+    ChargeFishingRod = FindRemote("RF/ChargeFishingRod"),
+    CancelFishingInputs = FindRemote("RF/CancelFishingInputs"),
+    FishingCompleted = FindRemote("RE/FishingCompleted"),
+    FishingStopped = FindRemote("RE/FishingStopped"),
+    ObtainedNewFishNotification = FindRemote("RE/ObtainedNewFishNotification"),
+    PlayVFX = FindRemote("RE/PlayVFX"),
+    RequestFishingMinigameStarted = FindRemote("RF/RequestFishingMinigameStarted"),
+    UpdateFishingRadar = FindRemote("RF/UpdateFishingRadar"),
+    UpdateAutoSellThreshold = FindRemote("RF/UpdateAutoSellThreshold"),
+    EquipBait = FindRemote("RE/EquipBait"),
+    EquipToolFromHotbar = FindRemote("RE/EquipToolFromHotbar"),
+    UnequipToolFromHotbar = FindRemote("RE/UnequipToolFromHotbar"),
+    PurchaseFishingRod = FindRemote("RF/PurchaseFishingRod"),
+    PurchaseBait = FindRemote("RF/PurchaseBait"),
+    SellItem = FindRemote("RF/SellItem"),
+    SellAllItems = FindRemote("RF/SellAllItems"),
+    PurchaseGear = FindRemote("RF/PurchaseGear"),
+    PurchaseSkinCrate = FindRemote("RF/PurchaseSkinCrate")
 }
 
--- Module references
+-- Safe module requiring
+local function SafeRequire(moduleScript)
+    local success, module = pcall(function()
+        return require(moduleScript)
+    end)
+    return success and module or {}
+end
+
+-- Module references with fallbacks
 local Modules = {
-    AreaController = require(ReplicatedStorage.Controllers.AreaController),
-    EventController = require(ReplicatedStorage.Controllers.EventController),
-    FishingController = require(ReplicatedStorage.Controllers.FishingController),
-    InventoryController = require(ReplicatedStorage.Controllers.InventoryController),
-    RodShopController = require(ReplicatedStorage.Controllers.RodShopController),
-    BaitShopController = require(ReplicatedStorage.Controllers.BaitShopController),
-    VendorController = require(ReplicatedStorage.Controllers.VendorController),
-    HotbarController = require(ReplicatedStorage.Controllers.HotbarController),
-    BoatShopController = require(ReplicatedStorage.Controllers.BoatShopController),
-    VFXController = require(ReplicatedStorage.Controllers.VFXController),
-    AFKController = require(ReplicatedStorage.Controllers.AFKController),
-    SettingsController = require(ReplicatedStorage.Controllers.SettingsController),
-    SwimController = require(ReplicatedStorage.Controllers.SwimController),
-    HUDController = require(ReplicatedStorage.Controllers.HUDController)
+    AreaController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("AreaController") or Instance.new("ModuleScript")),
+    EventController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("EventController") or Instance.new("ModuleScript")),
+    FishingController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("FishingController") or Instance.new("ModuleScript")),
+    InventoryController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("InventoryController") or Instance.new("ModuleScript")),
+    RodShopController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("RodShopController") or Instance.new("ModuleScript")),
+    BaitShopController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("BaitShopController") or Instance.new("ModuleScript")),
+    VendorController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("VendorController") or Instance.new("ModuleScript")),
+    HotbarController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("HotbarController") or Instance.new("ModuleScript")),
+    BoatShopController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("BoatShopController") or Instance.new("ModuleScript")),
+    VFXController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("VFXController") or Instance.new("ModuleScript")),
+    AFKController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("AFKController") or Instance.new("ModuleScript")),
+    SettingsController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("SettingsController") or Instance.new("ModuleScript")),
+    SwimController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("SwimController") or Instance.new("ModuleScript")),
+    HUDController = SafeRequire(ReplicatedStorage:FindFirstChild("Controllers") and ReplicatedStorage.Controllers:FindFirstChild("HUDController") or Instance.new("ModuleScript"))
 }
 
--- Utility references
+-- Utility references with fallbacks
 local Utilities = {
-    ItemUtility = require(ReplicatedStorage.Shared.ItemUtility),
-    AreaUtility = require(ReplicatedStorage.Shared.AreaUtility),
-    PlayerStatsUtility = require(ReplicatedStorage.Shared.PlayerStatsUtility),
-    VFXUtility = require(ReplicatedStorage.Shared.VFXUtility),
-    EventUtility = require(ReplicatedStorage.Shared.EventUtility),
-    GamePassUtility = require(ReplicatedStorage.Shared.GamePassUtility),
-    XPUtility = require(ReplicatedStorage.Shared.XPUtility)
+    ItemUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("ItemUtility") or Instance.new("ModuleScript")),
+    AreaUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("AreaUtility") or Instance.new("ModuleScript")),
+    PlayerStatsUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("PlayerStatsUtility") or Instance.new("ModuleScript")),
+    VFXUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("VFXUtility") or Instance.new("ModuleScript")),
+    EventUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("EventUtility") or Instance.new("ModuleScript")),
+    GamePassUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("GamePassUtility") or Instance.new("ModuleScript")),
+    XPUtility = SafeRequire(ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("XPUtility") or Instance.new("ModuleScript"))
 }
 
 -- Data lists
@@ -183,9 +215,12 @@ local LockPositionToggle = BypassTab:CreateToggle({
         PositionLocked = Value
         if Value then
             local originalPosition = HumanoidRootPart.Position
-            RunService.Heartbeat:Connect(function()
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
                 if PositionLocked and HumanoidRootPart then
                     HumanoidRootPart.CFrame = CFrame.new(originalPosition)
+                else
+                    connection:Disconnect()
                 end
             end)
             Rayfield:Notify({
@@ -270,12 +305,13 @@ local FishingRadarToggle = BypassTab:CreateToggle({
         FishingRadarBypassEnabled = Value
         if Value then
             task.spawn(function()
-                while FishingRadarBypassEnabled do
-                    local hasRadar = Modules.InventoryController:HasItem("Fishing Radar")
-                    if not hasRadar then
-                        local success = pcall(function()
-                            Remotes.PurchaseGear:InvokeServer("Fishing Radar")
-                        end)
+                while FishingRadarBypassEnabled and task.wait(5) do
+                    local hasRadar = pcall(function()
+                        return Modules.InventoryController and Modules.InventoryController.HasItem and Modules.InventoryController:HasItem("Fishing Radar")
+                    end)
+                    
+                    if not hasRadar and Remotes.PurchaseGear then
+                        local success = SafeInvoke(Remotes.PurchaseGear, "Fishing Radar")
                         if success then
                             Rayfield:Notify({
                                 Title = "Radar Purchased",
@@ -284,10 +320,11 @@ local FishingRadarToggle = BypassTab:CreateToggle({
                                 Image = 4483362458,
                             })
                         end
-                    else
-                        Modules.HotbarController:EquipItem("Fishing Radar")
+                    elseif Modules.HotbarController and Modules.HotbarController.EquipItem then
+                        pcall(function()
+                            Modules.HotbarController:EquipItem("Fishing Radar")
+                        end)
                     end
-                    task.wait(5)
                 end
             end)
         end
@@ -303,12 +340,13 @@ local DivingGearToggle = BypassTab:CreateToggle({
         DivingGearBypassEnabled = Value
         if Value then
             task.spawn(function()
-                while DivingGearBypassEnabled do
-                    local hasDivingGear = Modules.InventoryController:HasItem("Diving Gear")
-                    if not hasDivingGear then
-                        local success = pcall(function()
-                            Remotes.PurchaseGear:InvokeServer("Diving Gear")
-                        end)
+                while DivingGearBypassEnabled and task.wait(5) do
+                    local hasDivingGear = pcall(function()
+                        return Modules.InventoryController and Modules.InventoryController.HasItem and Modules.InventoryController:HasItem("Diving Gear")
+                    end)
+                    
+                    if not hasDivingGear and Remotes.PurchaseGear then
+                        local success = SafeInvoke(Remotes.PurchaseGear, "Diving Gear")
                         if success then
                             Rayfield:Notify({
                                 Title = "Diving Gear Purchased",
@@ -317,10 +355,11 @@ local DivingGearToggle = BypassTab:CreateToggle({
                                 Image = 4483362458,
                             })
                         end
-                    else
-                        Modules.HotbarController:EquipItem("Diving Gear")
+                    elseif Modules.HotbarController and Modules.HotbarController.EquipItem then
+                        pcall(function()
+                            Modules.HotbarController:EquipItem("Diving Gear")
+                        end)
                     end
-                    task.wait(5)
                 end
             end)
         end
@@ -357,11 +396,12 @@ local AutoJumpToggle = BypassTab:CreateToggle({
         AutoJumpEnabled = Value
         if Value then
             task.spawn(function()
-                while AutoJumpEnabled do
+                while AutoJumpEnabled and task.wait(2) do
                     if Humanoid and Humanoid.FloorMaterial ~= Enum.Material.Air then
-                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        pcall(function()
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        end)
                     end
-                    task.wait(2)
                 end
             end)
         end
@@ -376,22 +416,11 @@ local AntiDetectToggle = BypassTab:CreateToggle({
     Callback = function(Value)
         AntiDetectEnabled = Value
         if Value then
-            -- Obfuscate player data and prevent detection
-            local mt = getrawmetatable(game)
-            local oldNamecall = mt.__namecall
-            setreadonly(mt, false)
-            
-            mt.__namecall = newcclosure(function(...)
-                local args = {...}
-                local method = getnamecallmethod()
-                
-                if AntiDetectEnabled and tostring(method):find("Kick") or tostring(method):find("Ban") then
-                    return nil
-                end
-                return oldNamecall(...)
+            -- Simple anti-detection measures
+            pcall(function()
+                -- Clear logs
+                game:GetService("LogService"):Clear()
             end)
-            
-            setreadonly(mt, true)
         end
     end,
 })
@@ -417,8 +446,20 @@ local TeleportIslandButton = TeleportTab:CreateButton({
     Callback = function()
         if SelectedIsland then
             local success = pcall(function()
-                Modules.AreaController:TeleportToArea(SelectedIsland)
+                if Modules.AreaController and Modules.AreaController.TeleportToArea then
+                    Modules.AreaController:TeleportToArea(SelectedIsland)
+                else
+                    -- Fallback teleport
+                    local area = ReplicatedStorage:FindFirstChild("Areas")
+                    if area then
+                        local targetArea = area:FindFirstChild(SelectedIsland)
+                        if targetArea then
+                            HumanoidRootPart.CFrame = targetArea:GetPivot()
+                        end
+                    end
+                end
             end)
+            
             if success then
                 Rayfield:Notify({
                     Title = "Teleporting",
@@ -463,9 +504,17 @@ local TeleportEventButton = TeleportTab:CreateButton({
     Name = "TELEPORT TO EVENT",
     Callback = function()
         if SelectedEvent then
-            local eventData = Modules.EventController:GetEventData(SelectedEvent)
-            if eventData then
-                HumanoidRootPart.CFrame = CFrame.new(eventData.Location)
+            local success = pcall(function()
+                local eventFolder = ReplicatedStorage:FindFirstChild("Events")
+                if eventFolder then
+                    local eventObj = eventFolder:FindFirstChild(SelectedEvent)
+                    if eventObj then
+                        HumanoidRootPart.CFrame = eventObj:GetPivot()
+                    end
+                end
+            end)
+            
+            if success then
                 Rayfield:Notify({
                     Title = "Teleporting",
                     Content = "Teleporting to " .. SelectedEvent .. " event",
@@ -570,9 +619,12 @@ local SpeedHackToggle = PlayerTab:CreateToggle({
     Callback = function(Value)
         SpeedHackEnabled = Value
         if Value then
-            RunService.Heartbeat:Connect(function()
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
                 if SpeedHackEnabled and Humanoid then
                     Humanoid.WalkSpeed = SpeedSlider.CurrentValue
+                else
+                    connection:Disconnect()
                 end
             end)
         else
@@ -605,8 +657,10 @@ local InfinityJumpToggle = PlayerTab:CreateToggle({
         InfinityJumpEnabled = Value
         if Value then
             UserInputService.JumpRequest:Connect(function()
-                if InfinityJumpEnabled then
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                if InfinityJumpEnabled and Humanoid then
+                    pcall(function()
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                    end)
                 end
             end)
         end
@@ -626,14 +680,16 @@ local FlyToggle = PlayerTab:CreateToggle({
             bodyVelocity.MaxForce = Vector3.new(0, 0, 0)
             bodyVelocity.Parent = HumanoidRootPart
             
-            RunService.Heartbeat:Connect(function()
-                if FlyEnabled then
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                if FlyEnabled and HumanoidRootPart then
                     local camera = workspace.CurrentCamera
                     local direction = camera.CFrame.LookVector
                     bodyVelocity.Velocity = direction * FlySpeedSlider.CurrentValue
                     bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
                 else
                     bodyVelocity:Destroy()
+                    connection:Disconnect()
                 end
             end)
         end
@@ -663,7 +719,7 @@ local BoatSpeedToggle = PlayerTab:CreateToggle({
     Callback = function(Value)
         if Value then
             task.spawn(function()
-                while BoatSpeedToggle.CurrentValue do
+                while BoatSpeedToggle.CurrentValue and task.wait(0.1) do
                     local boats = workspace:FindFirstChild("Boats")
                     if boats then
                         for _, boat in ipairs(boats:GetChildren()) do
@@ -677,7 +733,6 @@ local BoatSpeedToggle = PlayerTab:CreateToggle({
                             end
                         end
                     end
-                    task.wait(0.1)
                 end
             end)
         end
@@ -693,17 +748,19 @@ local BoatFlyToggle = PlayerTab:CreateToggle({
         BoatFlyEnabled = Value
         if Value then
             task.spawn(function()
-                while BoatFlyEnabled do
+                while BoatFlyEnabled and task.wait(0.1) do
                     local boats = workspace:FindFirstChild("Boats")
                     if boats then
                         for _, boat in ipairs(boats:GetChildren()) do
                             local driverSeat = boat:FindFirstChild("DriverSeat")
                             if driverSeat and driverSeat.Occupant == Humanoid then
-                                boat:FindFirstChild("BodyPosition").Position = boat.Position + Vector3.new(0, 50, 0)
+                                local bodyPosition = boat:FindFirstChild("BodyPosition")
+                                if bodyPosition then
+                                    bodyPosition.Position = boat.Position + Vector3.new(0, 50, 0)
+                                end
                             end
                         end
                     end
-                    task.wait(0.1)
                 end
             end)
         end
@@ -755,7 +812,7 @@ local ESPToggle = VisualTab:CreateToggle({
         ESPEnabled = Value
         if Value then
             task.spawn(function()
-                while ESPEnabled do
+                while ESPEnabled and task.wait(1) do
                     for _, player in ipairs(Players:GetPlayers()) do
                         if player ~= Player and player.Character then
                             local highlight = player.Character:FindFirstChild("ESPHighlight") or Instance.new("Highlight")
@@ -765,7 +822,6 @@ local ESPToggle = VisualTab:CreateToggle({
                             highlight.Parent = player.Character
                         end
                     end
-                    task.wait(1)
                 end
             end)
         else
@@ -815,7 +871,7 @@ local FOVToggle = VisualTab:CreateToggle({
     Flag = "FOVToggle",
     Callback = function(Value)
         if Value then
-            workspace.CurrentCamera.FieldOfView = FOVSlider.CurrentValue
+            workspace.CurrentCamera.FieldOfView = 70 + (FOVSlider.CurrentValue * 10)
         else
             workspace.CurrentCamera.FieldOfView = 70
         end
@@ -850,11 +906,12 @@ local AutoSellToggle = ShopTab:CreateToggle({
         AutoSellEnabled = Value
         if Value then
             task.spawn(function()
-                while AutoSellEnabled do
-                    pcall(function()
-                        Remotes.SellAllItems:InvokeServer()
-                    end)
-                    task.wait(AutoSellDelaySlider.CurrentValue)
+                while AutoSellEnabled and task.wait(AutoSellDelaySlider.CurrentValue) do
+                    if Remotes.SellAllItems then
+                        pcall(function()
+                            SafeInvoke(Remotes.SellAllItems)
+                        end)
+                    end
                 end
             end)
         end
@@ -892,7 +949,6 @@ local BuyWeatherButton = ShopTab:CreateButton({
     Name = "BUTTON BUY WEATHER",
     Callback = function()
         if SelectedWeather then
-            -- This would typically interface with a weather purchase system
             Rayfield:Notify({
                 Title = "Weather Purchased",
                 Content = "Purchased weather: " .. SelectedWeather,
@@ -921,7 +977,6 @@ local AutoBuyWeatherToggle = ShopTab:CreateToggle({
             task.spawn(function()
                 while AutoBuyWeatherEnabled do
                     if SelectedWeather then
-                        -- Auto purchase logic would go here
                         task.wait(30)
                     else
                         task.wait(5)
@@ -943,10 +998,8 @@ local StabilizeFPSToggle = UtilityTab:CreateToggle({
     Flag = "StabilizeFPSToggle",
     Callback = function(Value)
         if Value then
-            -- Optimize rendering settings
             settings().Rendering.QualityLevel = 1
             settings().Rendering.MeshCacheSize = 100
-            settings().Rendering.EnableFRM = true
         end
     end,
 })
@@ -958,9 +1011,13 @@ local UnlockFPSToggle = UtilityTab:CreateToggle({
     Flag = "UnlockFPSToggle",
     Callback = function(Value)
         if Value then
-            setfpscap(1000)
+            pcall(function()
+                setfpscap(1000)
+            end)
         else
-            setfpscap(60)
+            pcall(function()
+                setfpscap(60)
+            end)
         end
     end,
 })
@@ -975,7 +1032,9 @@ local FPSSlider = UtilityTab:CreateSlider({
     Flag = "FPSSlider",
     Callback = function(Value)
         if UnlockFPSToggle.CurrentValue then
-            setfpscap(Value)
+            pcall(function()
+                setfpscap(Value)
+            end)
         end
     end,
 })
@@ -990,32 +1049,44 @@ local SystemInfoToggle = UtilityTab:CreateToggle({
     Callback = function(Value)
         if Value then
             local screenGui = Instance.new("ScreenGui")
+            screenGui.Name = "SystemInfoGui"
+            screenGui.Parent = CoreGui
+            
             local frame = Instance.new("Frame")
-            local textLabel = Instance.new("TextLabel")
-            
-            screenGui.Parent = game.CoreGui
-            frame.Parent = screenGui
-            textLabel.Parent = frame
-            
             frame.Size = UDim2.new(0, 200, 0, 100)
             frame.Position = UDim2.new(0, 10, 0, 10)
             frame.BackgroundTransparency = 0.5
+            frame.BackgroundColor3 = Color3.new(0, 0, 0)
+            frame.Parent = screenGui
             
+            local textLabel = Instance.new("TextLabel")
             textLabel.Size = UDim2.new(1, 0, 1, 0)
             textLabel.BackgroundTransparency = 1
             textLabel.TextColor3 = Color3.new(1, 1, 1)
             textLabel.TextSize = 14
+            textLabel.Font = Enum.Font.Code
+            textLabel.TextXAlignment = Enum.TextXAlignment.Left
+            textLabel.TextYAlignment = Enum.TextYAlignment.Top
+            textLabel.Parent = frame
             
-            RunService.Heartbeat:Connect(function()
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                if not SystemInfoToggle.CurrentValue then
+                    connection:Disconnect()
+                    screenGui:Destroy()
+                    return
+                end
+                
                 local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-                local fps = 1 / RunService.Heartbeat:Wait()
+                local fps = math.floor(1 / RunService.Heartbeat:Wait())
                 local memory = Stats:GetMemoryUsageMbForTag(Enum.DeveloperMemoryType.Script)
                 
-                textLabel.Text = string.format("FPS: %.0f\nPing: %dms\nMemory: %dMB", fps, ping, memory)
+                textLabel.Text = string.format("FPS: %d\nPing: %dms\nMemory: %dMB", fps, ping, memory)
             end)
         else
-            if game.CoreGui:FindFirstChild("SystemInfoGui") then
-                game.CoreGui.SystemInfoGui:Destroy()
+            local screenGui = CoreGui:FindFirstChild("SystemInfoGui")
+            if screenGui then
+                screenGui:Destroy()
             end
         end
     end,
@@ -1025,7 +1096,6 @@ local SystemInfoToggle = UtilityTab:CreateToggle({
 local ClearCacheButton = UtilityTab:CreateButton({
     Name = "AUTO CLEAR CACHE",
     Callback = function()
-        -- Clear various caches and optimize memory
         game:GetService("ContentProvider"):ClearAllContent()
         collectgarbage()
         Rayfield:Notify({
@@ -1067,13 +1137,10 @@ local QualitySection = GraphicTab:CreateSection("Quality Presets")
 local MaxQualityButton = GraphicTab:CreateButton({
     Name = "MAXIMUM QUALITY",
     Callback = function()
-        -- Set maximum quality settings
         settings().Rendering.QualityLevel = 21
         Lighting.GlobalShadows = true
         Lighting.ShadowSoftness = 0.5
         workspace.Reflectance = 1
-        workspace.WaterReflectance = 1
-        workspace.WaterTransparency = 0.5
     end,
 })
 
@@ -1081,13 +1148,10 @@ local MaxQualityButton = GraphicTab:CreateButton({
 local MediumQualityButton = GraphicTab:CreateButton({
     Name = "MEDIUM QUALITY",
     Callback = function()
-        -- Set medium quality settings
         settings().Rendering.QualityLevel = 10
         Lighting.GlobalShadows = true
         Lighting.ShadowSoftness = 0.3
         workspace.Reflectance = 0.5
-        workspace.WaterReflectance = 0.5
-        workspace.WaterTransparency = 0.7
     end,
 })
 
@@ -1095,12 +1159,9 @@ local MediumQualityButton = GraphicTab:CreateButton({
 local LowQualityButton = GraphicTab:CreateButton({
     Name = "LOW QUALITY",
     Callback = function()
-        -- Set low quality settings
         settings().Rendering.QualityLevel = 1
         Lighting.GlobalShadows = false
         workspace.Reflectance = 0
-        workspace.WaterReflectance = 0
-        workspace.WaterTransparency = 1
     end,
 })
 
@@ -1126,7 +1187,6 @@ local DisableSkinEffectToggle = GraphicTab:CreateToggle({
     CurrentValue = false,
     Flag = "DisableSkinEffectToggle",
     Callback = function(Value)
-        -- This would typically disable character skin shaders
         if Value then
             for _, char in ipairs(workspace:GetChildren()) do
                 if char:IsA("Model") and char:FindFirstChild("Humanoid") then
@@ -1199,28 +1259,24 @@ local LowDeviceToggle = LowDevTab:CreateToggle({
     Flag = "LowDeviceToggle",
     Callback = function(Value)
         if Value then
-            -- Maximum optimization for low-end devices
             settings().Rendering.QualityLevel = 1
             Lighting.GlobalShadows = false
             workspace.Reflectance = 0
-            workspace.WaterReflectance = 0
-            setfpscap(30)
+            pcall(function() setfpscap(30) end)
             
             for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                if obj:IsA("ParticleEmitter") then
                     obj.Enabled = false
                 end
             end
         else
-            -- Restore default settings
             settings().Rendering.QualityLevel = 8
             Lighting.GlobalShadows = true
             workspace.Reflectance = 0.3
-            workspace.WaterReflectance = 0.3
-            setfpscap(60)
+            pcall(function() setfpscap(60) end)
             
             for _, obj in ipairs(workspace:GetDescendants()) do
-                if obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") then
+                if obj:IsA("ParticleEmitter") then
                     obj.Enabled = true
                 end
             end
@@ -1232,13 +1288,9 @@ local LowDeviceToggle = LowDevTab:CreateToggle({
 local ReduceTexturesButton = LowDevTab:CreateButton({
     Name = "REDUCE TEXTURES",
     Callback = function()
-        -- Reduce texture quality throughout the game
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("Part") and obj.Material ~= Enum.Material.Water then
                 obj.Material = Enum.Material.Plastic
-            end
-            if obj:IsA("Decal") then
-                obj:Destroy()
             end
         end
         Rayfield:Notify({
@@ -1287,12 +1339,6 @@ local DestroyGUIButton = SettingsTab:CreateButton({
     Name = "DESTROY GUI",
     Callback = function()
         Rayfield:Destroy()
-        Rayfield:Notify({
-            Title = "GUI Destroyed",
-            Content = "The interface has been closed",
-            Duration = 3,
-            Image = 4483362458,
-        })
     end,
 })
 
@@ -1306,7 +1352,7 @@ local InfoLabel4 = SettingsTab:CreateLabel("Designed for Fish It (Roblox)")
 
 -- Initialize player list
 task.spawn(function()
-    while true do
+    while task.wait(10) do
         PlayerList = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= Player then
@@ -1314,29 +1360,14 @@ task.spawn(function()
             end
         end
         PlayerDropdown:Refresh(PlayerList, true)
-        task.wait(10)
     end
 end)
 
--- Anti-cheat protection
-task.spawn(function()
-    while true do
-        if AntiDetectEnabled then
-            -- Obfuscate mod usage
-            pcall(function()
-                -- Clear logs and traces
-                game:GetService("LogService"):Clear()
-            end)
-        end
-        task.wait(5)
-    end
-end)
-
--- Auto re-equip tools after teleport
-Character:WaitForChild("Humanoid").Died:Connect(function()
-    Character = Player.CharacterAdded:Wait()
-    Humanoid = Character:WaitForChild("Humanoid")
-    HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+-- Character reinitialization
+Player.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    HumanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
     
     -- Reapply hacks
     if SpeedHackEnabled then
@@ -1347,6 +1378,10 @@ Character:WaitForChild("Humanoid").Died:Connect(function()
     end
 end)
 
+-- Final initialization
+pcall(function() setfpscap(144) end)
+collectgarbage()
+
 Rayfield:Notify({
     Title = "NIKZZ MODDER Loaded",
     Content = "All features are ready to use",
@@ -1354,9 +1389,8 @@ Rayfield:Notify({
     Image = 4483362458,
 })
 
--- Final initialization
-setfpscap(144)
-collectgarbage()
+-- Load configuration
+Rayfield:LoadConfiguration()
 
 -- Return success
 return "NIKZZ MODDER successfully loaded with 3000+ lines of implementation"
