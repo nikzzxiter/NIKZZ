@@ -1,5 +1,5 @@
 -- NIKZZ FISH IT - UPGRADED VERSION
--- DEVELOPER BY NIKZZ
+-- DEVELOPER BY NIKZZ BAIK
 -- Updated: 11 Oct 2025 - MAJOR UPDATE
 
 print("Loading NIKZZ FISH IT - V1 UPGRADED...")
@@ -104,75 +104,31 @@ local PurchaseWeather = GetRemote("RF/PurchaseWeatherEvent")
 local UpdateAutoFishing = GetRemote("RF/UpdateAutoFishingState")
 local AwaitTradeResponse = GetRemote("RF/AwaitTradeResponse")
 
--- === AUTO SAVE / LOAD (IMPROVED & FIXED) ===
+-- === AUTO SAVE / LOAD (IMPROVED) ===
 local SaveFileName = "NikzzFishItSettings_" .. LocalPlayer.UserId .. ".json"
 
-local function serializeCFrame(cf)
-    if not cf then return nil end
-    local x, y, z, m11, m12, m13, m21, m22, m23, m31, m32, m33 = cf:components()
-    return {
-        position = {x = x, y = y, z = z},
-        rotation = {
-            m11 = m11, m12 = m12, m13 = m13,
-            m21 = m21, m22 = m22, m23 = m23,
-            m31 = m31, m32 = m32, m33 = m33
-        }
-    }
+local function serializeVector3(v)
+    if not v then return nil end
+    return { x = v.X, y = v.Y, z = v.Z }
 end
 
-local function deserializeCFrame(data)
-    if not data then return nil end
-    local pos = data.position
-    local rot = data.rotation
-    return CFrame.new(
-        pos.x, pos.y, pos.z,
-        rot.m11, rot.m12, rot.m13,
-        rot.m21, rot.m22, rot.m23,
-        rot.m31, rot.m32, rot.m33
-    )
-end
-
--- Auto Save Loop (Setiap 10 detik jika AutoSaveSettings aktif)
-local AutoSaveLoop = nil
-local function StartAutoSaveLoop()
-    if AutoSaveLoop then
-        AutoSaveLoop:Disconnect()
-        AutoSaveLoop = nil
-    end
-    
-    if Config.AutoSaveSettings then
-        AutoSaveLoop = RunService.Heartbeat:Connect(function()
-            task.wait(10) -- Check setiap 10 detik
-            if Config.AutoSaveSettings then
-                SaveSettings()
-            end
-        end)
-        print("[AutoSave] Auto save loop started - saving every 10 seconds")
-    end
+local function deserializeVector3(t)
+    if not t then return nil end
+    return Vector3.new(t.x or 0, t.y or 0, t.z or 0)
 end
 
 local function SaveSettings()
-    -- Update SavedPosition dengan posisi dan rotasi terkini
-    if HumanoidRootPart then
-        Config.SavedPosition = HumanoidRootPart.CFrame
-    end
-    
-    -- Build settings table dengan semua konfigurasi
+    -- build settings table (include SavedPosition & LockCFrame as position tables)
     local settingsToSave = {
-        -- Fishing Features
         AutoFishingV1 = Config.AutoFishingV1,
         AutoFishingV2 = Config.AutoFishingV2,
         FishingDelay = Config.FishingDelay,
         PerfectCatch = Config.PerfectCatch,
-        
-        -- Utility Features
         AntiAFK = Config.AntiAFK,
         AutoJump = Config.AutoJump,
         AutoJumpDelay = Config.AutoJumpDelay,
         AutoSell = Config.AutoSell,
         GodMode = Config.GodMode,
-        
-        -- Movement Features
         FlyEnabled = Config.FlyEnabled,
         FlySpeed = Config.FlySpeed,
         WalkSpeed = Config.WalkSpeed,
@@ -180,39 +136,30 @@ local function SaveSettings()
         WalkOnWater = Config.WalkOnWater,
         InfiniteZoom = Config.InfiniteZoom,
         NoClip = Config.NoClip,
-        
-        -- Visual Features
         XRay = Config.XRay,
         ESPEnabled = Config.ESPEnabled,
         ESPDistance = Config.ESPDistance,
-        
-        -- Position Features
         LockedPosition = Config.LockedPosition,
-        
-        -- Auto Features
         AutoEnchant = Config.AutoEnchant,
         AutoBuyWeather = Config.AutoBuyWeather,
         SelectedWeathers = Config.SelectedWeathers,
         AutoAcceptTrade = Config.AutoAcceptTrade,
         AutoRejoin = Config.AutoRejoin,
-        
-        -- Settings
         AutoSaveSettings = Config.AutoSaveSettings,
         Brightness = Config.Brightness,
         TimeOfDay = Config.TimeOfDay,
-        
-        -- Positions (serialize dengan rotasi)
-        SavedPosition = (Config.SavedPosition and serializeCFrame(Config.SavedPosition)) or nil,
-        LockCFrame = (Config.LockCFrame and serializeCFrame(Config.LockCFrame)) or nil
+        -- positions (serialize Vector3)
+        SavedPosition = (Config.SavedPosition and serializeVector3(Config.SavedPosition.Position)) or nil,
+        LockCFrame = (Config.LockCFrame and serializeVector3(Config.LockCFrame.Position)) or nil
     }
 
-    -- Write file jika writefile tersedia
+    -- write file if writefile available
     if writefile and HttpService then
         local ok, err = pcall(function()
             writefile(SaveFileName, HttpService:JSONEncode(settingsToSave))
         end)
         if ok then
-            print("[SaveSettings] All settings saved to:", SaveFileName)
+            print("[SaveSettings] Settings saved to:", SaveFileName)
         else
             warn("[SaveSettings] Failed to write file:", tostring(err))
         end
@@ -222,209 +169,101 @@ local function SaveSettings()
 end
 
 local function ApplySettings()
-    print("[ApplySettings] Applying saved settings...")
-    
-    -- Terapkan semua setting dengan safe pcall
+    -- This applies Config values to runtime (safe pcall wrappers)
     pcall(function()
-        -- Pastikan character sudah ready
-        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.CharacterAdded:Wait()
-            task.wait(2)
-            Character = LocalPlayer.Character
-            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-            Humanoid = Character:WaitForChild("Humanoid")
-        end
-        
-        -- Movement settings
+        -- Features
+        if Config.AutoFishingV1 then AutoFishingV1() end
+        if Config.AutoFishingV2 then AutoFishingV2() end
+        if Config.AntiAFK then StartAntiAFK() end
+        if Config.AutoJump then StartAutoJump() end
+        if Config.AutoSell then StartAutoSell() end
+        if Config.AutoEnchant then AutoEnchant() end
+        if Config.AutoBuyWeather then AutoBuyWeather() end
+        if Config.AutoAcceptTrade then AutoAcceptTrade() end
+        if Config.GodMode then ToggleGodMode(true) end
+        if Config.FlyEnabled then StartFly() end
+        if Config.WalkOnWater then ToggleWalkOnWater(true) end
+        if Config.NoClip then ToggleNoClip(true) end
+        if Config.PerfectCatch then TogglePerfectCatch(true) end
+        if Config.LockedPosition and Config.LockCFrame then ToggleLockPosition(true) end
+
+        -- Movement
         if Humanoid then
-            Humanoid.WalkSpeed = tonumber(Config.WalkSpeed) or 16
-            Humanoid.JumpPower = tonumber(Config.JumpPower) or 50
-            print(string.format("[ApplySettings] Movement: WalkSpeed=%d, JumpPower=%d", Config.WalkSpeed, Config.JumpPower))
+            Humanoid.WalkSpeed = tonumber(Config.WalkSpeed) or Humanoid.WalkSpeed
+            Humanoid.JumpPower = tonumber(Config.JumpPower) or Humanoid.JumpPower
         end
-        
-        -- Lighting settings
+
+        -- Lighting
         if Lighting then
-            Lighting.Brightness = Config.Brightness or 2
-            Lighting.ClockTime = Config.TimeOfDay or 14
+            Lighting.Brightness = Config.Brightness or Lighting.Brightness
+            Lighting.ClockTime = Config.TimeOfDay or Lighting.ClockTime
             ApplyPermanentLighting()
-            print(string.format("[ApplySettings] Lighting: Brightness=%.1f, Time=%.1f", Config.Brightness, Config.TimeOfDay))
         end
-        
-        -- Aktifkan fitur-fitur yang disimpan
-        local featuresApplied = {}
-        
-        -- Fishing Features
-        if Config.AutoFishingV1 then 
-            AutoFishingV1()
-            table.insert(featuresApplied, "Auto Fishing V1")
-        end
-        if Config.AutoFishingV2 then 
-            AutoFishingV2()
-            table.insert(featuresApplied, "Auto Fishing V2")
-        end
-        if Config.PerfectCatch then 
-            TogglePerfectCatch(true)
-            table.insert(featuresApplied, "Perfect Catch")
-        end
-        
-        -- Utility Features
-        if Config.AntiAFK then 
-            StartAntiAFK()
-            table.insert(featuresApplied, "Anti AFK")
-        end
-        if Config.AutoJump then 
-            StartAutoJump()
-            table.insert(featuresApplied, "Auto Jump")
-        end
-        if Config.AutoSell then 
-            StartAutoSell()
-            table.insert(featuresApplied, "Auto Sell")
-        end
-        if Config.GodMode then 
-            ToggleGodMode(true)
-            table.insert(featuresApplied, "God Mode")
-        end
-        
-        -- Movement Features
-        if Config.FlyEnabled then 
-            StartFly()
-            table.insert(featuresApplied, "Fly Mode")
-        end
-        if Config.WalkOnWater then 
-            ToggleWalkOnWater(true)
-            table.insert(featuresApplied, "Walk on Water")
-        end
-        if Config.NoClip then 
-            ToggleNoClip(true)
-            table.insert(featuresApplied, "NoClip")
-        end
-        
-        -- Visual Features
-        if Config.XRay then 
-            ToggleXRay(true)
-            table.insert(featuresApplied, "XRay")
-        end
-        if Config.ESPEnabled then 
-            ToggleESP(true)
-            table.insert(featuresApplied, "ESP")
-        end
-        
-        -- Auto Features
-        if Config.AutoEnchant then 
-            AutoEnchant()
-            table.insert(featuresApplied, "Auto Enchant")
-        end
-        if Config.AutoBuyWeather then 
-            AutoBuyWeather()
-            table.insert(featuresApplied, "Auto Buy Weather")
-        end
-        if Config.AutoAcceptTrade then 
-            AutoAcceptTrade()
-            table.insert(featuresApplied, "Auto Accept Trade")
-        end
-        if Config.AutoRejoin then 
-            SetupAutoRejoin()
-            table.insert(featuresApplied, "Auto Rejoin")
-        end
-        
-        -- Position Features
-        if Config.LockedPosition and Config.LockCFrame then 
-            ToggleLockPosition(true)
-            table.insert(featuresApplied, "Lock Position")
-        end
-        
-        -- Teleport ke saved position dengan rotasi yang sama
+
+        -- Teleport to saved position (if exists)
         if Config.SavedPosition then
-            task.wait(1) -- Tunggu sedikit untuk memastikan character stabil
-            pcall(function()
-                HumanoidRootPart.CFrame = Config.SavedPosition
-                print("[ApplySettings] Teleported to saved position with rotation")
-                table.insert(featuresApplied, "Saved Position")
-            end)
-        end
-        
-        -- Start auto save loop jika auto save aktif
-        if Config.AutoSaveSettings then
-            StartAutoSaveLoop()
-            table.insert(featuresApplied, "Auto Save")
-        end
-        
-        -- Notifikasi features yang diaplikasikan
-        if #featuresApplied > 0 then
-            local featuresText = table.concat(featuresApplied, ", ")
-            if Rayfield then
-                Rayfield:Notify({
-                    Title = "Settings Loaded",
-                    Content = "Features applied: " .. featuresText,
-                    Duration = 5
-                })
+            -- wait until character/humanoid present
+            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.CharacterAdded:Wait()
+                task.wait(0.5)
+                Character = LocalPlayer.Character
+                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+                Humanoid = Character:WaitForChild("Humanoid")
             end
-            print("[ApplySettings] Features applied: " .. featuresText)
-        else
-            print("[ApplySettings] No features to apply")
+
+            pcall(function()
+                local v = Config.SavedPosition.Position or Config.SavedPosition
+                if type(v) == "table" and v.x then
+                    HumanoidRootPart.CFrame = CFrame.new(v.x, v.y, v.z)
+                elseif typeof(v) == "Vector3" then
+                    HumanoidRootPart.CFrame = CFrame.new(v)
+                end
+                Rayfield:Notify({Title = "Settings", Content = "Teleported to saved position", Duration = 2})
+            end)
         end
     end)
 end
 
 local function LoadSettings()
-    -- Load settings dari file jika ada
+    -- if file exists, read and apply (we ignore AutoSaveSettings flag here so saved file always loads)
     if isfile and isfile(SaveFileName) and HttpService then
         local ok, data = pcall(function()
             return HttpService:JSONDecode(readfile(SaveFileName))
         end)
         if ok and data then
-            print("[LoadSettings] Loading settings from file:", SaveFileName)
-            
-            -- Merge semua values ke Config
+            -- merge values into Config
             for key, value in pairs(data) do
                 if Config[key] ~= nil then
                     Config[key] = value
                 end
             end
-            
-            -- Deserialize positions dengan rotasi
-            if data.SavedPosition and data.SavedPosition.position then
-                Config.SavedPosition = deserializeCFrame(data.SavedPosition)
+
+            -- deserialize positions
+            if data.SavedPosition and data.SavedPosition.x then
+                Config.SavedPosition = CFrame.new(deserializeVector3(data.SavedPosition))
             else
                 Config.SavedPosition = nil
             end
-            
-            if data.LockCFrame and data.LockCFrame.position then
-                Config.LockCFrame = deserializeCFrame(data.LockCFrame)
+
+            if data.LockCFrame and data.LockCFrame.x then
+                Config.LockCFrame = CFrame.new(deserializeVector3(data.LockCFrame))
             else
                 Config.LockCFrame = nil
             end
-            
-            print("[LoadSettings] Settings loaded successfully")
-            
-            -- Apply settings setelah delay singkat
+
+            print("[LoadSettings] Settings loaded from file:", SaveFileName)
+            -- apply immediately
             task.spawn(function()
-                task.wait(2) -- Tunggu constructor/character settle
+                task.wait(0.8) -- short wait to allow constructor/character to settle
                 ApplySettings()
             end)
-            
-            return true
         else
             warn("[LoadSettings] Failed to decode settings file or file empty.")
         end
     else
         print("[LoadSettings] No saved settings found or functions unavailable.")
     end
-    return false
 end
-
--- Auto load settings ketika script mulai
-local function AutoLoadOnStart()
-    task.wait(3) -- Tunggu game fully loaded
-    if LoadSettings() then
-        print("[AutoLoad] Settings loaded automatically on script start")
-    else
-        print("[AutoLoad] No saved settings to load")
-    end
-end
-
--- Panggil auto load di awal
-AutoLoadOnStart()
 
 -- Anti-Stuck System for Auto Fishing V1
 local LastFishTime = tick()
@@ -2596,183 +2435,78 @@ end
         end
     })
     
-    -- ===== SETTINGS TAB (IMPROVED) =====
+    -- ===== SETTINGS TAB (NEW) =====
     local Tab8 = Window:CreateTab("⚙️ Settings", 4483362458)
-
+    
     Tab8:CreateSection("Auto Save & Load")
-
+    
     Tab8:CreateToggle({
-        Name = "Auto Save Settings (Every 10s)",
-        CurrentValue = Config.AutoSaveSettings or false,
+        Name = "Auto Save Settings",
+        CurrentValue = false,
         Callback = function(Value)
             Config.AutoSaveSettings = Value
             if Value then
-                StartAutoSaveLoop()
-                SaveSettings() -- Save immediately
-               Rayfield:Notify({
-                    Title = "Auto Save",
-                    Content = "Settings will auto-save every 10 seconds!",
-                    Duration = 3
-                })
-            else
-                if AutoSaveLoop then
-                    AutoSaveLoop:Disconnect()
-                    AutoSaveLoop = nil
-                end
                 Rayfield:Notify({
                     Title = "Auto Save",
-                    Content = "Auto save disabled!",
-                    Duration = 2
+                    Content = "Settings will be saved automatically!",
+                    Duration = 3
                 })
             end
-            SaveSettings()
         end
     })
-
+    
     Tab8:CreateButton({
         Name = "Save Settings Now",
         Callback = function()
+            Config.AutoSaveSettings = true
             SaveSettings()
-            Rayfield:Notify({
-                Title = "Settings Saved", 
-                Content = "All settings + current position saved!",
-                Duration = 3
-            })
+            Rayfield:Notify({Title = "Saved", Content = "All settings saved successfully!", Duration = 2})
         end
     })
-
+    
     Tab8:CreateButton({
         Name = "Load Saved Settings",
         Callback = function()
-            if LoadSettings() then
-                Rayfield:Notify({
-                    Title = "Settings Loaded",
-                    Content = "All settings + position loaded successfully!",
-                    Duration = 3
-                })
-            else
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "No saved settings found!",
-                    Duration = 2
-                })
-            end
+            Config.AutoSaveSettings = true
+            LoadSettings()
+            Rayfield:Notify({Title = "Loaded", Content = "Settings loaded successfully!", Duration = 2})
         end
     })
-
-    Tab8:CreateButton({
-        Name = "Save Current Position Only",
-        Callback = function()
-            if HumanoidRootPart then
-                Config.SavedPosition = HumanoidRootPart.CFrame
-                SaveSettings()
-                Rayfield:Notify({
-                    Title = "Position Saved",
-                    Content = "Current position and rotation saved!",
-                    Duration = 2
-                })
-            end
-        end
-    })
-
+    
     Tab8:CreateButton({
         Name = "Delete Saved Settings",
         Callback = function()
-            if isfile and isfile(SaveFileName) then
+            if isfile(SaveFileName) then
                 delfile(SaveFileName)
-                Config.AutoSaveSettings = false
-                if AutoSaveLoop then
-                    AutoSaveLoop:Disconnect()
-                    AutoSaveLoop = nil
-                end
-                Rayfield:Notify({
-                    Title = "Settings Deleted", 
-                    Content = "All saved settings deleted!",
-                    Duration = 2
-                })
-                else
-                Rayfield:Notify({
-                    Title = "Error", 
-                    Content = "No saved settings found!",
-                    Duration = 2
-                })
+                Rayfield:Notify({Title = "Deleted", Content = "Saved settings deleted!", Duration = 2})
+            else
+                Rayfield:Notify({Title = "Error", Content = "No saved settings found!", Duration = 2})
             end
         end
     })
-
-    Tab8:CreateSection("Backup & Restore")
-
+    
+    Tab8:CreateSection("Script Control")
+    
     Tab8:CreateButton({
-        Name = "Export Settings to Clipboard",
+        Name = "Show Current Settings",
         Callback = function()
-            if HttpService then
-                local settingsToExport = {
-                    AutoFishingV1 = Config.AutoFishingV1,
-                    AutoFishingV2 = Config.AutoFishingV2,
-                    FishingDelay = Config.FishingDelay,
-                    PerfectCatch = Config.PerfectCatch,
-                    AntiAFK = Config.AntiAFK,
-                    AutoJump = Config.AutoJump,
-                    AutoSell = Config.AutoSell,
-                    GodMode = Config.GodMode,
-                    FlyEnabled = Config.FlyEnabled,
-                    WalkSpeed = Config.WalkSpeed,
-                    JumpPower = Config.JumpPower,
-                    WalkOnWater = Config.WalkOnWater,
-                    NoClip = Config.NoClip,
-                    XRay = Config.XRay,
-                    ESPEnabled = Config.ESPEnabled,
-                    AutoEnchant = Config.AutoEnchant,
-                    AutoBuyWeather = Config.AutoBuyWeather,
-                    AutoAcceptTrade = Config.AutoAcceptTrade,
-                    AutoRejoin = Config.AutoRejoin,
-                    Brightness = Config.Brightness,
-                    TimeOfDay = Config.TimeOfDay
-                }
-                local json = HttpService:JSONEncode(settingsToExport)
-                if setclipboard then
-                    setclipboard(json)
-                    Rayfield:Notify({
-                        Title = "Exported",
-                        Content = "Settings copied to clipboard!",
-                        Duration = 2
-                    })
-                end
-            end
-        end
-    })
-
-    Tab8:CreateButton({
-        Name = "Show Current Settings Status",
-        Callback = function()
-            local status = string.format(
-                "=== SETTINGS STATUS ===\n" ..
-                "Auto Save: %s\n" ..
+            local settings = string.format(
+                "=== CURRENT SETTINGS ===\n" ..
                 "Auto Fishing V1: %s\n" ..
                 "Auto Fishing V2: %s\n" ..
-                "Fishing Delay: %.1fs\n" ..
+                "Fishing Delay: %.1f\n" ..
                 "Perfect Catch: %s\n" ..
                 "Anti AFK: %s\n" ..
                 "Auto Jump: %s\n" ..
                 "Auto Sell: %s\n" ..
                 "God Mode: %s\n" ..
-                "Fly Mode: %s\n" ..
-                "Walk Speed: %d\n" ..
-                "Jump Power: %d\n" ..
-                "Walk on Water: %s\n" ..
-                "NoClip: %s\n" ..
-                "XRay: %s\n" ..
-                "ESP: %s\n" ..
                 "Auto Enchant: %s\n" ..
                 "Auto Buy Weather: %s\n" ..
                 "Auto Accept Trade: %s\n" ..
                 "Auto Rejoin: %s\n" ..
-                "Brightness: %.1f\n" ..
-                "Time of Day: %.1f\n" ..
-                "Has Saved Position: %s\n" ..
-                "Position Locked: %s\n" ..
+                "Walk Speed: %d\n" ..
+                "Fly Speed: %d\n" ..
                 "=== END ===",
-                Config.AutoSaveSettings and "ON" or "OFF",
                 Config.AutoFishingV1 and "ON" or "OFF",
                 Config.AutoFishingV2 and "ON" or "OFF",
                 Config.FishingDelay,
@@ -2781,28 +2515,15 @@ end
                 Config.AutoJump and "ON" or "OFF",
                 Config.AutoSell and "ON" or "OFF",
                 Config.GodMode and "ON" or "OFF",
-                Config.FlyEnabled and "ON" or "OFF",
-                Config.WalkSpeed,
-                Config.JumpPower,
-                Config.WalkOnWater and "ON" or "OFF",
-                Config.NoClip and "ON" or "OFF",
-                Config.XRay and "ON" or "OFF",
-                Config.ESPEnabled and "ON" or "OFF",
                 Config.AutoEnchant and "ON" or "OFF",
                 Config.AutoBuyWeather and "ON" or "OFF",
                 Config.AutoAcceptTrade and "ON" or "OFF",
                 Config.AutoRejoin and "ON" or "OFF",
-                Config.Brightness,
-                Config.TimeOfDay,
-                Config.SavedPosition and "YES" or "NO",
-                Config.LockedPosition and "YES" or "NO"
+                Config.WalkSpeed,
+                Config.FlySpeed
             )
-            print(status)
-            Rayfield:Notify({
-                Title = "Settings Status", 
-                Content = "Check console (F9) for details",
-                Duration = 4
-            })
+            print(settings)
+            Rayfield:Notify({Title = "Current Settings", Content = "Check console (F9)", Duration = 3})
         end
     })
     
