@@ -1,5 +1,5 @@
 -- NIKZZ FISH IT - UPGRADED VERSION
--- DEVELOPER BY NIKZZ
+-- DEVELOPER BY NIKZZ GANTENK
 -- Updated: 11 Oct 2025 - MAJOR UPDATE
 
 print("Loading NIKZZ FISH IT - V1 UPGRADED...")
@@ -104,164 +104,326 @@ local PurchaseWeather = GetRemote("RF/PurchaseWeatherEvent")
 local UpdateAutoFishing = GetRemote("RF/UpdateAutoFishingState")
 local AwaitTradeResponse = GetRemote("RF/AwaitTradeResponse")
 
--- === AUTO SAVE / LOAD (IMPROVED) ===
+-- === AUTO SAVE / LOAD (COMPLETELY FIXED & IMPROVED) ===
 local SaveFileName = "NikzzFishItSettings_" .. LocalPlayer.UserId .. ".json"
+local AutoSaveConnection = nil
 
-local function serializeVector3(v)
-    if not v then return nil end
-    return { x = v.X, y = v.Y, z = v.Z }
+local function serializeCFrame(cf)
+    if not cf then return nil end
+    local pos = cf.Position
+    local rx, ry, rz = cf:ToOrientation()
+    return {
+        px = pos.X, py = pos.Y, pz = pos.Z,
+        rx = rx, ry = ry, rz = rz
+    }
 end
 
-local function deserializeVector3(t)
-    if not t then return nil end
-    return Vector3.new(t.x or 0, t.y or 0, t.z or 0)
+local function deserializeCFrame(t)
+    if not t or not t.px then return nil end
+    local pos = Vector3.new(t.px, t.py, t.pz)
+    local cf = CFrame.new(pos) * CFrame.Angles(t.rx or 0, t.ry or 0, t.rz or 0)
+    return cf
 end
 
 local function SaveSettings()
-    -- build settings table (include SavedPosition & LockCFrame as position tables)
+    if not writefile or not HttpService then
+        warn("[SaveSettings] writefile or HttpService not available!")
+        return false
+    end
+    
+    -- Save current character position and rotation
+    local currentCFrame = nil
+    if HumanoidRootPart then
+        currentCFrame = HumanoidRootPart.CFrame
+    end
+    
     local settingsToSave = {
+        -- Auto Fishing
         AutoFishingV1 = Config.AutoFishingV1,
         AutoFishingV2 = Config.AutoFishingV2,
         FishingDelay = Config.FishingDelay,
         PerfectCatch = Config.PerfectCatch,
+        
+        -- Auto Features
         AntiAFK = Config.AntiAFK,
         AutoJump = Config.AutoJump,
         AutoJumpDelay = Config.AutoJumpDelay,
         AutoSell = Config.AutoSell,
+        AutoEnchant = Config.AutoEnchant,
+        AutoBuyWeather = Config.AutoBuyWeather,
+        SelectedWeathers = Config.SelectedWeathers,
+        AutoAcceptTrade = Config.AutoAcceptTrade,
+        AutoRejoin = Config.AutoRejoin,
+        
+        -- Movement & Protection
         GodMode = Config.GodMode,
         FlyEnabled = Config.FlyEnabled,
         FlySpeed = Config.FlySpeed,
         WalkSpeed = Config.WalkSpeed,
         JumpPower = Config.JumpPower,
         WalkOnWater = Config.WalkOnWater,
-        InfiniteZoom = Config.InfiniteZoom,
         NoClip = Config.NoClip,
+        
+        -- Visuals
         XRay = Config.XRay,
         ESPEnabled = Config.ESPEnabled,
         ESPDistance = Config.ESPDistance,
-        LockedPosition = Config.LockedPosition,
-        AutoEnchant = Config.AutoEnchant,
-        AutoBuyWeather = Config.AutoBuyWeather,
-        SelectedWeathers = Config.SelectedWeathers,
-        AutoAcceptTrade = Config.AutoAcceptTrade,
-        AutoRejoin = Config.AutoRejoin,
-        AutoSaveSettings = Config.AutoSaveSettings,
+        InfiniteZoom = Config.InfiniteZoom,
         Brightness = Config.Brightness,
         TimeOfDay = Config.TimeOfDay,
-        -- positions (serialize Vector3)
-        SavedPosition = (Config.SavedPosition and serializeVector3(Config.SavedPosition.Position)) or nil,
-        LockCFrame = (Config.LockCFrame and serializeVector3(Config.LockCFrame.Position)) or nil
+        
+        -- Position Lock
+        LockedPosition = Config.LockedPosition,
+        
+        -- Positions with rotation (CFrame)
+        SavedPosition = currentCFrame and serializeCFrame(currentCFrame) or nil,
+        LockCFrame = Config.LockCFrame and serializeCFrame(Config.LockCFrame) or nil,
+        
+        -- Settings
+        AutoSaveSettings = Config.AutoSaveSettings
     }
-
-    -- write file if writefile available
-    if writefile and HttpService then
-        local ok, err = pcall(function()
-            writefile(SaveFileName, HttpService:JSONEncode(settingsToSave))
-        end)
-        if ok then
-            print("[SaveSettings] Settings saved to:", SaveFileName)
-        else
-            warn("[SaveSettings] Failed to write file:", tostring(err))
-        end
+    
+    local ok, err = pcall(function()
+        writefile(SaveFileName, HttpService:JSONEncode(settingsToSave))
+    end)
+    
+    if ok then
+        print("[SaveSettings] ✓ All settings saved successfully!")
+        return true
     else
-        warn("[SaveSettings] writefile or HttpService not available on this executor.")
+        warn("[SaveSettings] ✗ Failed to save:", tostring(err))
+        return false
     end
 end
 
-local function ApplySettings()
-    -- This applies Config values to runtime (safe pcall wrappers)
-    pcall(function()
-        -- Features
-        if Config.AutoFishingV1 then AutoFishingV1() end
-        if Config.AutoFishingV2 then AutoFishingV2() end
-        if Config.AntiAFK then StartAntiAFK() end
-        if Config.AutoJump then StartAutoJump() end
-        if Config.AutoSell then StartAutoSell() end
-        if Config.AutoEnchant then AutoEnchant() end
-        if Config.AutoBuyWeather then AutoBuyWeather() end
-        if Config.AutoAcceptTrade then AutoAcceptTrade() end
-        if Config.GodMode then ToggleGodMode(true) end
-        if Config.FlyEnabled then StartFly() end
-        if Config.WalkOnWater then ToggleWalkOnWater(true) end
-        if Config.NoClip then ToggleNoClip(true) end
-        if Config.PerfectCatch then TogglePerfectCatch(true) end
-        if Config.LockedPosition and Config.LockCFrame then ToggleLockPosition(true) end
-
-        -- Movement
-        if Humanoid then
-            Humanoid.WalkSpeed = tonumber(Config.WalkSpeed) or Humanoid.WalkSpeed
-            Humanoid.JumpPower = tonumber(Config.JumpPower) or Humanoid.JumpPower
+local function ApplySettings(showNotifications)
+    showNotifications = showNotifications ~= false
+    
+    print("[ApplySettings] Starting to apply all settings...")
+    
+    task.spawn(function()
+        -- Wait for character if needed
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            print("[ApplySettings] Waiting for character...")
+            LocalPlayer.CharacterAdded:Wait()
+            task.wait(1)
+            Character = LocalPlayer.Character
+            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            Humanoid = Character:WaitForChild("Humanoid")
         end
-
-        -- Lighting
-        if Lighting then
-            Lighting.Brightness = Config.Brightness or Lighting.Brightness
-            Lighting.ClockTime = Config.TimeOfDay or Lighting.ClockTime
-            ApplyPermanentLighting()
-        end
-
-        -- Teleport to saved position (if exists)
+        
+        -- Apply position FIRST (before any features)
         if Config.SavedPosition then
-            -- wait until character/humanoid present
-            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.CharacterAdded:Wait()
-                task.wait(0.5)
-                Character = LocalPlayer.Character
-                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-                Humanoid = Character:WaitForChild("Humanoid")
-            end
-
             pcall(function()
-                local v = Config.SavedPosition.Position or Config.SavedPosition
-                if type(v) == "table" and v.x then
-                    HumanoidRootPart.CFrame = CFrame.new(v.x, v.y, v.z)
-                elseif typeof(v) == "Vector3" then
-                    HumanoidRootPart.CFrame = CFrame.new(v)
+                HumanoidRootPart.CFrame = Config.SavedPosition
+                print("[ApplySettings] ✓ Teleported to saved position with rotation")
+                if showNotifications and Rayfield then
+                    Rayfield:Notify({
+                        Title = "Position Loaded",
+                        Content = "Teleported to saved position!",
+                        Duration = 2
+                    })
                 end
-                Rayfield:Notify({Title = "Settings", Content = "Teleported to saved position", Duration = 2})
             end)
+            task.wait(0.5)
+        end
+        
+        -- Apply Movement Settings
+        if Humanoid then
+            Humanoid.WalkSpeed = Config.WalkSpeed or 16
+            Humanoid.JumpPower = Config.JumpPower or 50
+            print("[ApplySettings] ✓ Walk Speed: " .. Humanoid.WalkSpeed .. " | Jump Power: " .. Humanoid.JumpPower)
+        end
+        
+        -- Apply Lighting Settings
+        if Lighting then
+            Lighting.Brightness = Config.Brightness or 2
+            Lighting.ClockTime = Config.TimeOfDay or 14
+            ApplyPermanentLighting()
+            print("[ApplySettings] ✓ Brightness: " .. Lighting.Brightness .. " | Time: " .. Lighting.ClockTime)
+        end
+        
+        task.wait(0.3)
+        
+        -- Apply Auto Fishing
+        if Config.AutoFishingV1 then
+            AutoFishingV1()
+            print("[ApplySettings] ✓ Auto Fishing V1 enabled")
+        end
+        
+        if Config.AutoFishingV2 then
+            AutoFishingV2()
+            print("[ApplySettings] ✓ Auto Fishing V2 enabled")
+        end
+        
+        -- Apply Protection Features
+        if Config.GodMode then
+            ToggleGodMode(true)
+            print("[ApplySettings] ✓ God Mode enabled")
+        end
+        
+        if Config.PerfectCatch then
+            TogglePerfectCatch(true)
+            print("[ApplySettings] ✓ Perfect Catch enabled")
+        end
+        
+        -- Apply Movement Features
+        if Config.FlyEnabled then
+            StartFly()
+            print("[ApplySettings] ✓ Fly Mode enabled")
+        end
+        
+        if Config.WalkOnWater then
+            ToggleWalkOnWater(true)
+            print("[ApplySettings] ✓ Walk on Water enabled")
+        end
+        
+        if Config.NoClip then
+            ToggleNoClip(true)
+            print("[ApplySettings] ✓ NoClip enabled")
+        end
+        
+        if Config.LockedPosition and Config.LockCFrame then
+            ToggleLockPosition(true)
+            print("[ApplySettings] ✓ Position Lock enabled")
+        end
+        
+        -- Apply Visual Features
+        if Config.XRay then
+            ToggleXRay(true)
+            print("[ApplySettings] ✓ XRay enabled")
+        end
+        
+        if Config.ESPEnabled then
+            ToggleESP(true)
+            print("[ApplySettings] ✓ ESP enabled")
+        end
+        
+        if Config.InfiniteZoom then
+            EnableInfiniteZoom()
+            print("[ApplySettings] ✓ Infinite Zoom enabled")
+        end
+        
+        -- Apply Auto Features
+        if Config.AntiAFK then
+            StartAntiAFK()
+            print("[ApplySettings] ✓ Anti AFK enabled")
+        end
+        
+        if Config.AutoJump then
+            StartAutoJump()
+            print("[ApplySettings] ✓ Auto Jump enabled")
+        end
+        
+        if Config.AutoSell then
+            StartAutoSell()
+            print("[ApplySettings] ✓ Auto Sell enabled")
+        end
+        
+        if Config.AutoEnchant then
+            AutoEnchant()
+            print("[ApplySettings] ✓ Auto Enchant enabled")
+        end
+        
+        if Config.AutoBuyWeather then
+            AutoBuyWeather()
+            print("[ApplySettings] ✓ Auto Buy Weather enabled")
+        end
+        
+        if Config.AutoAcceptTrade then
+            AutoAcceptTrade()
+            print("[ApplySettings] ✓ Auto Accept Trade enabled")
+        end
+        
+        print("[ApplySettings] ✓✓✓ All settings applied successfully!")
+        
+        if showNotifications and Rayfield then
+            Rayfield:Notify({
+                Title = "Settings Loaded",
+                Content = "All features restored successfully!",
+                Duration = 3
+            })
         end
     end)
 end
 
-local function LoadSettings()
-    -- if file exists, read and apply (we ignore AutoSaveSettings flag here so saved file always loads)
-    if isfile and isfile(SaveFileName) and HttpService then
-        local ok, data = pcall(function()
-            return HttpService:JSONDecode(readfile(SaveFileName))
-        end)
-        if ok and data then
-            -- merge values into Config
-            for key, value in pairs(data) do
-                if Config[key] ~= nil then
-                    Config[key] = value
+local function LoadSettings(autoLoad)
+    autoLoad = autoLoad ~= false
+    
+    if not isfile or not isfile(SaveFileName) or not HttpService then
+        print("[LoadSettings] No saved settings found")
+        return false
+    end
+    
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile(SaveFileName))
+    end)
+    
+    if not ok or not data then
+        warn("[LoadSettings] Failed to decode settings file")
+        return false
+    end
+    
+    print("[LoadSettings] Loading saved settings...")
+    
+    -- Load all settings into Config
+    for key, value in pairs(data) do
+        if Config[key] ~= nil then
+            Config[key] = value
+        end
+    end
+    
+    -- Deserialize CFrame positions with rotation
+    if data.SavedPosition then
+        Config.SavedPosition = deserializeCFrame(data.SavedPosition)
+        print("[LoadSettings] ✓ Saved position loaded with rotation")
+    end
+    
+    if data.LockCFrame then
+        Config.LockCFrame = deserializeCFrame(data.LockCFrame)
+        print("[LoadSettings] ✓ Lock position loaded with rotation")
+    end
+    
+    print("[LoadSettings] ✓ Settings loaded from file")
+    
+    -- Apply settings immediately
+    if autoLoad then
+        task.wait(1)
+        ApplySettings(true)
+    end
+    
+    return true
+end
+
+local function StartAutoSave()
+    if AutoSaveConnection then
+        AutoSaveConnection:Disconnect()
+        AutoSaveConnection = nil
+    end
+    
+    if not Config.AutoSaveSettings then return end
+    
+    print("[Auto Save] ✓ Started - Saving every 10 seconds")
+    
+    AutoSaveConnection = task.spawn(function()
+        while Config.AutoSaveSettings do
+            task.wait(10)
+            
+            if Config.AutoSaveSettings then
+                local success = SaveSettings()
+                if success then
+                    print("[Auto Save] ✓ Settings auto-saved at " .. os.date("%H:%M:%S"))
                 end
             end
-
-            -- deserialize positions
-            if data.SavedPosition and data.SavedPosition.x then
-                Config.SavedPosition = CFrame.new(deserializeVector3(data.SavedPosition))
-            else
-                Config.SavedPosition = nil
-            end
-
-            if data.LockCFrame and data.LockCFrame.x then
-                Config.LockCFrame = CFrame.new(deserializeVector3(data.LockCFrame))
-            else
-                Config.LockCFrame = nil
-            end
-
-            print("[LoadSettings] Settings loaded from file:", SaveFileName)
-            -- apply immediately
-            task.spawn(function()
-                task.wait(0.8) -- short wait to allow constructor/character to settle
-                ApplySettings()
-            end)
-        else
-            warn("[LoadSettings] Failed to decode settings file or file empty.")
         end
-    else
-        print("[LoadSettings] No saved settings found or functions unavailable.")
+    end)
+end
+
+local function StopAutoSave()
+    if AutoSaveConnection then
+        AutoSaveConnection:Disconnect()
+        AutoSaveConnection = nil
+        print("[Auto Save] ✗ Stopped")
     end
 end
 
