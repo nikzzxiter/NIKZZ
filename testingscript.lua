@@ -1,5 +1,5 @@
 -- NIKZZ FISH IT - UPGRADED VERSION
--- DEVELOPER BY NIKZZ KIW
+-- DEVELOPER BY NIKZZ
 -- Updated: 11 Oct 2025 - MAJOR UPDATE
 -- IMPROVED: Auto Enchant, Performance Mode, Auto Rejoin, Telegram Hooked
 
@@ -302,57 +302,6 @@ function Hooked:FormatTelegramMessage(fishInfo)
     local totalFishCaught = "Loading..." -- INFO 2: Total Fish Caught
     local currentRod = "Loading..." -- INFO 3: Current Rod
     local currentLocation = "Unknown" -- INFO 4: Current Location (Bonus)
-    
-    -- Coba ambil data player level
-    pcall(function()
-        -- INFO 1: Player Level
-        local stats = LocalPlayer:FindFirstChild("leaderstats")
-        if stats then
-            local levelStat = stats:FindFirstChild("Level") or stats:FindFirstChild("Levels") or stats:FindFirstChild("PlayerLevel")
-            if levelStat then
-                playerLevel = tostring(levelStat.Value)
-            end
-        end
-        
-        -- INFO 2: Total Fish Caught
-        local fishStat = stats and (stats:FindFirstChild("FishCaught") or stats:FindFirstChild("TotalFish") or stats:FindFirstChild("Fishes"))
-        if fishStat then
-            totalFishCaught = tostring(fishStat.Value)
-        end
-        
-        -- INFO 3: Current Rod
-        local backpack = LocalPlayer:FindFirstChild("Backpack")
-        local character = LocalPlayer.Character
-        if backpack then
-            for _, tool in pairs(backpack:GetChildren()) do
-                if tool:IsA("Tool") and (tool.Name:find("Rod") or tool.Name:find("Fishing")) then
-                    currentRod = tool.Name
-                    break
-                end
-            end
-        end
-        if character and currentRod == "Loading..." then
-            for _, tool in pairs(character:GetChildren()) do
-                if tool:IsA("Tool") and (tool.Name:find("Rod") or tool.Name:find("Fishing")) then
-                    currentRod = tool.Name
-                    break
-                end
-            end
-        end
-        
-        -- INFO 4: Current Location (Bonus)
-        if HumanoidRootPart then
-            local pos = HumanoidRootPart.Position
-            -- Simple location detection based on coordinates
-            if pos.Y < -100 then
-                currentLocation = "Underwater"
-            elseif pos.Y > 50 then
-                currentLocation = "High Altitude"
-            else
-                currentLocation = "Surface"
-            end
-        end
-    end)
 
     -- Clean message tanpa bold, pakai Markdown formatting
     local message = "```\n"
@@ -367,7 +316,6 @@ function Hooked:FormatTelegramMessage(fishInfo)
         message = message .. "│     DISPLAY: " .. displayName .. "\n"
     end
     message = message .. "│     ID: " .. tostring(LocalPlayer.UserId) .. "\n"
-    message = message .. "│     LEVEL: " .. playerLevel .. "\n"  -- INFO 1
     message = message .. "│\n"
     message = message .. "│  🐟 FISH DETAILS\n"
     message = message .. "│     NAME: " .. (fishInfo.Name or "Unknown") .. "\n"
@@ -387,11 +335,6 @@ function Hooked:FormatTelegramMessage(fishInfo)
         message = message .. "│     PRICE: " .. tostring(fishInfo.SellPrice) .. " COINS\n"
     end
     
-    message = message .. "│\n"
-    message = message .. "│  🎯 FISHING STATS\n"
-    message = message .. "│     TOTAL FISH: " .. totalFishCaught .. "\n"  -- INFO 2
-    message = message .. "│     CURRENT ROD: " .. currentRod .. "\n"      -- INFO 3
-    message = message .. "│     LOCATION: " .. currentLocation .. "\n"    -- INFO 4 (Bonus)
     message = message .. "│\n"
     message = message .. "│  📊 SYSTEM STATS\n"
     message = message .. "│     PING: " .. ping .. " MS\n"
