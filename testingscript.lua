@@ -199,6 +199,15 @@ local function LoadSettings()
     end
 end
 
+-- ===== HELPER FUNCTION YANG HILANG =====
+local function countTable(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
+    end
+    return count
+end
+
 -- ===== TELEGRAM HOOKED NOTIFICATION SYSTEM (FIXED) =====
 local Hooked = {}
 
@@ -430,15 +439,6 @@ local function InitializeFishLookup()
     end
     
     print("[🐟 FISH LOOKUP] Initialized with " .. countTable(fishLookup) .. " entries")
-end
-
--- Helper function untuk count table
-local function countTable(tbl)
-    local count = 0
-    for _ in pairs(tbl) do
-        count = count + 1
-    end
-    return count
 end
 
 -- Initialize fish lookup saat script start
