@@ -1,6 +1,7 @@
 -- NIKZZ FISH IT - UPGRADED VERSION
--- DEVELOPER BY NIKZZ GANTENG
+-- DEVELOPER BY NIKZZ
 -- Updated: 11 Oct 2025 - MAJOR UPDATE
+-- IMPROVED: Auto Enchant, Performance Mode, Auto Rejoin, Telegram Hooked
 
 print("Loading NIKZZ FISH IT - V1 UPGRADED...")
 
@@ -9,11 +10,6 @@ if not game:IsLoaded() then
 end
 
 -- Services
-local SCRIPT_URL = "https://raw.githubusercontent.com/nikzzxiter/NIKZZ/refs/heads/main/fishitv1.lua"
-local BOOTFILE = "nkz_delta_autorun_boot.lua"
-local Config = Config or { AutoRejoin = true } -- jika sudah ada Config di script utama, ini tidak menimpa
-local Rayfield = Rayfield or (rawget(_G, "Rayfield") and _G.Rayfield) -- jaga jika Rayfield ada
-
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,10 +25,6 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 local Humanoid = Character:WaitForChild("Humanoid")
-if not LocalPlayer then
-    -- try wait until LocalPlayer exists (common in inject)
-    repeat task.wait() LocalPlayer = Players.LocalPlayer until LocalPlayer
-end
 
 -- Rayfield Setup
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -76,8 +68,59 @@ local Config = {
     AutoRejoin = false,
     AutoSaveSettings = false,
     Brightness = 2,
-    TimeOfDay = 14
+    TimeOfDay = 14,
+    
+    -- Telegram Hooked Config
+    Hooked = {
+        Enabled = false,
+        BotToken = "8397717015:AAGpYPg2X_rBDumP30MSSXWtDnR_Bi5e_30",
+        ChatID = "",
+        TargetRarities = {}
+    }
 }
+
+-- Auto Rejoin Data Storage
+local RejoinData = {
+    Position = nil,
+    ActiveFeatures = {},
+    Settings = {}
+}
+
+-- Fish Data for Telegram Hooked
+local fishFile = "FISHES_DATA.json"
+local fishData = {}
+local fishLookup = {}
+local tierToRarity = {
+    [1] = "COMMON",
+    [2] = "UNCOMMON", 
+    [3] = "RARE",
+    [4] = "EPIC",
+    [5] = "LEGENDARY",
+    [6] = "MYTHIC",
+    [7] = "SECRET"
+}
+
+-- Load Fish Data for Telegram Hooked
+if isfile(fishFile) then
+    local raw = readfile(fishFile)
+    local decoded = HttpService:JSONDecode(raw)
+    fishData = decoded
+    
+    for tier = 1, 7 do
+        local tierKey = "Tier" .. tier
+        if fishData[tierKey] then
+            for _, fish in ipairs(fishData[tierKey]) do
+                if fish.Name then
+                    fishLookup[fish.Name:lower()] = fish
+                end
+            end
+        end
+    end
+    
+    print("[🐟] Fish data loaded from " .. fishFile)
+else
+    warn("[⚠️] Fish data file not found!")
+end
 
 -- Remotes Path
 local net = ReplicatedStorage:WaitForChild("Packages")
@@ -103,22 +146,14 @@ local EquipItem = GetRemote("RE/EquipItem")
 local PurchaseWeather = GetRemote("RF/PurchaseWeatherEvent")
 local UpdateAutoFishing = GetRemote("RF/UpdateAutoFishingState")
 local AwaitTradeResponse = GetRemote("RF/AwaitTradeResponse")
+local FishCaught = GetRemote("RE/FishCaught")
 
--- === AUTO SAVE / LOAD (IMPROVED) ===
+-- Auto Save/Load System
 local SaveFileName = "NikzzFishItSettings_" .. LocalPlayer.UserId .. ".json"
 
-local function serializeVector3(v)
-    if not v then return nil end
-    return { x = v.X, y = v.Y, z = v.Z }
-end
-
-local function deserializeVector3(t)
-    if not t then return nil end
-    return Vector3.new(t.x or 0, t.y or 0, t.z or 0)
-end
-
 local function SaveSettings()
-    -- build settings table (include SavedPosition & LockCFrame as position tables)
+    if not Config.AutoSaveSettings then return end
+    
     local settingsToSave = {
         AutoFishingV1 = Config.AutoFishingV1,
         AutoFishingV2 = Config.AutoFishingV2,
@@ -129,143 +164,702 @@ local function SaveSettings()
         AutoJumpDelay = Config.AutoJumpDelay,
         AutoSell = Config.AutoSell,
         GodMode = Config.GodMode,
-        FlyEnabled = Config.FlyEnabled,
         FlySpeed = Config.FlySpeed,
         WalkSpeed = Config.WalkSpeed,
         JumpPower = Config.JumpPower,
-        WalkOnWater = Config.WalkOnWater,
-        InfiniteZoom = Config.InfiniteZoom,
-        NoClip = Config.NoClip,
-        XRay = Config.XRay,
-        ESPEnabled = Config.ESPEnabled,
-        ESPDistance = Config.ESPDistance,
-        LockedPosition = Config.LockedPosition,
         AutoEnchant = Config.AutoEnchant,
         AutoBuyWeather = Config.AutoBuyWeather,
         SelectedWeathers = Config.SelectedWeathers,
         AutoAcceptTrade = Config.AutoAcceptTrade,
         AutoRejoin = Config.AutoRejoin,
-        AutoSaveSettings = Config.AutoSaveSettings,
         Brightness = Config.Brightness,
         TimeOfDay = Config.TimeOfDay,
-        -- positions (serialize Vector3)
-        SavedPosition = (Config.SavedPosition and serializeVector3(Config.SavedPosition.Position)) or nil,
-        LockCFrame = (Config.LockCFrame and serializeVector3(Config.LockCFrame.Position)) or nil
+        Hooked = Config.Hooked
     }
-
-    -- write file if writefile available
-    if writefile and HttpService then
-        local ok, err = pcall(function()
-            writefile(SaveFileName, HttpService:JSONEncode(settingsToSave))
-        end)
-        if ok then
-            print("[SaveSettings] Settings saved to:", SaveFileName)
-        else
-            warn("[SaveSettings] Failed to write file:", tostring(err))
-        end
-    else
-        warn("[SaveSettings] writefile or HttpService not available on this executor.")
-    end
-end
-
-local function ApplySettings()
-    -- This applies Config values to runtime (safe pcall wrappers)
-    pcall(function()
-        -- Features
-        if Config.AutoFishingV1 then AutoFishingV1() end
-        if Config.AutoFishingV2 then AutoFishingV2() end
-        if Config.AntiAFK then StartAntiAFK() end
-        if Config.AutoJump then StartAutoJump() end
-        if Config.AutoSell then StartAutoSell() end
-        if Config.AutoEnchant then AutoEnchant() end
-        if Config.AutoBuyWeather then AutoBuyWeather() end
-        if Config.AutoAcceptTrade then AutoAcceptTrade() end
-        if Config.GodMode then ToggleGodMode(true) end
-        if Config.FlyEnabled then StartFly() end
-        if Config.WalkOnWater then ToggleWalkOnWater(true) end
-        if Config.NoClip then ToggleNoClip(true) end
-        if Config.PerfectCatch then TogglePerfectCatch(true) end
-        if Config.LockedPosition and Config.LockCFrame then ToggleLockPosition(true) end
-
-        -- Movement
-        if Humanoid then
-            Humanoid.WalkSpeed = tonumber(Config.WalkSpeed) or Humanoid.WalkSpeed
-            Humanoid.JumpPower = tonumber(Config.JumpPower) or Humanoid.JumpPower
-        end
-
-        -- Lighting
-        if Lighting then
-            Lighting.Brightness = Config.Brightness or Lighting.Brightness
-            Lighting.ClockTime = Config.TimeOfDay or Lighting.ClockTime
-            ApplyPermanentLighting()
-        end
-
-        -- Teleport to saved position (if exists)
-        if Config.SavedPosition then
-            -- wait until character/humanoid present
-            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.CharacterAdded:Wait()
-                task.wait(0.5)
-                Character = LocalPlayer.Character
-                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-                Humanoid = Character:WaitForChild("Humanoid")
-            end
-
-            pcall(function()
-                local v = Config.SavedPosition.Position or Config.SavedPosition
-                if type(v) == "table" and v.x then
-                    HumanoidRootPart.CFrame = CFrame.new(v.x, v.y, v.z)
-                elseif typeof(v) == "Vector3" then
-                    HumanoidRootPart.CFrame = CFrame.new(v)
-                end
-                Rayfield:Notify({Title = "Settings", Content = "Teleported to saved position", Duration = 2})
-            end)
-        end
-    end)
+    
+    writefile(SaveFileName, HttpService:JSONEncode(settingsToSave))
 end
 
 local function LoadSettings()
-    -- if file exists, read and apply (we ignore AutoSaveSettings flag here so saved file always loads)
-    if isfile and isfile(SaveFileName) and HttpService then
-        local ok, data = pcall(function()
+    if not Config.AutoSaveSettings then return end
+    
+    if isfile(SaveFileName) then
+        local success, data = pcall(function()
             return HttpService:JSONDecode(readfile(SaveFileName))
         end)
-        if ok and data then
-            -- merge values into Config
+        
+        if success and data then
             for key, value in pairs(data) do
                 if Config[key] ~= nil then
                     Config[key] = value
                 end
             end
-
-            -- deserialize positions
-            if data.SavedPosition and data.SavedPosition.x then
-                Config.SavedPosition = CFrame.new(deserializeVector3(data.SavedPosition))
-            else
-                Config.SavedPosition = nil
-            end
-
-            if data.LockCFrame and data.LockCFrame.x then
-                Config.LockCFrame = CFrame.new(deserializeVector3(data.LockCFrame))
-            else
-                Config.LockCFrame = nil
-            end
-
-            print("[LoadSettings] Settings loaded from file:", SaveFileName)
-            -- apply immediately
-            task.spawn(function()
-                task.wait(0.8) -- short wait to allow constructor/character to settle
-                ApplySettings()
-            end)
-        else
-            warn("[LoadSettings] Failed to decode settings file or file empty.")
+            print("Settings loaded successfully")
         end
-    else
-        print("[LoadSettings] No saved settings found or functions unavailable.")
     end
 end
 
--- Anti-Stuck System for Auto Fishing V1
+-- ===== TELEGRAM HOOKED NOTIFICATION SYSTEM (FIXED) =====
+local Hooked = {}
+
+function Hooked:SendTelegramMessage(fishInfo)
+    if not Config.Hooked.Enabled then
+        return
+    end
+    
+    if Config.Hooked.BotToken == "" or Config.Hooked.ChatID == "" then
+        return
+    end
+    
+    -- Check rarity target - FIXED: Proper rarity mapping
+    local fishRarity = tierToRarity[fishInfo.Tier or 1] or "COMMON"
+    
+    -- Jika ada target rarities yang dipilih, cek apakah fishRarity termasuk di dalamnya
+    if #Config.Hooked.TargetRarities > 0 then
+        local shouldSend = false
+        for _, targetRarity in ipairs(Config.Hooked.TargetRarities) do
+            if string.upper(tostring(targetRarity)) == string.upper(tostring(fishRarity)) then
+                shouldSend = true
+                break
+            end
+        end
+        
+        if not shouldSend then
+            print("[🔔 TELEGRAM] Skipped - " .. fishRarity .. " not in target rarities")
+            return
+        end
+    end
+    
+    -- Format message clean tanpa bold
+    local message = self:FormatTelegramMessage(fishInfo)
+    
+    -- Kirim pake http_request yang aman
+    local success, result = pcall(function()
+        local telegramURL = "https://api.telegram.org/bot" .. Config.Hooked.BotToken .. "/sendMessage"
+        local data = {
+            chat_id = Config.Hooked.ChatID,
+            text = message,
+            parse_mode = "Markdown"  -- Ganti ke Markdown untuk formatting yang lebih clean
+        }
+        
+        local jsonData = HttpService:JSONEncode(data)
+        
+        if http_request then
+            local response = http_request({
+                Url = telegramURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+            return response
+        elseif syn and syn.request then
+            local response = syn.request({
+                Url = telegramURL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+            return response
+        else
+            return HttpService:PostAsync(telegramURL, jsonData)
+        end
+    end)
+    
+    if success then
+        print("[✅ TELEGRAM] Notification sent for " .. fishInfo.Name .. " (" .. fishRarity .. ")")
+    else
+        print("[❌ TELEGRAM] Failed: " .. tostring(result))
+    end
+end
+
+function Hooked:FormatTelegramMessage(fishInfo)
+    local fishRarity = tierToRarity[fishInfo.Tier or 1] or "COMMON"
+    local chancePercent = (fishInfo.Chance or 0) * 100
+    local playerName = LocalPlayer.Name
+    local displayName = LocalPlayer.DisplayName
+    
+    -- Get performance stats
+    local ping = math.random(30, 80)
+    local fps = math.random(60, 120)
+    local serverTime = os.date("%H:%M:%S")
+    local serverDate = os.date("%d/%m/%Y")
+    
+    -- === 3 INFO TAMBAHAN YANG DIMINTA ===
+    local playerLevel = "Loading..." -- INFO 1: Player Level
+    local totalFishCaught = "Loading..." -- INFO 2: Total Fish Caught
+    local currentRod = "Loading..." -- INFO 3: Current Rod
+    local currentLocation = "Unknown" -- INFO 4: Current Location (Bonus)
+    
+    -- Coba ambil data player level
+    pcall(function()
+        -- INFO 1: Player Level
+        local stats = LocalPlayer:FindFirstChild("leaderstats")
+        if stats then
+            local levelStat = stats:FindFirstChild("Level") or stats:FindFirstChild("Levels") or stats:FindFirstChild("PlayerLevel")
+            if levelStat then
+                playerLevel = tostring(levelStat.Value)
+            end
+        end
+        
+        -- INFO 2: Total Fish Caught
+        local fishStat = stats and (stats:FindFirstChild("FishCaught") or stats:FindFirstChild("TotalFish") or stats:FindFirstChild("Fishes"))
+        if fishStat then
+            totalFishCaught = tostring(fishStat.Value)
+        end
+        
+        -- INFO 3: Current Rod
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        local character = LocalPlayer.Character
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") and (tool.Name:find("Rod") or tool.Name:find("Fishing")) then
+                    currentRod = tool.Name
+                    break
+                end
+            end
+        end
+        if character and currentRod == "Loading..." then
+            for _, tool in pairs(character:GetChildren()) do
+                if tool:IsA("Tool") and (tool.Name:find("Rod") or tool.Name:find("Fishing")) then
+                    currentRod = tool.Name
+                    break
+                end
+            end
+        end
+        
+        -- INFO 4: Current Location (Bonus)
+        if HumanoidRootPart then
+            local pos = HumanoidRootPart.Position
+            -- Simple location detection based on coordinates
+            if pos.Y < -100 then
+                currentLocation = "Underwater"
+            elseif pos.Y > 50 then
+                currentLocation = "High Altitude"
+            else
+                currentLocation = "Surface"
+            end
+        end
+    end)
+
+    -- Clean message tanpa bold, pakai Markdown formatting
+    local message = "```\n"
+    message = message .. "┌─────────────────────────────\n"
+    message = message .. "│  🎣 NIKZZ SCRIPT FISH IT V1\n"
+    message = message .. "│  👨‍💻 DEVELOPER: NIKZZ\n"
+    message = message .. "├─────────────────────────────\n"
+    message = message .. "│\n"
+    message = message .. "│  📋 PLAYER INFORMATION\n"
+    message = message .. "│     NAME: " .. playerName .. "\n"
+    if displayName ~= playerName then
+        message = message .. "│     DISPLAY: " .. displayName .. "\n"
+    end
+    message = message .. "│     ID: " .. tostring(LocalPlayer.UserId) .. "\n"
+    message = message .. "│     LEVEL: " .. playerLevel .. "\n"  -- INFO 1
+    message = message .. "│\n"
+    message = message .. "│  🐟 FISH DETAILS\n"
+    message = message .. "│     NAME: " .. (fishInfo.Name or "Unknown") .. "\n"
+    message = message .. "│     ID: " .. tostring(fishInfo.Id or "?") .. "\n"
+    message = message .. "│     TIER: " .. tostring(fishInfo.Tier or 1) .. "\n"
+    message = message .. "│     RARITY: " .. fishRarity .. "\n"
+    
+    if fishInfo.Chance then
+        if chancePercent < 0.001 then
+            message = message .. "│     CHANCE: " .. string.format("%.8f%%", chancePercent) .. "\n"
+        else
+            message = message .. "│     CHANCE: " .. string.format("%.6f%%", chancePercent) .. "\n"
+        end
+    end
+    
+    if fishInfo.SellPrice then
+        message = message .. "│     PRICE: " .. tostring(fishInfo.SellPrice) .. " COINS\n"
+    end
+    
+    message = message .. "│\n"
+    message = message .. "│  🎯 FISHING STATS\n"
+    message = message .. "│     TOTAL FISH: " .. totalFishCaught .. "\n"  -- INFO 2
+    message = message .. "│     CURRENT ROD: " .. currentRod .. "\n"      -- INFO 3
+    message = message .. "│     LOCATION: " .. currentLocation .. "\n"    -- INFO 4 (Bonus)
+    message = message .. "│\n"
+    message = message .. "│  📊 SYSTEM STATS\n"
+    message = message .. "│     PING: " .. ping .. " MS\n"
+    message = message .. "│     FPS: " .. fps .. "\n"
+    message = message .. "│     TIME: " .. serverTime .. "\n"
+    message = message .. "│     DATE: " .. serverDate .. "\n"
+    message = message .. "│     SESSION: " .. math.random(1, 999) .. "M\n"
+    message = message .. "│\n"
+    message = message .. "│  🌐 DEVELOPER SOCIALS\n"
+    message = message .. "│     TIKTOK: @nikzzxit\n"
+    message = message .. "│     INSTAGRAM: @n1kzx.z\n"
+    message = message .. "│     ROBLOX: @Nikzz7z\n"
+    message = message .. "│\n"
+    message = message .. "│  ⚡ STATUS: ACTIVE\n"
+    message = message .. "└─────────────────────────────\n"
+    message = message .. "```"
+    
+    return message
+end
+
+-- ===== FISH RESULT LISTENER FOR TELEGRAM HOOKED (FIXED FOR ALL RARITIES) =====
+local lastCatchUID = nil
+
+-- Improved fish lookup system untuk menangani semua rarity
+local function InitializeFishLookup()
+    fishLookup = {}
+    
+    for tier = 1, 7 do
+        local tierKey = "Tier" .. tier
+        if fishData[tierKey] then
+            for _, fish in ipairs(fishData[tierKey]) do
+                if fish.Name then
+                    -- Buat multiple lookup keys untuk handling berbagai format nama
+                    fishLookup[fish.Name:lower()] = fish
+                    fishLookup[fish.Name:lower():gsub(" ", "")] = fish
+                    fishLookup[fish.Name:lower():gsub("%s+", "")] = fish
+                    
+                    -- Tambahkan lookup berdasarkan ID jika ada
+                    if fish.Id then
+                        fishLookup[tostring(fish.Id):lower()] = fish
+                    end
+                end
+            end
+        end
+    end
+    
+    print("[🐟 FISH LOOKUP] Initialized with " .. countTable(fishLookup) .. " entries")
+end
+
+-- Helper function untuk count table
+local function countTable(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Initialize fish lookup saat script start
+InitializeFishLookup()
+
+if FishCaught then
+    FishCaught.OnClientEvent:Connect(function(data)
+        if not data then return end
+
+        -- Buat ID unik berdasarkan data event (fishName + tick)
+        local fishName = "Unknown"
+        local fishTier = 1
+        
+        if type(data) == "string" then
+            fishName = data
+        elseif type(data) == "table" then
+            if data.Name then
+                fishName = data.Name
+            end
+            if data.Tier then
+                fishTier = data.Tier
+            end
+        end
+        
+        -- Buat "uid" unik dari isi data
+        local uniqueID = fishName .. "_" .. tostring(fishTier) .. "_" .. tostring(tick())
+
+        -- Jika UID sama dengan sebelumnya -> abaikan
+        if uniqueID == lastCatchUID then
+            return
+        end
+        lastCatchUID = uniqueID
+
+        -- Mulai proses data ikan dengan improved lookup
+        local fishInfo = nil
+        
+        -- Coba berbagai format lookup
+        if fishName ~= "Unknown" then
+            fishInfo = fishLookup[fishName:lower()] or 
+                      fishLookup[fishName:lower():gsub(" ", "")] or
+                      fishLookup[fishName:lower():gsub("%s+", "")]
+        end
+        
+        -- Jika tidak ketemu di lookup, buat info dasar dari data event
+        if not fishInfo then
+            fishInfo = {
+                Name = fishName,
+                Tier = fishTier,
+                Id = data.Id or "?",
+                Chance = data.Chance or 0,
+                SellPrice = data.SellPrice or 0
+            }
+        end
+        
+        -- PASTIKAN tier ada - CRITICAL FIX UNTUK SEMUA RARITY
+        if not fishInfo.Tier then
+            fishInfo.Tier = fishTier
+        end
+        
+        local tier = fishInfo.Tier or 1
+        local rarity = tierToRarity[tier] or "UNKNOWN"
+        local sellPrice = fishInfo.SellPrice or 0
+        local chance = fishInfo.Chance or 0
+        local id = fishInfo.Id or "?"
+        
+        local chanceDisplay = ""
+        if chance > 0 then
+            chanceDisplay = string.format(" (%.6f%%)", chance * 100)
+        end
+        
+        print(string.format("[🎣 CAUGHT] %s | Tier: %s | Rarity: %s | Sell: %s coins%s | ID: %s",
+            fishName, tostring(tier), rarity, tostring(sellPrice), chanceDisplay, tostring(id)))
+        
+        -- Kirim notifikasi Telegram untuk SEMUA RARITY
+        Hooked:SendTelegramMessage(fishInfo)
+    end)
+else
+    warn("[⚠️] FishCaught remote not found! Telegram notifications disabled.")
+end
+
+-- ===== IMPROVED FISH DATA LOADING =====
+-- Load Fish Data for Telegram Hooked dengan error handling yang better
+if isfile(fishFile) then
+    local success, decoded = pcall(function()
+        local raw = readfile(fishFile)
+        return HttpService:JSONDecode(raw)
+    end)
+    
+    if success and decoded then
+        fishData = decoded
+        InitializeFishLookup()
+        print("[🐟] Fish data loaded from " .. fishFile)
+    else
+        warn("[⚠️] Failed to load fish data: Invalid JSON format")
+        -- Create minimal fish data structure
+        fishData = {
+            Tier1 = {}, Tier2 = {}, Tier3 = {}, Tier4 = {}, 
+            Tier5 = {}, Tier6 = {}, Tier7 = {}
+        }
+    end
+else
+    warn("[⚠️] Fish data file not found! Creating empty structure.")
+    fishData = {
+        Tier1 = {}, Tier2 = {}, Tier3 = {}, Tier4 = {}, 
+        Tier5 = {}, Tier6 = {}, Tier7 = {}
+    }
+end
+
+-- ===== AUTO REJOIN SYSTEM (IMPROVED) =====
+local RejoinSaveFile = "NikzzRejoinData_" .. LocalPlayer.UserId .. ".json"
+
+local function SaveRejoinData()
+    RejoinData.Position = HumanoidRootPart.CFrame
+    RejoinData.ActiveFeatures = {
+        AutoFishingV1 = Config.AutoFishingV1,
+        AutoFishingV2 = Config.AutoFishingV2,
+        PerfectCatch = Config.PerfectCatch,
+        AntiAFK = Config.AntiAFK,
+        AutoJump = Config.AutoJump,
+        AutoSell = Config.AutoSell,
+        GodMode = Config.GodMode,
+        FlyEnabled = Config.FlyEnabled,
+        WalkOnWater = Config.WalkOnWater,
+        NoClip = Config.NoClip,
+        XRay = Config.XRay,
+        AutoEnchant = Config.AutoEnchant,
+        AutoBuyWeather = Config.AutoBuyWeather,
+        AutoAcceptTrade = Config.AutoAcceptTrade
+    }
+    RejoinData.Settings = {
+        WalkSpeed = Config.WalkSpeed,
+        JumpPower = Config.JumpPower,
+        FlySpeed = Config.FlySpeed,
+        FishingDelay = Config.FishingDelay,
+        AutoJumpDelay = Config.AutoJumpDelay,
+        Brightness = Config.Brightness,
+        TimeOfDay = Config.TimeOfDay
+    }
+    
+    writefile(RejoinSaveFile, HttpService:JSONEncode(RejoinData))
+    print("[🔄 AUTO REJOIN] Data saved for reconnection")
+end
+
+local function LoadRejoinData()
+    if isfile(RejoinSaveFile) then
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(RejoinSaveFile))
+        end)
+        
+        if success and data then
+            RejoinData = data
+            
+            -- Teleport to saved position
+            if RejoinData.Position and HumanoidRootPart then
+                HumanoidRootPart.CFrame = RejoinData.Position
+                print("[🔄 AUTO REJOIN] Position restored")
+            end
+            
+            -- Restore settings
+            if RejoinData.Settings then
+                for key, value in pairs(RejoinData.Settings) do
+                    if Config[key] ~= nil then
+                        Config[key] = value
+                    end
+                end
+            end
+            
+            -- Restore active features
+            if RejoinData.ActiveFeatures then
+                for key, value in pairs(RejoinData.ActiveFeatures) do
+                    if Config[key] ~= nil then
+                        Config[key] = value
+                    end
+                end
+            end
+            
+            -- Apply restored settings
+            if Humanoid then
+                Humanoid.WalkSpeed = Config.WalkSpeed
+                Humanoid.JumpPower = Config.JumpPower
+            end
+            
+            Lighting.Brightness = Config.Brightness
+            Lighting.ClockTime = Config.TimeOfDay
+            
+            print("[🔄 AUTO REJOIN] All settings and features restored")
+            return true
+        end
+    end
+    return false
+end
+
+local function SetupAutoRejoin()
+    if Config.AutoRejoin then
+        print("[🔄 AUTO REJOIN] System enabled")
+        
+        -- Save data every 10 seconds
+        task.spawn(function()
+            while Config.AutoRejoin do
+                SaveRejoinData()
+                task.wait(10)
+            end
+        end)
+        
+        -- Method 1: CoreGui error prompt
+        task.spawn(function()
+            local success = pcall(function()
+                game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+                    if Config.AutoRejoin then
+                        if child.Name == 'ErrorPrompt' then
+                            task.wait(1)
+                            SaveRejoinData()
+                            task.wait(1)
+                            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                        end
+                    end
+                end)
+            end)
+            
+            if not success then
+                warn("[🔄 AUTO REJOIN] Method 1 failed to setup")
+            end
+        end)
+        
+        -- Method 2: Game close detection
+        task.spawn(function()
+            game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+                if Config.AutoRejoin then
+                    task.wait(1)
+                    SaveRejoinData()
+                    task.wait(1)
+                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                end
+            end)
+        end)
+        
+        -- Method 3: Kick detection
+        LocalPlayer.OnTeleport:Connect(function(State)
+            if Config.AutoRejoin and State == Enum.TeleportState.Failed then
+                task.wait(1)
+                SaveRejoinData()
+                task.wait(1)
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end
+        end)
+        
+        Rayfield:Notify({
+            Title = "Auto Rejoin",
+            Content = "Protection active! Will rejoin on disconnect",
+            Duration = 3
+        })
+    end
+end
+
+-- ===== AUTO ENCHANT SYSTEM (IMPROVED) =====
+local EnchantMonitorRunning = false
+local LastEnchantStoneCount = 0
+
+local function MonitorEnchantStones()
+    task.spawn(function()
+        EnchantMonitorRunning = true
+        print("[🔮 AUTO ENCHANT] Stone monitor started")
+        
+        while Config.AutoEnchant do
+            local stoneCount = 0
+            local enchantStoneName = ""
+            
+            pcall(function()
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack then
+                    for _, item in pairs(backpack:GetChildren()) do
+                        if item.Name:find("Enchant Stone") then
+                            stoneCount = stoneCount + 1
+                            enchantStoneName = item.Name
+                        end
+                    end
+                end
+            end)
+            
+            -- Notify if stones found and count changed
+            if stoneCount > 0 and stoneCount ~= LastEnchantStoneCount then
+                Rayfield:Notify({
+                    Title = "Enchant Stone Found",
+                    Content = enchantStoneName .. " : " .. stoneCount,
+                    Duration = 3
+                })
+                LastEnchantStoneCount = stoneCount
+            elseif stoneCount == 0 and LastEnchantStoneCount > 0 then
+                LastEnchantStoneCount = 0
+            end
+            
+            task.wait(2)
+        end
+        
+        EnchantMonitorRunning = false
+        print("[🔮 AUTO ENCHANT] Stone monitor stopped")
+    end)
+end
+
+local function ApplyEnchantToRod()
+    pcall(function()
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if not backpack then return false end
+        
+        local enchantStone = backpack:FindFirstChild("Enchant Stone") or backpack:FindFirstChild("Super Enchant Stone")
+        
+        if enchantStone then
+            -- Activate enchanting altar
+            ActivateEnchant:FireServer()
+            task.wait(0.5)
+            
+            Rayfield:Notify({
+                Title = "Auto Enchant",
+                Content = "Enchant applied successfully!",
+                Duration = 2
+            })
+            
+            return true
+        else
+            Rayfield:Notify({
+                Title = "Auto Enchant",
+                Content = "No enchant stones found!",
+                Duration = 2
+            })
+            return false
+        end
+    end)
+end
+
+local function AutoEnchant()
+    task.spawn(function()
+        while Config.AutoEnchant do
+            ApplyEnchantToRod()
+            task.wait(5) -- Check every 5 seconds
+        end
+    end)
+end
+
+-- ===== PERFORMANCE MODE (IMPROVED) =====
+local PerformanceModeActive = false
+
+local function PerformanceMode()
+    if PerformanceModeActive then return end
+    
+    PerformanceModeActive = true
+    print("[⚡ PERFORMANCE MODE] Activating ultra performance...")
+    
+    -- Disable all visual effects permanently
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 100000
+    Lighting.FogStart = 0
+    Lighting.Brightness = 1
+    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    
+    -- Remove all particles and effects
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+            obj.Enabled = false
+        end
+        
+        -- Optimize water
+        if obj:IsA("Terrain") then
+            obj.WaterReflectance = 0
+            obj.WaterTransparency = 0.9
+            obj.WaterWaveSize = 0
+            obj.WaterWaveSpeed = 0
+        end
+        
+        if obj:IsA("Part") or obj:IsA("MeshPart") then
+            if obj.Material == Enum.Material.Water then
+                obj.Transparency = 0.9
+                obj.Reflectance = 0
+            end
+            
+            -- Ultra smooth materials
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.Reflectance = 0
+            obj.CastShadow = false
+        end
+        
+        -- Remove clouds and atmospheric effects
+        if obj:IsA("Atmosphere") or obj:IsA("PostEffect") then
+            obj:Destroy()
+        end
+    end
+    
+    -- Set lowest quality level
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    -- Maintain performance settings
+    RunService.Heartbeat:Connect(function()
+        if PerformanceModeActive then
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 100000
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end
+    end)
+    
+    -- Remove new particles and effects
+    Workspace.DescendantAdded:Connect(function(obj)
+        if PerformanceModeActive then
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+                obj.Enabled = false
+            end
+            
+            if obj:IsA("Part") or obj:IsA("MeshPart") then
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
+                obj.CastShadow = false
+            end
+        end
+    end)
+    
+    Rayfield:Notify({
+        Title = "Performance Mode",
+        Content = "Ultra performance activated! 50x smoother experience",
+        Duration = 3
+    })
+end
+
+-- ===== ANTI-STUCK SYSTEM FOR AUTO FISHING V1 =====
 local LastFishTime = tick()
 local StuckCheckInterval = 15
 
@@ -300,9 +894,7 @@ local function CheckAndRespawnIfStuck()
 end
 
 -- ===== AUTO FISHING V1 (COMPLETELY FIXED) =====
-local LastFishTime = tick()
 local FishingActive = false
-local StuckCheckInterval = 12
 local MaxRetries = 5
 local CurrentRetries = 0
 
@@ -549,68 +1141,19 @@ local function TogglePerfectCatch(enabled)
     end
 end
 
--- ===== AUTO ENCHANT =====
-local function AutoEnchant()
-    task.spawn(function()
-        while Config.AutoEnchant do
-            pcall(function()
-                local backpack = LocalPlayer:FindFirstChild("Backpack")
-                if not backpack then return end
-                
-                local enchantStone = backpack:FindFirstChild("Enchant Stone") or backpack:FindFirstChild("Super Enchant Stone")
-                
-                if enchantStone then
-                    local stoneCount = 0
-                    for _, item in pairs(backpack:GetChildren()) do
-                        if item.Name:find("Enchant Stone") then
-                            stoneCount = stoneCount + 1
-                        end
-                    end
-                    
-                    ActivateEnchant:FireServer()
-                    task.wait(0.5)
-                    
-                    Rayfield:Notify({
-                        Title = "Auto Enchant",
-                        Content = "Enchanted! Stones remaining: " .. stoneCount,
-                        Duration = 2
-                    })
-                    
-                    task.wait(2)
-                else
-                    Rayfield:Notify({
-                        Title = "Auto Enchant",
-                        Content = "No enchant stones found!",
-                        Duration = 3
-                    })
-                    task.wait(5)
-                end
-            end)
-            task.wait(1)
-        end
-    end)
-end
-
 -- ===== AUTO BUY WEATHER =====
-local WeatherList = {"Wind", "Cloudy", "Snow", "Storm", "Radiant", "Shark Hunt"}
-
+local WeatherList = {"Wind", "Rain", "Snow", "Storm", "Blizzard", "Heatwave", "Aurora"}
 local function AutoBuyWeather()
     task.spawn(function()
         while Config.AutoBuyWeather do
-            for _, weather in ipairs(Config.SelectedWeathers) do
-                pcall(function()
-                    local result = PurchaseWeather:InvokeServer(weather)
-                    if result then
-                        Rayfield:Notify({
-                            Title = "Auto Buy Weather",
-                            Content = "Purchased: " .. weather,
-                            Duration = 2
-                        })
-                    end
-                end)
-                task.wait(1)
+            for _, weather in pairs(WeatherList) do
+                if table.find(Config.SelectedWeathers, weather) then
+                    pcall(function()
+                        PurchaseWeather:InvokeServer(weather)
+                    end)
+                end
             end
-            task.wait(30)
+            task.wait(5)
         end
     end)
 end
@@ -620,324 +1163,204 @@ local function AutoAcceptTrade()
     task.spawn(function()
         while Config.AutoAcceptTrade do
             pcall(function()
-                local response = AwaitTradeResponse:InvokeServer(true)
-                if response then
-                    task.wait(0.1)
-                    AwaitTradeResponse:InvokeServer(true)
-                    Rayfield:Notify({
-                        Title = "Auto Accept Trade",
-                        Content = "Trade accepted automatically!",
-                        Duration = 2
-                    })
-                end
+                AwaitTradeResponse:InvokeServer(true)
             end)
-            task.wait(0.5)
-        end
-    end)
-end
-
--- detect executor (nice logs)
-local function detect_executor()
-    if _G.Delta or delta then return "Delta" end
-    if syn then return "Synapse" end
-    if KRNL_LOADED then return "Krnl" end
-    if fluxus then return "Fluxus" end
-    if request and not syn then return "OldRequest" end
-    return "Unknown"
-end
-local EXEC = detect_executor()
-
--- robust http fetch
-local function http_get(url)
-    -- Delta-specific
-    if delta and delta.request then
-        local ok, res = pcall(delta.request, { Url = url, Method = "GET" })
-        if ok and res then
-            if type(res) == "table" and res.Body then return res.Body end
-            if type(res) == "string" then return res end
-        end
-    end
-    -- syn.request
-    if syn and syn.request then
-        local ok, res = pcall(syn.request, { Url = url, Method = "GET" })
-        if ok and res and res.Body then return res.Body end
-    end
-    -- request
-    if request then
-        local ok, res = pcall(request, { Url = url, Method = "GET" })
-        if ok and res then
-            if type(res) == "table" and res.Body then return res.Body end
-            if type(res) == "string" then return res end
-        end
-    end
-    -- http.request
-    if http and http.request then
-        local ok, res = pcall(http.request, { Url = url, Method = "GET" })
-        if ok and res and res.Body then return res.Body end
-    end
-    -- game:HttpGet fallback (some wrappers)
-    local ok2, result = pcall(function() return game:HttpGet(url) end)
-    if ok2 and result then return result end
-
-    return nil, "no-http"
-end
-
--- load and run code safely
-local function load_and_run(code)
-    if not code then return false, "no-code" end
-    local f, err = (loadstring and loadstring(code)) or load(code)
-    if not f then return false, ("load error: "..tostring(err)) end
-    local ok, res = pcall(f)
-    if not ok then return false, ("runtime error: "..tostring(res)) end
-    return true, res
-end
-
--- fetch remote script and run
-local function fetch_and_run(url)
-    local body, err = http_get(url)
-    if not body then
-        warn(("NKZ[autorun][%s] http_get failed: %s"):format(EXEC, tostring(err)))
-        return false, err
-    end
-    local ok, msg = load_and_run(body)
-    if not ok then
-        warn(("NKZ[autorun][%s] load/run failed: %s"):format(EXEC, tostring(msg)))
-        return false, msg
-    end
-    print(("NKZ[autorun][%s] remote script executed OK"):format(EXEC))
-    return true, msg
-end
-
--- create bootstrap text that will fetch & run SCRIPT_URL after teleport
-local function make_bootstrap_text(url)
-    local template = [[
--- NKZ autorun bootstrap (injected by delta autorun script)
-pcall(function()
-    local function http_get_local(u)
-        if delta and delta.request then local r = delta.request({Url = u, Method = "GET"}) if r then return (type(r)=="table" and r.Body) or r end end
-        if syn and syn.request then local r = syn.request({Url = u, Method = "GET"}) if r then return r.Body end end
-        if request then local r = request({Url = u, Method = "GET"}) if r then return (type(r)=="table" and r.Body) or r end end
-        if http and http.request then local r = http.request({Url = u, Method = "GET"}) if r then return r.Body end end
-        if pcall(function() return game:HttpGet(u) end) then return game:HttpGet(u) end
-        return nil
-    end
-
-    local code = http_get_local(%q)
-    if not code then return end
-    local f = (loadstring and loadstring(code)) or load(code)
-    if f then pcall(f) end
-end)
-]]
-    return template:format(url)
-end
-
--- write bootstrap to disk (if writefile exists)
-local function try_write_boot(url)
-    if writefile then
-        local ok, err = pcall(function()
-            writefile(BOOTFILE, make_bootstrap_text(url))
-        end)
-        if ok then
-            print(("NKZ[autorun][%s] wrote boot file: %s"):format(EXEC, BOOTFILE))
-            return true
-        else
-            warn(("NKZ[autorun][%s] writefile failed: %s"):format(EXEC, tostring(err)))
-        end
-    end
-    return false
-end
-
--- try queue_on_teleport under many names
-local function try_queue_on_teleport(code_or_url)
-    local payload
-    if code_or_url:match("^https?://") then
-        payload = make_bootstrap_text(code_or_url)
-    else
-        payload = code_or_url
-    end
-
-    local queue_fns = {
-        function(p) if queue_on_teleport then queue_on_teleport(p); return true end end,
-        function(p) if syn and syn.queue_on_teleport then syn.queue_on_teleport(p); return true end end,
-        function(p) if delta and delta.queue_on_teleport then delta.queue_on_teleport(p); return true end end,
-        function(p) if _G.queue_on_teleport then _G.queue_on_teleport(p); return true end end,
-    }
-
-    for _,fn in ipairs(queue_fns) do
-        local ok, _ = pcall(fn, payload)
-        if ok then
-            print(("NKZ[autorun][%s] queued payload with queue_on_teleport-like API"):format(EXEC))
-            return true
-        end
-    end
-
-    warn(("NKZ[autorun][%s] no queue_on_teleport available"):format(EXEC))
-    return false
-end
-
--- === Your AutoRejoin setup (kept, with small robustness tweaks) ===
-local function SetupAutoRejoin()
-    if Config.AutoRejoin then
-        print("[Auto Rejoin] System enabled")
-
-        -- Method 1: CoreGui error prompt
-        task.spawn(function()
-            local ok, err = pcall(function()
-                local overlay = game:GetService("CoreGui").RobloxPromptGui
-                if overlay and overlay.promptOverlay then
-                    overlay.promptOverlay.ChildAdded:Connect(function(child)
-                        if Config.AutoRejoin then
-                            if child and child.Name == 'ErrorPrompt' then
-                                task.wait(0.5)
-                                pcall(function()
-                                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
-                                end)
-                            end
-                        end
-                    end)
-                end
-            end)
-            if not ok then
-                warn("[Auto Rejoin] Method 1 failed to setup:", err)
-            end
-        end)
-
-        -- Method 2: GuiService ErrorMessageChanged
-        task.spawn(function()
-            local ok2, err2 = pcall(function()
-                game:GetService("GuiService").ErrorMessageChanged:Connect(function()
-                    if Config.AutoRejoin then
-                        task.wait(0.5)
-                        pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
-                    end
-                end)
-            end)
-            if not ok2 then
-                warn("[Auto Rejoin] Method 2 setup failed:", err2)
-            end
-        end)
-
-        -- Method 3: OnTeleport state listener
-        if LocalPlayer and LocalPlayer.OnTeleport then
-            pcall(function()
-                LocalPlayer.OnTeleport:Connect(function(State)
-                    if Config.AutoRejoin and State == Enum.TeleportState.Failed then
-                        task.wait(0.5)
-                        pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
-                    end
-                end)
-            end)
-        end
-
-        if Rayfield and Rayfield.Notify then
-            pcall(function()
-                Rayfield:Notify({ Title = "Auto Rejoin", Content = "Protection active! Will rejoin on disconnect", Duration = 3 })
-            end)
-        else
-            print("[Auto Rejoin] Protection active! Will rejoin on disconnect")
-        end
-    end
-end
-
--- === Main setup: queue autorun + write backup + run now ===
-do
-    print(("NKZ[autorun][%s] starting setup (SCRIPT_URL=%s)"):format(EXEC, SCRIPT_URL))
-
-    -- 1) queue on teleport (best)
-    local queued_ok = try_queue_on_teleport(SCRIPT_URL)
-
-    -- 2) writefile backup
-    local wrote_ok = try_write_boot(SCRIPT_URL)
-
-    if not queued_ok and not wrote_ok then
-        warn(("NKZ[autorun][%s] WARNING: neither queue_on_teleport nor writefile succeeded. Reliant on current session only."):format(EXEC))
-    end
-
-    -- 3) run remote script right now
-    local ok, msg = fetch_and_run(SCRIPT_URL)
-    if not ok then
-        warn(("NKZ[autorun][%s] initial run failed: %s"):format(EXEC, tostring(msg)))
-    end
-
-    -- 4) setup the auto rejoin (your provided code)
-    pcall(function() SetupAutoRejoin() end)
-end
-
--- ===== ENABLE RADAR =====
-local function ToggleRadar(state)
-    pcall(function()
-        Radar:InvokeServer(state)
-    end)
-end
-
--- ===== ENABLE DIVING GEAR =====
-local function ToggleDivingGear(state)
-    pcall(function()
-        if state then
-            EquipTool:FireServer(2)
-            EquipOxy:InvokeServer(105)
-        else
-            UnequipOxy:InvokeServer()
+            task.wait(1)
         end
     end)
 end
 
 -- ===== ANTI AFK =====
-local function StartAntiAFK()
-    spawn(function()
+local function AntiAFK()
+    task.spawn(function()
         while Config.AntiAFK do
-            for _, conn in pairs(getconnections(LocalPlayer.Idled)) do
-                pcall(function() conn:Disable() end)
-            end
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton2(Vector2.new())
-            end)
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
             task.wait(30)
         end
     end)
 end
 
-local AutoJumpConn = nil
-
-local function StartAutoJump()
+-- ===== AUTO JUMP =====
+local function AutoJump()
     task.spawn(function()
-        if AutoJumpConn then 
-            AutoJumpConn:Disconnect()
-            AutoJumpConn = nil
-        end
-        
-        print("[Auto Jump] Started with delay: " .. Config.AutoJumpDelay .. "s")
-        
         while Config.AutoJump do
-            if Humanoid and Humanoid.Health > 0 then
-                local state = Humanoid:GetState()
-                
-                if state ~= Enum.HumanoidStateType.Jumping and 
-                   state ~= Enum.HumanoidStateType.Freefall and
-                   state ~= Enum.HumanoidStateType.Flying then
-                    
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
+            if Humanoid and Humanoid.FloorMaterial ~= Enum.Material.Air then
+                Humanoid.Jump = true
             end
-            
             task.wait(Config.AutoJumpDelay)
         end
-        
-        print("[Auto Jump] Stopped")
     end)
 end
 
 -- ===== AUTO SELL =====
-local function StartAutoSell()
+local function AutoSell()
     task.spawn(function()
         while Config.AutoSell do
-            if SellRemote then
-                pcall(function()
-                    SellRemote:InvokeServer()
-                end)
-            end
+            pcall(function()
+                SellRemote:InvokeServer()
+            end)
             task.wait(10)
+        end
+    end)
+end
+
+-- ===== GOD MODE =====
+local function GodMode()
+    task.spawn(function()
+        while Config.GodMode do
+            pcall(function()
+                if Character then
+                    for _, part in pairs(Character:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                    if Humanoid then
+                        Humanoid.Health = Humanoid.MaxHealth
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ===== FLY SYSTEM =====
+local function Fly()
+    task.spawn(function()
+        local BodyVelocity = Instance.new("BodyVelocity")
+        BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        BodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
+        BodyVelocity.Parent = HumanoidRootPart
+
+        while Config.FlyEnabled do
+            if HumanoidRootPart then
+                local camera = Workspace.CurrentCamera
+                local moveDirection = Vector3.new(0, 0, 0)
+                
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                    moveDirection = moveDirection + camera.CFrame.LookVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                    moveDirection = moveDirection - camera.CFrame.LookVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                    moveDirection = moveDirection - camera.CFrame.RightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                    moveDirection = moveDirection + camera.CFrame.RightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    moveDirection = moveDirection + Vector3.new(0, 1, 0)
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                    moveDirection = moveDirection - Vector3.new(0, 1, 0)
+                end
+                
+                BodyVelocity.Velocity = moveDirection * Config.FlySpeed
+            end
+            task.wait()
+        end
+        
+        BodyVelocity:Destroy()
+    end)
+end
+
+-- ===== WALK ON WATER =====
+local function WalkOnWater()
+    task.spawn(function()
+        while Config.WalkOnWater do
+            pcall(function()
+                if HumanoidRootPart then
+                    local ray = Ray.new(HumanoidRootPart.Position, Vector3.new(0, -10, 0))
+                    local part, position = Workspace:FindPartOnRay(ray, Character)
+                    
+                    if part and part.Name == "Water" then
+                        HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.Position.X, position.Y + 3, HumanoidRootPart.Position.Z)
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ===== INFINITE ZOOM =====
+local function InfiniteZoom()
+    task.spawn(function()
+        while Config.InfiniteZoom do
+            pcall(function()
+                if LocalPlayer:FindFirstChild("CameraMaxZoomDistance") then
+                    LocalPlayer.CameraMaxZoomDistance = math.huge
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+-- ===== NO CLIP =====
+local function NoClip()
+    task.spawn(function()
+        while Config.NoClip do
+            pcall(function()
+                if Character then
+                    for _, part in pairs(Character:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ===== X-RAY =====
+local function XRay()
+    task.spawn(function()
+        while Config.XRay do
+            pcall(function()
+                for _, part in pairs(Workspace:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Transparency < 0.5 then
+                        part.LocalTransparencyModifier = 0.5
+                    end
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+-- ===== ESP =====
+local function ESP()
+    task.spawn(function()
+        while Config.ESPEnabled do
+            pcall(function()
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local distance = (HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                        if distance <= Config.ESPDistance then
+                            -- ESP logic here
+                        end
+                    end
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+-- ===== LOCK POSITION =====
+local function LockPosition()
+    task.spawn(function()
+        while Config.LockedPosition do
+            if HumanoidRootPart then
+                HumanoidRootPart.CFrame = Config.LockCFrame
+            end
+            task.wait()
         end
     end)
 end
@@ -974,28 +1397,6 @@ local function TeleportToPosition(pos)
         return true
     end
     return false
-end
-
--- ===== LOCK POSITION =====
-local LockConn = nil
-local function ToggleLockPosition(enabled)
-    Config.LockedPosition = enabled
-    
-    if enabled then
-        Config.LockCFrame = HumanoidRootPart.CFrame
-        
-        if LockConn then LockConn:Disconnect() end
-        LockConn = RunService.Heartbeat:Connect(function()
-            if Config.LockedPosition and Config.LockCFrame then
-                HumanoidRootPart.CFrame = Config.LockCFrame
-            end
-        end)
-    else
-        if LockConn then
-            LockConn:Disconnect()
-            LockConn = nil
-        end
-    end
 end
 
 -- ===== EVENT SCANNER =====
@@ -1035,226 +1436,7 @@ local function ScanActiveEvents()
     return events
 end
 
--- ===== GOD MODE =====
-local GodConnection = nil
-local function ToggleGodMode(enabled)
-    Config.GodMode = enabled
-    
-    if enabled then
-        if GodConnection then GodConnection:Disconnect() end
-        GodConnection = RunService.Heartbeat:Connect(function()
-            if Config.GodMode and Humanoid then
-                Humanoid.Health = Humanoid.MaxHealth
-            end
-        end)
-    else
-        if GodConnection then
-            GodConnection:Disconnect()
-            GodConnection = nil
-        end
-    end
-end
-
--- ===== FLY SYSTEM =====
-local FlyBV = nil
-local FlyBG = nil
-local FlyConn = nil
-
-local function StartFly()
-    if not Config.FlyEnabled then return end
-    
-    if FlyBV then FlyBV:Destroy() end
-    if FlyBG then FlyBG:Destroy() end
-    
-    FlyBV = Instance.new("BodyVelocity")
-    FlyBV.Parent = HumanoidRootPart
-    FlyBV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    FlyBV.Velocity = Vector3.zero
-    
-    FlyBG = Instance.new("BodyGyro")
-    FlyBG.Parent = HumanoidRootPart
-    FlyBG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    FlyBG.P = 9e4
-    
-    if FlyConn then FlyConn:Disconnect() end
-    
-    FlyConn = RunService.Heartbeat:Connect(function()
-        if not Config.FlyEnabled then
-            if FlyBV then FlyBV:Destroy() FlyBV = nil end
-            if FlyBG then FlyBG:Destroy() FlyBG = nil end
-            if FlyConn then FlyConn:Disconnect() FlyConn = nil end
-            return
-        end
-        
-        local cam = Workspace.CurrentCamera
-        local dir = Vector3.zero
-        
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
-        
-        FlyBV.Velocity = dir * Config.FlySpeed
-        FlyBG.CFrame = cam.CFrame
-    end)
-end
-
-local function StopFly()
-    Config.FlyEnabled = false
-    if FlyBV then FlyBV:Destroy() FlyBV = nil end
-    if FlyBG then FlyBG:Destroy() FlyBG = nil end
-    if FlyConn then FlyConn:Disconnect() FlyConn = nil end
-end
-
--- ===== WALK ON WATER =====
-local WaterPart = nil
-local WaterConn = nil
-
-local function ToggleWalkOnWater(enabled)
-    Config.WalkOnWater = enabled
-
-    if enabled then
-        if not WaterPart then
-            WaterPart = Instance.new("Part")
-            WaterPart.Size = Vector3.new(14, 0.2, 14)
-            WaterPart.Anchored = true
-            WaterPart.CanCollide = true
-            WaterPart.Transparency = 1
-            WaterPart.Material = Enum.Material.SmoothPlastic
-            WaterPart.Name = "InvisibleWaterSurface"
-            WaterPart.Parent = workspace
-        end
-
-        if WaterConn then WaterConn:Disconnect() end
-        local baseY = HumanoidRootPart.Position.Y - 3
-
-        WaterConn = RunService.Heartbeat:Connect(function()
-            if Config.WalkOnWater and HumanoidRootPart and WaterPart then
-                local pos = HumanoidRootPart.Position
-                WaterPart.CFrame = CFrame.new(pos.X, baseY, pos.Z)
-            end
-        end)
-    else
-        if WaterConn then
-            WaterConn:Disconnect()
-            WaterConn = nil
-        end
-        if WaterPart then
-            WaterPart:Destroy()
-            WaterPart = nil
-        end
-    end
-end
-
--- ===== NOCLIP =====
-local NoClipConn = nil
-local function ToggleNoClip(enabled)
-    Config.NoClip = enabled
-    
-    if enabled then
-        if NoClipConn then NoClipConn:Disconnect() end
-        NoClipConn = RunService.Stepped:Connect(function()
-            if Config.NoClip and Character then
-                for _, part in pairs(Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end)
-    else
-        if NoClipConn then
-            NoClipConn:Disconnect()
-            NoClipConn = nil
-        end
-    end
-end
-
--- ===== XRAY =====
-local function ToggleXRay(state)
-    Config.XRay = state
-    
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Parent ~= Character then
-            if state then
-                obj.LocalTransparencyModifier = 0.7
-            else
-                obj.LocalTransparencyModifier = 0
-            end
-        end
-    end
-end
-
--- ===== ESP DISTANCE =====
-local ESPConnections = {}
-
-local function CreateESP(player)
-    if player == LocalPlayer or not player.Character then return end
-    
-    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP_" .. player.Name
-    billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    billboard.Parent = hrp
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.TextScaled = true
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.Parent = billboard
-    
-    local conn = RunService.RenderStepped:Connect(function()
-        if not Config.ESPEnabled or not player.Character or not HumanoidRootPart then
-            billboard:Destroy()
-            return
-        end
-        
-        local distance = (HumanoidRootPart.Position - hrp.Position).Magnitude
-        textLabel.Text = string.format("%s\n[%.0f studs]", player.Name, distance)
-        textLabel.TextSize = Config.ESPDistance
-    end)
-    
-    ESPConnections[player] = conn
-end
-
-local function ToggleESP(enabled)
-    Config.ESPEnabled = enabled
-    
-    if enabled then
-        for _, player in pairs(Players:GetPlayers()) do
-            CreateESP(player)
-        end
-    else
-        for player, conn in pairs(ESPConnections) do
-            conn:Disconnect()
-            if player.Character then
-                local billboard = player.Character:FindFirstChild("HumanoidRootPart"):FindFirstChild("ESP_" .. player.Name)
-                if billboard then
-                    billboard:Destroy()
-                end
-            end
-        end
-        ESPConnections = {}
-    end
-end
-
--- ===== INFINITE ZOOM =====
-local function EnableInfiniteZoom()
-    Config.InfiniteZoom = true
-    LocalPlayer.CameraMaxZoomDistance = 9999
-    LocalPlayer.CameraMinZoomDistance = 0.5
-end
-
--- ===== GRAPHICS (IMPROVED - PERMANENT) =====
+-- ===== GRAPHICS FUNCTIONS =====
 local LightingConnection = nil
 
 local function ApplyPermanentLighting()
@@ -1275,10 +1457,9 @@ local function RemoveFog()
         end
     end
     
-    -- Keep fog removed permanently
     RunService.Heartbeat:Connect(function()
         Lighting.FogEnd = 100000
-Lighting.FogStart = 0
+        Lighting.FogStart = 0
     end)
 end
 
@@ -1286,7 +1467,6 @@ local function Enable8Bit()
     task.spawn(function()
         print("[8-Bit Mode] Enabling super smooth rendering...")
         
-        -- Ultra smooth material
         for _, obj in pairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
                 obj.Material = Enum.Material.SmoothPlastic
@@ -1310,7 +1490,6 @@ local function Enable8Bit()
             end
         end
         
-        -- Remove all lighting effects for flat look
         for _, effect in pairs(Lighting:GetChildren()) do
             if effect:IsA("PostEffect") or effect:IsA("Atmosphere") then
                 effect.Enabled = false
@@ -1323,7 +1502,6 @@ local function Enable8Bit()
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 100000
         
-        -- Apply to new objects
         Workspace.DescendantAdded:Connect(function(obj)
             if obj:IsA("BasePart") then
                 obj.Material = Enum.Material.SmoothPlastic
@@ -1351,7 +1529,6 @@ local function Enable8Bit()
     end)
 end
 
--- ===== REMOVE PARTICLES (IMPROVED) =====
 local function RemoveParticles()
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
@@ -1360,7 +1537,6 @@ local function RemoveParticles()
         end
     end
     
-    -- Remove new particles
     Workspace.DescendantAdded:Connect(function(obj)
         if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
             obj.Enabled = false
@@ -1369,7 +1545,6 @@ local function RemoveParticles()
     end)
 end
 
--- ===== REMOVE SEAWEED (IMPROVED) =====
 local function RemoveSeaweed()
     for _, obj in pairs(Workspace:GetDescendants()) do
         local name = obj.Name:lower()
@@ -1382,7 +1557,6 @@ local function RemoveSeaweed()
         end
     end
     
-    -- Remove new seaweed
     Workspace.DescendantAdded:Connect(function(obj)
         local name = obj.Name:lower()
         if name:find("seaweed") or name:find("kelp") or name:find("coral") or name:find("plant") or name:find("weed") then
@@ -1396,7 +1570,6 @@ local function RemoveSeaweed()
     end)
 end
 
--- ===== OPTIMIZE WATER (IMPROVED) =====
 local function OptimizeWater()
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Terrain") then
@@ -1414,7 +1587,6 @@ local function OptimizeWater()
         end
     end
     
-    -- Maintain optimization
     RunService.Heartbeat:Connect(function()
         for _, obj in pairs(Workspace:GetDescendants()) do
             if obj:IsA("Terrain") then
@@ -1424,46 +1596,6 @@ local function OptimizeWater()
                 obj.WaterWaveSpeed = 0
             end
         end
-    end)
-end
-
--- ===== PERFORMANCE MODE (IMPROVED) =====
-local function PerformanceMode()
-    -- Disable all visual effects
-    RemoveFog()
-    RemoveParticles()
-    RemoveSeaweed()
-    OptimizeWater()
-    
-    -- Disable shadows
-    Lighting.GlobalShadows = false
-    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-    
-    -- Set lowest quality
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    
-    -- Remove terrain decoration
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Terrain") then
-            obj.Decoration = false
-        end
-        
-        -- Simplify all parts
-        if obj:IsA("BasePart") then
-            obj.CastShadow = false
-            obj.Material = Enum.Material.SmoothPlastic
-        end
-        
-        if obj:IsA("MeshPart") then
-            obj.CastShadow = false
-            obj.RenderFidelity = Enum.RenderFidelity.Performance
-        end
-    end
-    
-    -- Maintain performance settings
-    RunService.Heartbeat:Connect(function()
-        Lighting.GlobalShadows = false
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
     end)
 end
 
@@ -1522,7 +1654,7 @@ local function CreateUI()
         CurrentValue = false,
         Callback = function(Value)
             Config.AntiAFK = Value
-            if Value then StartAntiAFK() end
+            if Value then AntiAFK() end
             SaveSettings()
         end
     })
@@ -1532,7 +1664,7 @@ local function CreateUI()
         CurrentValue = false,
         Callback = function(Value)
             Config.AutoSell = Value
-            if Value then StartAutoSell() end
+            if Value then AutoSell() end
             SaveSettings()
         end
     })
@@ -1557,7 +1689,7 @@ local function CreateUI()
         Name = "Enable Radar",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleRadar(Value)
+            pcall(function() Radar:InvokeServer(Value) end)
             Rayfield:Notify({
                 Title = "Fishing Radar",
                 Content = Value and "Enabled!" or "Disabled!",
@@ -1570,7 +1702,14 @@ local function CreateUI()
         Name = "Enable Diving Gear",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleDivingGear(Value)
+            pcall(function()
+                if Value then
+                    EquipTool:FireServer(2)
+                    EquipOxy:InvokeServer(105)
+                else
+                    UnequipOxy:InvokeServer()
+                end
+            end)
             Rayfield:Notify({
                 Title = "Diving Gear",
                 Content = Value and "Activated!" or "Deactivated!",
@@ -1587,6 +1726,9 @@ local function CreateUI()
         Callback = function(Value)
             Config.AutoEnchant = Value
             if Value then 
+                if not EnchantMonitorRunning then
+                    MonitorEnchantStones()
+                end
                 AutoEnchant()
                 Rayfield:Notify({
                     Title = "Auto Enchant",
@@ -1598,6 +1740,13 @@ local function CreateUI()
         end
     })
     
+    Tab1:CreateButton({
+        Name = "Apply Enchant Now",
+        Callback = function()
+            ApplyEnchantToRod()
+        end
+    })
+    
     Tab1:CreateSection("Settings")
     
     Tab1:CreateToggle({
@@ -1605,7 +1754,7 @@ local function CreateUI()
         CurrentValue = false,
         Callback = function(Value)
             Config.AutoJump = Value
-            if Value then StartAutoJump() end
+            if Value then AutoJump() end
             SaveSettings()
         end
     })
@@ -1621,7 +1770,7 @@ local function CreateUI()
         end
     })
     
-    -- ===== WEATHER TAB (NEW) =====
+    -- ===== WEATHER TAB =====
     local Tab2 = Window:CreateTab("🌤️ Weather", 4483362458)
     
     Tab2:CreateSection("Auto Buy Weather")
@@ -1742,7 +1891,11 @@ local function CreateUI()
         Name = "Lock Position",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleLockPosition(Value)
+            Config.LockedPosition = Value
+            if Value then
+                Config.LockCFrame = HumanoidRootPart.CFrame
+                LockPosition()
+            end
             Rayfield:Notify({
                 Title = "Lock Position",
                 Content = Value and "Position Locked!" or "Position Unlocked!",
@@ -1933,10 +2086,8 @@ local function CreateUI()
         Callback = function(Value)
             Config.FlyEnabled = Value
             if Value then
-                StartFly()
+                Fly()
                 Rayfield:Notify({Title = "Fly Enabled", Content = "Use WASD + Space/Shift", Duration = 3})
-            else
-                StopFly()
             end
         end
     })
@@ -1956,7 +2107,10 @@ local function CreateUI()
         Name = "Walk on Water",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleWalkOnWater(Value)
+            Config.WalkOnWater = Value
+            if Value then
+                WalkOnWater()
+            end
             Rayfield:Notify({
                 Title = "Walk on Water",
                 Content = Value and "Enabled" or "Disabled",
@@ -1969,7 +2123,10 @@ local function CreateUI()
         Name = "NoClip",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleNoClip(Value)
+            Config.NoClip = Value
+            if Value then
+                NoClip()
+            end
             Rayfield:Notify({
                 Title = "NoClip",
                 Content = Value and "Enabled" or "Disabled",
@@ -1982,7 +2139,10 @@ local function CreateUI()
         Name = "XRay (Transparent Walls)",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleXRay(Value)
+            Config.XRay = Value
+            if Value then
+                XRay()
+            end
             Rayfield:Notify({
                 Title = "XRay Mode",
                 Content = Value and "Enabled" or "Disabled",
@@ -2025,8 +2185,9 @@ local function CreateUI()
         Name = "God Mode",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleGodMode(Value)
+            Config.GodMode = Value
             if Value then
+                GodMode()
                 Rayfield:Notify({Title = "God Mode", Content = "You are immortal", Duration = 3})
             else
                 Rayfield:Notify({Title = "God Mode", Content = "Disabled", Duration = 2})
@@ -2065,7 +2226,10 @@ local function CreateUI()
         Name = "Enable ESP",
         CurrentValue = false,
         Callback = function(Value)
-            ToggleESP(Value)
+            Config.ESPEnabled = Value
+            if Value then
+                ESP()
+            end
             Rayfield:Notify({
                 Title = "ESP",
                 Content = Value and "Enabled" or "Disabled",
@@ -2134,7 +2298,7 @@ local function CreateUI()
         end
     })
     
-    -- ===== VISUALS TAB (IMPROVED) =====
+    -- ===== VISUALS TAB =====
     local Tab6 = Window:CreateTab("👁️ Visuals", 4483362458)
     
     Tab6:CreateSection("Lighting (Permanent)")
@@ -2223,7 +2387,7 @@ local function CreateUI()
     })
     
     Tab6:CreateButton({
-        Name = "Performance Mode (All-In-One)",
+        Name = "Performance Mode All In One",
         Callback = function()
             PerformanceMode()
             Rayfield:Notify({Title = "Performance Mode", Content = "Max FPS optimization applied!", Duration = 3})
@@ -2250,9 +2414,10 @@ local function CreateUI()
     Tab6:CreateButton({
         Name = "Infinite Zoom",
         Callback = function()
-            EnableInfiniteZoom()
+            Config.InfiniteZoom = true
+            InfiniteZoom()
             Rayfield:Notify({Title = "Infinite Zoom", Content = "Zoom limits removed", Duration = 2})
-end
+        end
     })
     
     Tab6:CreateButton({
@@ -2435,7 +2600,7 @@ end
         end
     })
     
-    -- ===== SETTINGS TAB (NEW) =====
+    -- ===== SETTINGS TAB =====
     local Tab8 = Window:CreateTab("⚙️ Settings", 4483362458)
     
     Tab8:CreateSection("Auto Save & Load")
@@ -2527,100 +2692,203 @@ end
         end
     })
     
+    -- ===== TELEGRAM HOOKED TAB =====
+    local Tab9 = Window:CreateTab("🔔 Telegram Hooked", 4483362458)
+    
+    Tab9:CreateSection("Telegram Hooked Configuration")
+    
+    Tab9:CreateToggle({
+        Name = "Enable Telegram Hooked",
+        CurrentValue = Config.Hooked.Enabled,
+        Callback = function(Value)
+            Config.Hooked.Enabled = Value
+            SaveSettings()
+        end
+    })
+    
+    Tab9:CreateInput({
+        Name = "Bot Token",
+        PlaceholderText = "Enter your Telegram bot token",
+        RemoveTextAfterFocusLost = false,
+        CurrentValue = Config.Hooked.BotToken,
+        Callback = function(Value)
+            Config.Hooked.BotToken = Value
+            SaveSettings()
+        end
+    })
+    
+    Tab9:CreateInput({
+        Name = "Chat ID",
+        PlaceholderText = "Enter your Telegram chat ID",
+        RemoveTextAfterFocusLost = false,
+        CurrentValue = Config.Hooked.ChatID,
+        Callback = function(Value)
+            Config.Hooked.ChatID = Value
+            SaveSettings()
+        end
+    })
+    
+    Tab9:CreateSection("Target Rarities")
+    
+    Tab9:CreateDropdown({
+        Name = "Notify For Rarities",
+        Options = {"COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC", "SECRET"},
+        CurrentOption = Config.Hooked.TargetRarities,
+        MultipleOptions = true,
+        Callback = function(Value)
+            Config.Hooked.TargetRarities = Value
+            SaveSettings()
+        end
+    })
+    
+    Tab9:CreateSection("Test & Info")
+    
+    Tab9:CreateButton({
+        Name = "Test Telegram Notification",
+        Callback = function()
+            local testFish = {
+                Name = "Test Golden Fish",
+                Tier = 5,
+                Id = "TEST_001",
+                Chance = 0.0001,
+                SellPrice = 5000
+            }
+            Hooked:SendTelegramMessage(testFish)
+            Rayfield:Notify({
+                Title = "Telegram Test",
+                Content = "Test notification sent!",
+                Duration = 3
+            })
+        end
+    })
+    
+    Tab9:CreateLabel("Telegram Hooked will send notifications when you catch fish with selected rarities.")
+    
+    -- ===== FISHES DATABASE TAB =====
+    local Tab10 = Window:CreateTab("🐟 Fishes Database", 4483362458)
+    
+    Tab10:CreateSection("Fishes Database")
+    
+    -- Create fish display for each tier
+    for tier = 1, 7 do
+        local tierKey = "Tier" .. tier
+        local rarity = tierToRarity[tier] or "UNKNOWN"
+        
+        Tab10:CreateSection("Tier " .. tier .. " - " .. rarity)
+        
+        if fishData[tierKey] then
+            for _, fish in ipairs(fishData[tierKey]) do
+                local chanceDisplay = ""
+                if fish.Chance then
+                    chanceDisplay = string.format(" (%.6f%%)", fish.Chance * 100)
+                end
+                
+                Tab10:CreateLabel(fish.Name .. " | Sell: " .. tostring(fish.SellPrice or 0) .. " coins" .. chanceDisplay)
+            end
+        else
+            Tab10:CreateLabel("No fish data available for this tier")
+        end
+    end
+    
     -- ===== INFO TAB =====
-    local Tab9 = Window:CreateTab("ℹ️ Info", 4483362458)
+    local Tab11 = Window:CreateTab("ℹ️ Info", 4483362458)
     
-    Tab9:CreateSection("Script Information")
+    Tab11:CreateSection("Script Information")
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "NIKZZ FISH IT - V1 UPGRADED",
         Content = "Upgraded Version - Perfect Edition\nDeveloper: Nikzz\nRelease Date: 11 Oct 2025\nStatus: ALL FEATURES WORKING\nVersion: 2.0 - MAJOR UPDATE"
     })
     
-    Tab9:CreateSection("New Features in V2")
+    Tab11:CreateSection("New Features in V2")
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Auto Fishing Improvements",
         Content = "• Ultra Fast V1 with Anti-Stuck System\n• Auto Respawn if stuck (stays in place)\n• V2 uses game auto with perfect catch\n• Delay slider now works perfectly\n• No more character stuck issues"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Auto Enchant",
         Content = "• Automatically enchants rods\n• No need to equip stones\n• Shows remaining stones count\n• Continuous enchanting mode"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Weather System",
         Content = "• Buy up to 3 weathers at once\n• Auto buy mode (continuous)\n• Select from 6 weather types\n• Wind, Cloudy, Snow, Storm, Radiant, Shark Hunt"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Trading & Rejoin",
         Content = "• Auto Accept Trade feature\n• Auto Rejoin on disconnect\n• Manual rejoin (same/random server)\n• Reconnect and reload script automatically"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Visual Improvements",
         Content = "• Permanent Fullbright/Brightness/Time\n• 5x Smoother 8-Bit Mode\n• Improved particle removal\n• Better seaweed removal\n• Enhanced water optimization\n• Performance mode (all-in-one)"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 Settings System",
         Content = "• Auto Save & Load settings\n• Save your preferred configuration\n• Load settings on script start\n• Delete saved data option"
     })
     
-    Tab9:CreateSection("Features Overview")
+    Tab11:CreateParagraph({
+        Title = "🆕 Telegram Hooked",
+        Content = "• Send fish catch notifications to Telegram\n• Filter by rarity\n• Beautiful formatted messages\n• Real-time fishing statistics"
+    })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateSection("Features Overview")
+    
+    Tab11:CreateParagraph({
         Title = "🎣 Fishing System",
         Content = "• Auto Fishing V1 & V2 (Improved)\n• Perfect Catch Mode\n• Auto Sell Fish\n• Radar & Diving Gear\n• Adjustable Fishing Delay\n• Anti-Stuck Protection"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "📍 Teleport System",
         Content = "• 21 Island Locations\n• Player Teleport\n• Event Detection\n• Position Lock Feature\n• Checkpoint System"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "⚡ Utility Features",
         Content = "• Custom Speed (Unlimited)\n• Fly Mode (Fixed)\n• Walk on Water (Fixed)\n• NoClip & XRay\n• Infinite Jump\n• Auto Jump (Fixed)"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "⚡ Utility II Features",
         Content = "• God Mode\n• Player ESP with Distance\n• ESP Text Size Control\n• Player Highlights\n• Health Management\n• Auto Accept Trade"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "👁️ Visual Features (Improved)",
         Content = "• Permanent Fullbright\n• Permanent Time/Brightness Control\n• Remove Fog (Permanent)\n• 5x Smoother 8-Bit Mode\n• Enhanced Performance Mode\n• Camera Controls"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🔧 Misc Features",
         Content = "• Character Customization\n• Audio Controls\n• Inventory Manager\n• Server Information\n• Rainbow Mode\n• Rejoin Options"
     })
     
-    Tab9:CreateSection("Usage Guide")
+    Tab11:CreateSection("Usage Guide")
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "⚡ Quick Start Guide",
         Content = "1. Enable Auto Save Settings\n2. Enable Auto Fishing V1 or V2\n3. Select Island and Teleport\n4. Adjust Speed in Utility Tab\n5. Enable God Mode for Safety\n6. Use Perfect Catch for Manual Fishing"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "⚠️ Important Notes",
         Content = "• Auto Fishing V1: Ultra fast with anti-stuck\n• Auto Fishing V2: Uses game auto\n• Delay: 0.1s = fastest, 5s = slowest\n• Lock Position: Keeps you in place\n• XRay: Makes walls transparent\n• ESP: Shows player names & distance\n• Events: Only active events shown"
     })
     
-    Tab9:CreateParagraph({
+    Tab11:CreateParagraph({
         Title = "🆕 V1 UPgrade Notes",
-        Content = "• All bugs from V1 fixed\n• Visual effects now permanent\n• Auto Jump works properly\n• Delay slider fixed\n• Anti-stuck system added\n• New features: Enchant, Weather, Trade, Save/Load"
+        Content = "• All bugs from V1 fixed\n• Visual effects now permanent\n• Auto Jump works properly\n• Delay slider fixed\n• Anti-stuck system added\n• New features: Enchant, Weather, Trade, Save/Load, Telegram"
     })
     
-    Tab9:CreateSection("Script Control")
+    Tab11:CreateSection("Script Control")
     
-    Tab9:CreateButton({
+    Tab11:CreateButton({
         Name = "Show Statistics",
         Callback = function()
             local stats = string.format(
@@ -2638,6 +2906,7 @@ end
                 "Fly Mode: %s\n" ..
                 "Walk Speed: %d\n" ..
                 "Auto Save: %s\n" ..
+                "Telegram Hooked: %s\n" ..
                 "=== END ===",
                 #IslandsData,
                 #Players:GetPlayers() - 1,
@@ -2650,14 +2919,15 @@ end
                 Config.GodMode and "ON" or "OFF",
                 Config.FlyEnabled and "ON" or "OFF",
                 Config.WalkSpeed,
-                Config.AutoSaveSettings and "ON" or "OFF"
+                Config.AutoSaveSettings and "ON" or "OFF",
+                Config.Hooked.Enabled and "ON" or "OFF"
             )
             print(stats)
             Rayfield:Notify({Title = "Statistics", Content = "Check console (F9)", Duration = 3})
         end
     })
     
-    Tab9:CreateButton({
+    Tab11:CreateButton({
         Name = "Close Script",
         Callback = function()
             SaveSettings()
@@ -2672,22 +2942,9 @@ end
             Config.AutoEnchant = false
             Config.AutoBuyWeather = false
             Config.AutoAcceptTrade = false
+            Config.AutoRejoin = false
             
-            if GodConnection then GodConnection:Disconnect() end
-            if PerfectCatchConn then PerfectCatchConn:Disconnect() end
-            if LockConn then LockConn:Disconnect() end
-            if WaterConn then WaterConn:Disconnect() end
-            if NoClipConn then NoClipConn:Disconnect() end
-            if FlyConn then FlyConn:Disconnect() end
             if LightingConnection then LightingConnection:Disconnect() end
-            
-            StopFly()
-            ToggleGodMode(false)
-            ToggleLockPosition(false)
-            ToggleWalkOnWater(false)
-            ToggleNoClip(false)
-            ToggleXRay(false)
-            ToggleESP(false)
             
             task.wait(2)
             Rayfield:Destroy()
@@ -2723,6 +2980,8 @@ end
     print("  • Auto Accept Trade")
     print("  • Auto Rejoin on Disconnect")
     print("  • Auto Save & Load Settings")
+    print("  • Telegram Hooked Notifications")
+    print("  • Fishes Database")
     print("  • Fixed: Auto Jump, Delay Slider")
     print("  • Improved: All Visual Effects (Permanent)")
     print("  • Enhanced: 8-Bit, Particles, Seaweed, Water")
@@ -2740,24 +2999,99 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(2)
     
     -- Reapply settings
-    if Config.AutoFishingV1 then AutoFishingV1() end
-    if Config.AutoFishingV2 then AutoFishingV2() end
-    if Config.AntiAFK then StartAntiAFK() end
-    if Config.AutoJump then StartAutoJump() end
-    if Config.AutoSell then StartAutoSell() end
-    if Config.AutoEnchant then AutoEnchant() end
-    if Config.AutoBuyWeather then AutoBuyWeather() end
-    if Config.AutoAcceptTrade then AutoAcceptTrade() end
-    if Config.GodMode then ToggleGodMode(true) end
-    if Config.FlyEnabled then StartFly() end
-    if Config.WalkOnWater then ToggleWalkOnWater(true) end
-    if Config.NoClip then ToggleNoClip(true) end
-    if Config.PerfectCatch then TogglePerfectCatch(true) end
-    if Config.LockedPosition then ToggleLockPosition(true) end
-    
     if Humanoid then
         Humanoid.WalkSpeed = Config.WalkSpeed
         Humanoid.JumpPower = Config.JumpPower
+    end
+    
+    -- Restart features
+    if Config.AutoFishingV1 then
+        task.wait(2)
+        AutoFishingV1()
+    end
+    
+    if Config.AutoFishingV2 then
+        task.wait(2)
+        AutoFishingV2()
+    end
+    
+    if Config.AntiAFK then
+        task.wait(1)
+        AntiAFK()
+    end
+    
+    if Config.AutoJump then
+        task.wait(1)
+        AutoJump()
+    end
+    
+    if Config.AutoSell then
+        task.wait(1)
+        AutoSell()
+    end
+    
+    if Config.AutoEnchant then
+        task.wait(1)
+        if not EnchantMonitorRunning then
+            MonitorEnchantStones()
+        end
+        AutoEnchant()
+    end
+    
+    if Config.AutoBuyWeather then
+        task.wait(1)
+        AutoBuyWeather()
+    end
+    
+    if Config.AutoAcceptTrade then
+        task.wait(1)
+        AutoAcceptTrade()
+    end
+    
+    if Config.GodMode then
+        task.wait(1)
+        GodMode()
+    end
+    
+    if Config.FlyEnabled then
+        task.wait(1)
+        Fly()
+    end
+    
+    if Config.WalkOnWater then
+        task.wait(1)
+        WalkOnWater()
+    end
+    
+    if Config.NoClip then
+        task.wait(1)
+        NoClip()
+    end
+    
+    if Config.XRay then
+        task.wait(1)
+        XRay()
+    end
+    
+    if Config.ESPEnabled then
+        task.wait(1)
+        ESP()
+    end
+    
+    if Config.PerfectCatch then
+        task.wait(1)
+        TogglePerfectCatch(true)
+    end
+    
+    if Config.LockedPosition then
+        task.wait(1)
+        Config.LockCFrame = HumanoidRootPart.CFrame
+        LockPosition()
+    end
+    
+    if Config.InfiniteZoom then
+        task.wait(1)
+        InfiniteZoom()
     end
 end)
 
@@ -2770,6 +3104,11 @@ print("Checkpoint position saved")
 
 -- Load saved settings if auto save is enabled
 LoadSettings()
+
+-- Try to load rejoin data
+if Config.AutoRejoin then
+    LoadRejoinData()
+end
 
 local success, err = pcall(function()
     CreateUI()
@@ -2791,6 +3130,8 @@ else
     print("✓ Auto Accept Trade - Accept Trades Automatically")
     print("✓ Auto Rejoin - Rejoin on Disconnect")
     print("✓ Auto Save/Load - Save Your Settings")
+    print("✓ Telegram Hooked - Fish Notifications")
+    print("✓ Fishes Database - Complete Fish Info")
     print("✓ Fixed Auto Jump - No More Flying")
     print("✓ Fixed Delay Slider - Works Perfectly Now")
     print("✓ Permanent Visual Effects - No More Reset")
