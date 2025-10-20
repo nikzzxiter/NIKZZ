@@ -40,7 +40,12 @@ local Window = Rayfield:CreateWindow({
 local Config = {
     AutoFishingV1 = false,
     AutoFishingV2 = false,
-    FishingDelay = 0.3,
+    FishingDelay = 0.5,
+    CastDelay = 0.15,
+    InstantBait = true,
+    AntiStuck = true,
+    StuckCheckTime = 8,
+    RespawnDelay = 2,
     PerfectCatch = false,
     AntiAFK = false,
     AutoJump = false,
@@ -90,6 +95,7 @@ local RejoinData = {
 local fishFile = "FISHES_DATA.json"
 local fishData = {}
 local fishLookup = {}
+-- ===== RARITY MAPPING (TETAP SAMA) =====
 local tierToRarity = {
     [1] = "COMMON",
     [2] = "UNCOMMON", 
@@ -100,26 +106,18 @@ local tierToRarity = {
     [7] = "SECRET"
 }
 
--- Load Fish Data for Telegram Hooked
-if isfile(fishFile) then
-    local raw = readfile(fishFile)
-    local decoded = HttpService:JSONDecode(raw)
-    fishData = decoded
-    
-    for tier = 1, 7 do
-        local tierKey = "Tier" .. tier
-        if fishData[tierKey] then
-            for _, fish in ipairs(fishData[tierKey]) do
-                if fish.Name then
-                    fishLookup[fish.Name:lower()] = fish
-                end
-            end
-        end
+-- ===== HELPER FUNCTION =====
+local function countTable(tbl)
+    local count = 0
+    for _ in pairs(tbl) do
+        count = count + 1
     end
-    
-    print("[🐟] Fish data loaded from " .. fishFile)
-else
-    warn("[⚠️] Fish data file not found!")
+    return count
+end
+
+local function normalizeName(name)
+    if not name then return "" end
+    return name:lower():gsub("%s+", ""):gsub("[^%w]", "")
 end
 
 -- Remotes Path
@@ -147,6 +145,20 @@ local PurchaseWeather = GetRemote("RF/PurchaseWeatherEvent")
 local UpdateAutoFishing = GetRemote("RF/UpdateAutoFishingState")
 local AwaitTradeResponse = GetRemote("RF/AwaitTradeResponse")
 local FishCaught = GetRemote("RE/FishCaught")
+
+-- Fishing Controller
+local FishingController
+local BaitSpawnedEvent
+local OnCooldownEvent
+
+for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+    if obj.Name == "FishingController" then
+        FishingController = obj
+        BaitSpawnedEvent = obj:FindFirstChild("BaitSpawned")
+        OnCooldownEvent = obj:FindFirstChild("OnCooldown")
+        break
+    end
+end
 
 -- Auto Save/Load System
 local SaveFileName = "NikzzFishItSettings_" .. LocalPlayer.UserId .. ".json"
@@ -199,13 +211,66 @@ local function LoadSettings()
     end
 end
 
--- ===== HELPER FUNCTION YANG HILANG =====
-local function countTable(tbl)
-    local count = 0
-    for _ in pairs(tbl) do
-        count = count + 1
+-- ===== INITIALIZE FISH DATA & LOOKUP =====
+fishData = {
+    Tier1 = {}, Tier2 = {}, Tier3 = {}, Tier4 = {}, 
+    Tier5 = {}, Tier6 = {}, Tier7 = {}
+}
+fishLookup = {}
+
+-- Function untuk build fish lookup table
+local function BuildFishLookup()
+    fishLookup = {}
+    local totalFish = 0
+    
+    for tier = 1, 7 do
+        local tierKey = "Tier" .. tier
+        if fishData[tierKey] then
+            for _, fish in ipairs(fishData[tierKey]) do
+                if fish.Name then
+                    -- Multiple lookup keys untuk berbagai format nama
+                    local normalizedName = normalizeName(fish.Name)
+                    fishLookup[normalizedName] = fish
+                    fishLookup[fish.Name:lower()] = fish
+                    fishLookup[fish.Name:lower():gsub(" ", "")] = fish
+                    
+                    -- Lookup berdasarkan ID
+                    if fish.Id then
+                        fishLookup["id_" .. tostring(fish.Id)] = fish
+                    end
+                    
+                    totalFish = totalFish + 1
+                end
+            end
+        end
     end
-    return count
+    
+    print("[🐟 FISH LOOKUP] Built with " .. totalFish .. " fish entries")
+    
+    -- Debug: Print tier counts
+    for tier = 1, 7 do
+        local tierKey = "Tier" .. tier
+        local count = fishData[tierKey] and #fishData[tierKey] or 0
+        print(string.format("[🐟] %s: %d fish | Rarity: %s", tierKey, count, tierToRarity[tier]))
+    end
+end
+
+-- Load fish data dari file
+if isfile(fishFile) then
+    local success, decoded = pcall(function()
+        local raw = readfile(fishFile)
+        return HttpService:JSONDecode(raw)
+    end)
+    
+    if success and decoded then
+        fishData = decoded
+        print("[✅] Fish data loaded successfully from " .. fishFile)
+        BuildFishLookup()
+    else
+        warn("[❌] Failed to load fish data: Invalid JSON format")
+    end
+else
+    warn("[❌] Fish data file not found: " .. fishFile)
 end
 
 -- ===== TELEGRAM HOOKED NOTIFICATION SYSTEM (FIXED) =====
@@ -213,48 +278,68 @@ local Hooked = {}
 
 function Hooked:SendTelegramMessage(fishInfo)
     if not Config.Hooked.Enabled then
+        print("[🔔 TELEGRAM] Notifications disabled in config")
         return
     end
     
     if Config.Hooked.BotToken == "" or Config.Hooked.ChatID == "" then
+        warn("[❌ TELEGRAM] Bot Token or Chat ID not configured!")
         return
     end
     
-    -- Check rarity target - FIXED: Proper rarity mapping
-    local fishRarity = tierToRarity[fishInfo.Tier or 1] or "COMMON"
+    -- CRITICAL FIX: Ensure tier exists
+    if not fishInfo.Tier then
+        warn("[❌ TELEGRAM] Fish info missing tier data!")
+        return
+    end
     
-    -- Jika ada target rarities yang dipilih, cek apakah fishRarity termasuk di dalamnya
+    -- Get fish rarity
+    local fishRarity = tierToRarity[fishInfo.Tier] or "UNKNOWN"
+    
+    print(string.format("[🔔 TELEGRAM] Processing: %s | Tier: %d | Rarity: %s", 
+        fishInfo.Name or "Unknown", fishInfo.Tier, fishRarity))
+    
+    -- FIXED: Check rarity target dengan case-insensitive comparison
     if #Config.Hooked.TargetRarities > 0 then
         local shouldSend = false
+        
         for _, targetRarity in ipairs(Config.Hooked.TargetRarities) do
-            if string.upper(tostring(targetRarity)) == string.upper(tostring(fishRarity)) then
+            -- Normalize both strings untuk comparison yang akurat
+            local normalizedTarget = string.upper(tostring(targetRarity)):gsub("%s+", "")
+            local normalizedFish = string.upper(tostring(fishRarity)):gsub("%s+", "")
+            
+            print(string.format("[🔍] Comparing: '%s' == '%s'", normalizedFish, normalizedTarget))
+            
+            if normalizedFish == normalizedTarget then
                 shouldSend = true
                 break
             end
         end
         
         if not shouldSend then
-            print("[🔔 TELEGRAM] Skipped - " .. fishRarity .. " not in target rarities")
+            print(string.format("[❌ TELEGRAM] Skipped - %s not in target rarities", fishRarity))
             return
         end
     end
     
-    -- Format message clean tanpa bold
+    print("[✅ TELEGRAM] Sending notification for " .. (fishInfo.Name or "Unknown"))
+    
+    -- Format message
     local message = self:FormatTelegramMessage(fishInfo)
     
-    -- Kirim pake http_request yang aman
+    -- Send to Telegram
     local success, result = pcall(function()
         local telegramURL = "https://api.telegram.org/bot" .. Config.Hooked.BotToken .. "/sendMessage"
         local data = {
             chat_id = Config.Hooked.ChatID,
             text = message,
-            parse_mode = "Markdown"  -- Ganti ke Markdown untuk formatting yang lebih clean
+            parse_mode = "Markdown"
         }
         
         local jsonData = HttpService:JSONEncode(data)
         
         if http_request then
-            local response = http_request({
+            return http_request({
                 Url = telegramURL,
                 Method = "POST",
                 Headers = {
@@ -262,9 +347,8 @@ function Hooked:SendTelegramMessage(fishInfo)
                 },
                 Body = jsonData
             })
-            return response
         elseif syn and syn.request then
-            local response = syn.request({
+            return syn.request({
                 Url = telegramURL,
                 Method = "POST",
                 Headers = {
@@ -272,38 +356,31 @@ function Hooked:SendTelegramMessage(fishInfo)
                 },
                 Body = jsonData
             })
-            return response
         else
             return HttpService:PostAsync(telegramURL, jsonData)
         end
     end)
     
     if success then
-        print("[✅ TELEGRAM] Notification sent for " .. fishInfo.Name .. " (" .. fishRarity .. ")")
+        print("[✅ TELEGRAM] Notification sent successfully!")
     else
-        print("[❌ TELEGRAM] Failed: " .. tostring(result))
+        warn("[❌ TELEGRAM] Failed to send: " .. tostring(result))
     end
 end
 
 function Hooked:FormatTelegramMessage(fishInfo)
-    local fishRarity = tierToRarity[fishInfo.Tier or 1] or "COMMON"
+    local fishRarity = tierToRarity[fishInfo.Tier or 1] or "UNKNOWN"
     local chancePercent = (fishInfo.Chance or 0) * 100
     local playerName = LocalPlayer.Name
     local displayName = LocalPlayer.DisplayName
     
-    -- Get performance stats
+    -- Performance stats
     local ping = math.random(30, 80)
     local fps = math.random(60, 120)
     local serverTime = os.date("%H:%M:%S")
     local serverDate = os.date("%d/%m/%Y")
     
-    -- === 3 INFO TAMBAHAN YANG DIMINTA ===
-    local playerLevel = "Loading..." -- INFO 1: Player Level
-    local totalFishCaught = "Loading..." -- INFO 2: Total Fish Caught
-    local currentRod = "Loading..." -- INFO 3: Current Rod
-    local currentLocation = "Unknown" -- INFO 4: Current Location (Bonus)
-
-    -- Clean message tanpa bold, pakai Markdown formatting
+    -- Build clean message
     local message = "```\n"
     message = message .. "┌─────────────────────────────\n"
     message = message .. "│  🎣 NIKZZ SCRIPT FISH IT V1\n"
@@ -323,7 +400,7 @@ function Hooked:FormatTelegramMessage(fishInfo)
     message = message .. "│     TIER: " .. tostring(fishInfo.Tier or 1) .. "\n"
     message = message .. "│     RARITY: " .. fishRarity .. "\n"
     
-    if fishInfo.Chance then
+    if fishInfo.Chance and chancePercent > 0 then
         if chancePercent < 0.001 then
             message = message .. "│     CHANCE: " .. string.format("%.8f%%", chancePercent) .. "\n"
         else
@@ -341,7 +418,6 @@ function Hooked:FormatTelegramMessage(fishInfo)
     message = message .. "│     FPS: " .. fps .. "\n"
     message = message .. "│     TIME: " .. serverTime .. "\n"
     message = message .. "│     DATE: " .. serverDate .. "\n"
-    message = message .. "│     SESSION: " .. math.random(1, 999) .. "M\n"
     message = message .. "│\n"
     message = message .. "│  🌐 DEVELOPER SOCIALS\n"
     message = message .. "│     TIKTOK: @nikzzxit\n"
@@ -355,139 +431,114 @@ function Hooked:FormatTelegramMessage(fishInfo)
     return message
 end
 
--- ===== FISH RESULT LISTENER FOR TELEGRAM HOOKED (FIXED FOR ALL RARITIES) =====
+-- ===== FISH CATCH LISTENER (FIXED) =====
 local lastCatchUID = nil
 
--- Improved fish lookup system untuk menangani semua rarity
-local function InitializeFishLookup()
-    fishLookup = {}
+-- Function untuk lookup fish data dengan fallback
+local function FindFishData(fishName, fishTier, fishId)
+    -- Try multiple lookup strategies
+    local fishInfo = nil
     
-    for tier = 1, 7 do
-        local tierKey = "Tier" .. tier
+    -- Strategy 1: Normalized name lookup
+    if fishName and fishName ~= "Unknown" then
+        fishInfo = fishLookup[normalizeName(fishName)] or
+                  fishLookup[fishName:lower()] or
+                  fishLookup[fishName:lower():gsub(" ", "")]
+    end
+    
+    -- Strategy 2: ID-based lookup
+    if not fishInfo and fishId then
+        fishInfo = fishLookup["id_" .. tostring(fishId)]
+    end
+    
+    -- Strategy 3: Manual search in tier data
+    if not fishInfo and fishTier then
+        local tierKey = "Tier" .. fishTier
         if fishData[tierKey] then
             for _, fish in ipairs(fishData[tierKey]) do
-                if fish.Name then
-                    -- Buat multiple lookup keys untuk handling berbagai format nama
-                    fishLookup[fish.Name:lower()] = fish
-                    fishLookup[fish.Name:lower():gsub(" ", "")] = fish
-                    fishLookup[fish.Name:lower():gsub("%s+", "")] = fish
-                    
-                    -- Tambahkan lookup berdasarkan ID jika ada
-                    if fish.Id then
-                        fishLookup[tostring(fish.Id):lower()] = fish
-                    end
+                if fish.Name == fishName or 
+                   normalizeName(fish.Name) == normalizeName(fishName) or
+                   tostring(fish.Id) == tostring(fishId) then
+                    fishInfo = fish
+                    break
                 end
             end
         end
     end
     
-    print("[🐟 FISH LOOKUP] Initialized with " .. countTable(fishLookup) .. " entries")
+    return fishInfo
 end
-
--- Initialize fish lookup saat script start
-InitializeFishLookup()
 
 if FishCaught then
     FishCaught.OnClientEvent:Connect(function(data)
         if not data then return end
 
-        -- Buat ID unik berdasarkan data event (fishName + tick)
+        -- Parse fish data dari event
         local fishName = "Unknown"
         local fishTier = 1
+        local fishId = nil
+        local fishChance = 0
+        local fishPrice = 0
         
         if type(data) == "string" then
             fishName = data
         elseif type(data) == "table" then
-            if data.Name then
-                fishName = data.Name
-            end
-            if data.Tier then
-                fishTier = data.Tier
-            end
+            fishName = data.Name or "Unknown"
+            fishTier = data.Tier or 1
+            fishId = data.Id
+            fishChance = data.Chance or 0
+            fishPrice = data.SellPrice or 0
         end
         
-        -- Buat "uid" unik dari isi data
+        -- Generate unique ID untuk prevent duplicate
         local uniqueID = fishName .. "_" .. tostring(fishTier) .. "_" .. tostring(tick())
-
-        -- Jika UID sama dengan sebelumnya -> abaikan
+        
         if uniqueID == lastCatchUID then
+            print("[⚠️] Duplicate catch event ignored")
             return
         end
         lastCatchUID = uniqueID
 
-        -- Mulai proses data ikan dengan improved lookup
-        local fishInfo = nil
+        -- Lookup fish data dengan improved method
+        local fishInfo = FindFishData(fishName, fishTier, fishId)
         
-        -- Coba berbagai format lookup
-        if fishName ~= "Unknown" then
-            fishInfo = fishLookup[fishName:lower()] or 
-                      fishLookup[fishName:lower():gsub(" ", "")] or
-                      fishLookup[fishName:lower():gsub("%s+", "")]
-        end
-        
-        -- Jika tidak ketemu di lookup, buat info dasar dari data event
+        -- Jika tidak ketemu, buat info dari event data
         if not fishInfo then
+            print("[⚠️] Fish not found in database, using event data")
             fishInfo = {
                 Name = fishName,
                 Tier = fishTier,
-                Id = data.Id or "?",
-                Chance = data.Chance or 0,
-                SellPrice = data.SellPrice or 0
+                Id = fishId or "?",
+                Chance = fishChance,
+                SellPrice = fishPrice
             }
+        else
+            print("[✅] Fish found in database: " .. fishInfo.Name)
         end
         
-        -- PASTIKAN tier ada - CRITICAL FIX UNTUK SEMUA RARITY
+        -- CRITICAL: Ensure tier exists
         if not fishInfo.Tier then
             fishInfo.Tier = fishTier
         end
         
-        local tier = fishInfo.Tier or 1
+        local tier = fishInfo.Tier
         local rarity = tierToRarity[tier] or "UNKNOWN"
         local sellPrice = fishInfo.SellPrice or 0
         local chance = fishInfo.Chance or 0
         local id = fishInfo.Id or "?"
         
-        local chanceDisplay = ""
-        if chance > 0 then
-            chanceDisplay = string.format(" (%.6f%%)", chance * 100)
-        end
-        
-        print(string.format("[🎣 CAUGHT] %s | Tier: %s | Rarity: %s | Sell: %s coins%s | ID: %s",
+        -- Log catch
+        local chanceDisplay = chance > 0 and string.format(" (%.6f%%)", chance * 100) or ""
+        print(string.format("[🎣 CAUGHT] %s | Tier: %s | Rarity: %s | Price: %s coins%s | ID: %s",
             fishName, tostring(tier), rarity, tostring(sellPrice), chanceDisplay, tostring(id)))
         
-        -- Kirim notifikasi Telegram untuk SEMUA RARITY
+        -- Send Telegram notification
         Hooked:SendTelegramMessage(fishInfo)
     end)
-else
-    warn("[⚠️] FishCaught remote not found! Telegram notifications disabled.")
-end
-
--- ===== IMPROVED FISH DATA LOADING =====
--- Load Fish Data for Telegram Hooked dengan error handling yang better
-if isfile(fishFile) then
-    local success, decoded = pcall(function()
-        local raw = readfile(fishFile)
-        return HttpService:JSONDecode(raw)
-    end)
     
-    if success and decoded then
-        fishData = decoded
-        InitializeFishLookup()
-        print("[🐟] Fish data loaded from " .. fishFile)
-    else
-        warn("[⚠️] Failed to load fish data: Invalid JSON format")
-        -- Create minimal fish data structure
-        fishData = {
-            Tier1 = {}, Tier2 = {}, Tier3 = {}, Tier4 = {}, 
-            Tier5 = {}, Tier6 = {}, Tier7 = {}
-        }
-    end
+    print("[✅] Fish catch listener initialized")
 else
-    warn("[⚠️] Fish data file not found! Creating empty structure.")
-    fishData = {
-        Tier1 = {}, Tier2 = {}, Tier3 = {}, Tier4 = {}, 
-        Tier5 = {}, Tier6 = {}, Tier7 = {}
-    }
+    warn("[❌] FishCaught remote not found! Telegram notifications will not work.")
 end
 
 -- ===== AUTO REJOIN SYSTEM (IMPROVED) =====
@@ -802,57 +853,50 @@ local function PerformanceMode()
     })
 end
 
--- ===== ANTI-STUCK SYSTEM FOR AUTO FISHING V1 =====
-local LastFishTime = tick()
-local StuckCheckInterval = 15
+-- Variables
+local FishingActive = false
+local TotalCycles = 0
+local LastBaitTime = 0
+local LastSuccessfulCycle = tick()
+local StuckDetectionEnabled = false
+local IsRespawning = false
+local IsCasting = false  -- NEW: Flag untuk prevent double cast
+local LastCastTime = 0   -- NEW: Track waktu cast terakhir
 
-local function CheckAndRespawnIfStuck()
-    task.spawn(function()
-        while Config.AutoFishingV1 do
-            task.wait(StuckCheckInterval)
-            
-            if tick() - LastFishTime > StuckCheckInterval and Config.AutoFishingV1 then
-                warn("[Anti-Stuck] Player seems stuck, respawning...")
-                
-                local currentPos = HumanoidRootPart.CFrame
-                Character:BreakJoints()
-                
-                LocalPlayer.CharacterAdded:Wait()
-                task.wait(2)
-                
-                Character = LocalPlayer.Character
-                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-                Humanoid = Character:WaitForChild("Humanoid")
-                
-                HumanoidRootPart.CFrame = currentPos
-                LastFishTime = tick()
-                
-                task.wait(1)
-                if Config.AutoFishingV1 then
-                    AutoFishingV1()
-                end
-            end
+-- ===== BAIT SPAWN DETECTION =====
+if BaitSpawnedEvent then
+    BaitSpawnedEvent.OnClientEvent:Connect(function(player, baitType, x, y, z)
+        if player == LocalPlayer then
+            LastBaitTime = tick()
+            print("[🪱] Bait spawned: " .. tostring(baitType))
         end
     end)
 end
 
--- ===== AUTO FISHING V1 (COMPLETELY FIXED) =====
-local FishingActive = false
-local MaxRetries = 5
-local CurrentRetries = 0
-
-local function ResetFishingState()
-    FishingActive = false
-    CurrentRetries = 0
-    LastFishTime = tick()
+-- ===== COOLDOWN DETECTION =====
+if OnCooldownEvent then
+    OnCooldownEvent.OnClientEvent:Connect(function(cooldownData)
+        print("[⏱️] Cooldown detected")
+    end)
 end
 
+-- ===== SAFE RESPAWN WITH PROPER DELAY =====
 local function SafeRespawn()
+    if IsRespawning then 
+        print("[⚠️] Already respawning, skipping...")
+        return 
+    end
+    
+    IsRespawning = true
+    FishingActive = false
+    IsCasting = false
+    
     task.spawn(function()
         local currentPos = HumanoidRootPart.CFrame
         
-        warn("[Anti-Stuck] Respawning to fix stuck state...")
+        print("[🔄] Respawning to fix stuck state...")
         
+        -- Respawn character
         Character:BreakJoints()
         
         local newChar = LocalPlayer.CharacterAdded:Wait()
@@ -863,154 +907,216 @@ local function SafeRespawn()
         Humanoid = Character:WaitForChild("Humanoid")
         
         task.wait(0.5)
+        
+        -- Teleport back
         HumanoidRootPart.CFrame = currentPos
         
-        task.wait(1)
-        ResetFishingState()
+        print("[✅] Respawn complete, waiting " .. Config.RespawnDelay .. " seconds before fishing...")
         
+        -- WAIT 3 SECONDS BEFORE STARTING FISHING AGAIN
+        task.wait(Config.RespawnDelay)
+        
+        -- Reset states
+        LastSuccessfulCycle = tick()
+        IsRespawning = false
+        IsCasting = false
+        
+        -- Auto restart fishing if enabled
         if Config.AutoFishingV1 then
-            task.wait(0.5)
-            AutoFishingV1()
+            print("[🎣] Restarting fishing after respawn delay...")
+            UltraFastFishingV1()
         end
     end)
 end
 
-local function CheckStuckState()
+-- ===== ANTI-STUCK SYSTEM (IMPROVED) =====
+local function AntiStuckSystem()
     task.spawn(function()
-        while Config.AutoFishingV1 do
-            task.wait(StuckCheckInterval)
+        StuckDetectionEnabled = true
+        
+        while StuckDetectionEnabled and Config.AntiStuck do
+            task.wait(1)
             
-            local timeSinceLastFish = tick() - LastFishTime
+            -- Don't check if respawning
+            if IsRespawning then
+                continue
+            end
             
-            if timeSinceLastFish > StuckCheckInterval and Config.AutoFishingV1 and FishingActive then
-                warn("[Anti-Stuck] Detected stuck state! Time since last fish: " .. math.floor(timeSinceLastFish) .. "s")
-                SafeRespawn()
+            if Config.AutoFishingV1 and FishingActive then
+                local timeSinceLastCycle = tick() - LastSuccessfulCycle
+                
+                if timeSinceLastCycle > Config.StuckCheckTime then
+                    print("[⚠️] STUCK DETECTED! Time: " .. math.floor(timeSinceLastCycle) .. "s")
+                    
+                    -- Try to force finish first
+                    pcall(function()
+                        FinishFish:FireServer()
+                    end)
+                    
+                    task.wait(1)
+                    
+                    -- If still stuck, respawn
+                    local stillStuck = (tick() - LastSuccessfulCycle) > (Config.StuckCheckTime - 1)
+                    if stillStuck then
+                        print("[🔄] Force finish failed, initiating respawn...")
+                        SafeRespawn()
+                    else
+                        print("[✅] Force finish successful!")
+                        LastSuccessfulCycle = tick()
+                    end
+                end
             end
         end
     end)
 end
 
-local function AutoFishingV1()
+-- ===== ANTI DOUBLE CAST FUNCTION =====
+local function WaitForCastCooldown()
+    local timeSinceLastCast = tick() - LastCastTime
+    local minCastInterval = 0.5  -- Minimal 0.5 detik antar cast
+    
+    if timeSinceLastCast < minCastInterval then
+        local waitTime = minCastInterval - timeSinceLastCast
+        print("[⏳] Waiting " .. string.format("%.2f", waitTime) .. "s to prevent double cast...")
+        task.wait(waitTime)
+    end
+end
+
+-- ===== ULTRA FAST AUTO FISHING V1 (FULLY FIXED) =====
+function UltraFastFishingV1()
     task.spawn(function()
-        print("[AutoFishingV1] Started - Ultra Fast Mode with Anti-Stuck")
-        CheckStuckState()
+        print("[🎣] Auto Fishing Started - Ultra Fast Mode")
+        
+        -- Start anti-stuck system
+        if Config.AntiStuck then
+            AntiStuckSystem()
+        end
         
         while Config.AutoFishingV1 do
+            -- Skip if respawning
+            if IsRespawning then
+                task.wait(1)
+                continue
+            end
+            
             FishingActive = true
-            local cycleSuccess = false
             
             local success, err = pcall(function()
                 -- Validate character
-                if not LocalPlayer.Character or not HumanoidRootPart then
-                    repeat task.wait(0.5) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    Character = LocalPlayer.Character
-                    HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+                if not Character or not HumanoidRootPart then
+                    print("[⚠️] Character not found, waiting...")
+                    task.wait(1)
+                    return
                 end
-
-                -- Step 1: Equip tool
+                
+                -- ANTI DOUBLE CAST: Wait before casting
+                WaitForCastCooldown()
+                
+                -- Mark that we're casting
+                IsCasting = true
+                
+                -- STEP 1: EQUIP TOOL
                 local equipSuccess = pcall(function()
                     EquipTool:FireServer(1)
                 end)
                 
                 if not equipSuccess then
-                    CurrentRetries = CurrentRetries + 1
-                    if CurrentRetries >= MaxRetries then
-                        warn("[AutoFishingV1] Too many failures, respawning...")
-                        SafeRespawn()
-                        return
-                    end
+                    print("[⚠️] Equip failed")
+                    IsCasting = false
                     task.wait(0.5)
                     return
                 end
                 
-                task.wait(0.15)
+                task.wait(Config.CastDelay)
 
-                -- Step 2: Charge rod
+                -- STEP 2: CHARGE ROD (with retry)
                 local chargeSuccess = false
-                for attempt = 1, 3 do
+                for attempt = 1, 2 do
                     local ok, result = pcall(function()
                         return ChargeRod:InvokeServer(tick())
                     end)
                     if ok and result then 
-                        chargeSuccess = true 
+                        chargeSuccess = true
                         break 
                     end
                     task.wait(0.1)
                 end
                 
                 if not chargeSuccess then
-                    warn("[AutoFishingV1] Charge failed after 3 attempts")
-                    CurrentRetries = CurrentRetries + 1
-                    if CurrentRetries >= MaxRetries then
-                        SafeRespawn()
-                        return
-                    end
+                    print("[⚠️] Charge failed")
+                    IsCasting = false
                     task.wait(0.5)
                     return
                 end
+                
+                task.wait(Config.CastDelay)
 
-                task.wait(0.15)
-
-                -- Step 3: Start minigame with perfect values
+                -- STEP 3: START MINIGAME
                 local startSuccess = false
-                for attempt = 1, 3 do
-                    local ok, result = pcall(function()
-                        return StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
+                for attempt = 1, 2 do
+                    local ok = pcall(function()
+                        StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
                     end)
                     if ok then 
-                        startSuccess = true 
+                        startSuccess = true
                         break 
                     end
                     task.wait(0.1)
                 end
                 
                 if not startSuccess then
-                    warn("[AutoFishingV1] Start minigame failed after 3 attempts")
-                    CurrentRetries = CurrentRetries + 1
-                    if CurrentRetries >= MaxRetries then
-                        SafeRespawn()
-                        return
-                    end
+                    print("[⚠️] Start minigame failed")
+                    IsCasting = false
                     task.wait(0.5)
                     return
                 end
+                
+                -- Update last cast time
+                LastCastTime = tick()
 
-                -- Step 4: Wait for fishing delay
-                local actualDelay = math.max(Config.FishingDelay, 0.3)
-                task.wait(actualDelay)
+                -- STEP 4: FISHING DELAY (RESPECT SLIDER VALUE)
+                local actualDelay = Config.FishingDelay
+                
+                -- Smart delay based on bait detection
+                if Config.InstantBait and LastBaitTime > 0 then
+                    local timeSinceBait = tick() - LastBaitTime
+                    local remainingDelay = math.max(0, actualDelay - timeSinceBait)
+                    if remainingDelay > 0 then
+                        task.wait(remainingDelay)
+                    end
+                else
+                    task.wait(actualDelay)
+                end
 
-                -- Step 5: Finish fishing
+                -- STEP 5: FINISH FISHING
                 local finishSuccess = pcall(function()
                     FinishFish:FireServer()
                 end)
                 
                 if finishSuccess then
-                    cycleSuccess = true
-                    LastFishTime = tick()
-                    CurrentRetries = 0
+                    TotalCycles = TotalCycles + 1
+                    LastSuccessfulCycle = tick()
+                    print("[✅] Cycle #" .. TotalCycles .. " completed")
                 end
                 
+                -- Reset casting flag
+                IsCasting = false
+                
+                -- Small delay between cycles
                 task.wait(0.2)
             end)
 
             if not success then
-                warn("[AutoFishingV1] Error in cycle: " .. tostring(err))
-                CurrentRetries = CurrentRetries + 1
-                if CurrentRetries >= MaxRetries then
-                    SafeRespawn()
-                end
+                print("[❌] Cycle error: " .. tostring(err))
+                IsCasting = false
                 task.wait(1)
-            elseif cycleSuccess then
-                -- Successful cycle, minimal wait
-                task.wait(0.1)
-            else
-                -- Failed cycle but no error
-                task.wait(0.5)
             end
         end
         
-        ResetFishingState()
-        print("[AutoFishingV1] Stopped")
+        FishingActive = false
+        StuckDetectionEnabled = false
+        IsCasting = false
+        print("[🛑] Auto Fishing Stopped - Total Cycles: " .. TotalCycles)
     end)
 end
 
@@ -1554,16 +1660,28 @@ local function CreateUI()
     Tab1:CreateSection("Auto Features")
     
     Tab1:CreateToggle({
-        Name = "Auto Fishing V1 (Ultra Fast)",
+        Name = "Auto Fishing V1 (ULTRA FAST)",
         CurrentValue = false,
         Callback = function(Value)
             Config.AutoFishingV1 = Value
             if Value then
-                Config.AutoFishingV2 = false
-                AutoFishingV1()
-                Rayfield:Notify({Title = "Auto Fishing V1", Content = "Started with Anti-Stuck!", Duration = 3})
+                TotalCycles = 0
+                LastSuccessfulCycle = tick()
+                LastCastTime = 0
+                IsCasting = false
+                UltraFastFishingV1()
+                Rayfield:Notify({
+                    Title = "🎣 AUTO FISHING STARTED",
+                    Content = "Fixed Double Cast & Anti-Stuck!",
+                    Duration = 3
+                })
+            else
+                Rayfield:Notify({
+                    Title = "🎣 AUTO FISHING STOPPED", 
+                    Content = "Total Cycles: " .. TotalCycles,
+                    Duration = 3
+                })
             end
-            SaveSettings()
         end
     })
     
@@ -1582,13 +1700,35 @@ local function CreateUI()
     })
     
     Tab1:CreateSlider({
-        Name = "Fishing Delay (V1 Only)",
-        Range = {0.1, 5},
+        Name = "Fishing Delay (Only V1)",
+        Range = {0.3, 2},
         Increment = 0.1,
-        CurrentValue = 0.3,
+        Suffix = " seconds",
+        CurrentValue = Config.FishingDelay,
         Callback = function(Value)
             Config.FishingDelay = Value
-            SaveSettings()
+            Rayfield:Notify({
+                Title = "⏱️ Fishing Delay",
+                Content = "Set to: " .. Value .. "s",
+                Duration = 2
+            })
+        end
+    })
+    
+    -- Cast Delay Slider
+    Tab1:CreateSlider({
+        Name = "Cast Delay (Only V1)",
+        Range = {0.1, 0.5},
+        Increment = 0.05,
+        Suffix = " seconds",
+        CurrentValue = Config.CastDelay,
+        Callback = function(Value)
+            Config.CastDelay = Value
+            Rayfield:Notify({
+                Title = "🎯 Cast Delay", 
+                Content = "Set to: " .. Value .. "s",
+                Duration = 2
+            })
         end
     })
     
@@ -1661,6 +1801,24 @@ local function CreateUI()
         end
     })
     
+    -- Instant Bait Toggle
+    Tab1:CreateToggle({
+        Name = "⚡ Instant Bait Detection",
+        CurrentValue = Config.InstantBait,
+        Callback = function(Value)
+            Config.InstantBait = Value
+        end
+    })
+    
+    -- Anti-Stuck Toggle
+    Tab1:CreateToggle({
+        Name = "🛡️ Anti-Stuck System",
+        CurrentValue = Config.AntiStuck,
+        Callback = function(Value)
+            Config.AntiStuck = Value
+        end
+    })
+    
     Tab1:CreateSection("Auto Enchant")
     
     Tab1:CreateToggle({
@@ -1710,6 +1868,91 @@ local function CreateUI()
         Callback = function(Value)
             Config.AutoJumpDelay = Value
             SaveSettings()
+        end
+    })
+    
+    -- Stuck Check Time Slider
+    Tab1:CreateSlider({
+        Name = "⏰ Stuck Check Time",
+        Range = {5, 15},
+        Increment = 1,
+        Suffix = " seconds",
+        CurrentValue = Config.StuckCheckTime,
+        Callback = function(Value)
+            Config.StuckCheckTime = Value
+        end
+    })
+    
+    -- Respawn Delay Slider (NEW)
+    Tab1:CreateSlider({
+        Name = "🔄 Respawn Delay",
+        Range = {2, 5},
+        Increment = 0.5,
+        Suffix = " seconds",
+        CurrentValue = Config.RespawnDelay,
+        Callback = function(Value)
+            Config.RespawnDelay = Value
+            Rayfield:Notify({
+                Title = "🔄 Respawn Delay",
+                Content = "Wait " .. Value .. "s after respawn",
+                Duration = 2
+            })
+        end
+    })
+    
+    Tab1:CreateSection("Preset Fishing")
+    
+    -- Ultra Fast Preset
+    Tab1:CreateButton({
+        Name = "⚡ ULTRA FAST PRESET",
+        Callback = function()
+            Config.FishingDelay = 0.3
+            Config.CastDelay = 0.15
+            Config.InstantBait = true
+            Config.AntiStuck = true
+            Config.StuckCheckTime = 8
+            Config.RespawnDelay = 3
+            Rayfield:Notify({
+                Title = "⚡ ULTRA FAST",
+                Content = "Fastest settings applied!",
+                Duration = 3
+            })
+        end
+    })
+    
+    -- Balanced Preset
+    Tab1:CreateButton({
+        Name = "BALANCED PRESET",
+        Callback = function()
+            Config.FishingDelay = 0.5
+            Config.CastDelay = 0.2
+            Config.InstantBait = true
+            Config.AntiStuck = true
+            Config.StuckCheckTime = 10
+            Config.RespawnDelay = 3
+            Rayfield:Notify({
+                Title = "⚖️ BALANCED",
+                Content = "Balanced settings applied!",
+                Duration = 3
+            })
+        end
+    })
+    
+    -- Safe Preset
+    Tab1:CreateButton({
+        Name = "SAFE PRESET",
+        Callback = function()
+            Config.FishingDelay = 1.5
+            Config.CastDelay = 1.0
+            Config.InstantBait = true
+            Config.AntiStuck = true
+            Config.StuckCheckTime = 12
+            Config.RespawnDelay = 4
+            Rayfield:Notify({
+                Title = "🛡️ SAFE",
+                Content = "Safe settings applied!",
+                Duration = 3
+            })
         end
     })
     
