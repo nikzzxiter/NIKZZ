@@ -834,41 +834,7 @@ local function PerformanceMode()
     })
 end
 
--- ===== ANTI-STUCK SYSTEM FOR AUTO FISHING V1 =====
-local LastFishTime = tick()
-local StuckCheckInterval = 15
-
-local function CheckAndRespawnIfStuck()
-    task.spawn(function()
-        while Config.AutoFishingV1 do
-            task.wait(StuckCheckInterval)
-            
-            if tick() - LastFishTime > StuckCheckInterval and Config.AutoFishingV1 then
-                warn("[Anti-Stuck] Player seems stuck, respawning...")
-                
-                local currentPos = HumanoidRootPart.CFrame
-                Character:BreakJoints()
-                
-                LocalPlayer.CharacterAdded:Wait()
-                task.wait(2)
-                
-                Character = LocalPlayer.Character
-                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-                Humanoid = Character:WaitForChild("Humanoid")
-                
-                HumanoidRootPart.CFrame = currentPos
-                LastFishTime = tick()
-                
-                task.wait(1)
-                if Config.AutoFishingV1 then
-                    AutoFishingV1()
-                end
-            end
-        end
-    end)
-end
-
--- 🎣 AUTO FISHING V1 - FINAL MERGE (REAL SPEED + FIXED TELEPORT RESPAWN)
+-- 🎣 AUTO FISHING V1 - FINAL STABLE + FULL RESET + FIX DOUBLE CAST
 local LastFishTime = tick()
 local FishingActive = false
 local CycleLocked = false
@@ -877,15 +843,18 @@ local CurrentRetries = 0
 local IsRespawning = false
 local SavedPosition = nil
 
--- 🔄 Reset semua state
-local function ResetFishingState()
+-- 🔄 Reset total semua state
+local function ResetFishingState(full)
 	FishingActive = false
 	CycleLocked = false
 	CurrentRetries = 0
 	LastFishTime = tick()
+	if full then
+		SavedPosition = nil
+	end
 end
 
--- 💾 Simpan posisi terakhir pemain
+-- 💾 Simpan posisi terakhir
 local function SavePosition()
 	if HumanoidRootPart and Character and Character.Parent then
 		pcall(function()
@@ -894,7 +863,7 @@ local function SavePosition()
 	end
 end
 
--- 🔧 Respawn dengan teleport dan jeda 3 detik sebelum lanjut
+-- ⚙️ Respawn aman + reset data sebelum lanjut
 local function SafeRespawn()
 	if IsRespawning then return end
 	IsRespawning = true
@@ -903,24 +872,19 @@ local function SafeRespawn()
 
 	warn("[Anti-Stuck] 🚨 Respawning player...")
 
-	-- Simpan posisi
 	SavePosition()
-
-	-- Bunuh karakter lama
 	pcall(function()
 		Character:BreakJoints()
 	end)
 
-	-- Tunggu karakter baru muncul
 	local newChar = LocalPlayer.CharacterAdded:Wait()
 	task.wait(2.5)
 
-	-- Perbarui reference
 	Character = newChar
 	HumanoidRootPart = Character:WaitForChild("HumanoidRootPart", 5)
 	Humanoid = Character:WaitForChild("Humanoid", 5)
 
-	-- Teleport balik ke posisi lama
+	-- Teleport balik
 	if SavedPosition then
 		task.wait(0.5)
 		pcall(function()
@@ -932,42 +896,43 @@ local function SafeRespawn()
 	end
 
 	-- Tunggu 3 detik sebelum lanjut
-	print("[Anti-Stuck] ⏳ Waiting 3s before resuming fishing...")
+	print("[Anti-Stuck] ⏳ Resetting & waiting 3s before resume...")
 	task.wait(3)
 
-	ResetFishingState()
+	-- FULL RESET semua data biar gak stuck
+	ResetFishingState(true)
 	IsRespawning = false
 	CycleLocked = false
 
+	-- Jalankan ulang AutoFishing baru
 	if Config.AutoFishingV1 then
-		print("[Anti-Stuck] 🎣 Resuming AutoFishingV1...")
-		task.wait(0.2)
+		print("[Anti-Stuck] 🎣 Restarting clean AutoFishing session...")
+		task.wait(0.3)
 		AutoFishingV1()
 	end
 end
 
--- 🔍 Anti stuck monitor
+-- 🧠 Monitor stuck tiap 12–18 detik biar stabil di ikan besar
 local function CheckStuck()
 	task.spawn(function()
 		while Config.AutoFishingV1 do
-			task.wait(15)
-			local timeSince = tick() - LastFishTime
-			if timeSince > 15 and FishingActive and not IsRespawning then
-				warn("[Anti-Stuck] ⚠️ No catch for "..math.floor(timeSince).."s. Respawning...")
+			task.wait(12 + math.random(0, 6))
+			local since = tick() - LastFishTime
+			if since > 15 and FishingActive and not IsRespawning then
+				warn(string.format("[Anti-Stuck] ⚠️ No progress (%.1fs) → Respawn", since))
 				SafeRespawn()
 			end
 		end
 	end)
 end
 
--- 🎣 AUTO FISHING UTAMA (REAL SPEED DARI VERSI CEPAT)
+-- 🎣 AUTO FISH UTAMA - HIGH SPEED + STABLE
 function AutoFishingV1()
 	if FishingActive or IsRespawning then return end
 
 	task.spawn(function()
 		print("═══════════════════════════════════════")
-		print("[AutoFishingV1] 🚀 FINAL VERSION - REAL SPEED + FIX TELEPORT")
-		print("[AutoFishingV1] Delay: " .. Config.FishingDelay .. "s")
+		print("[AutoFishingV1] 🚀 STARTED - Stable High Speed")
 		print("═══════════════════════════════════════")
 
 		FishingActive = true
@@ -979,9 +944,9 @@ function AutoFishingV1()
 			local cycleSuccess = false
 
 			local success, err = pcall(function()
-				-- Validasi karakter
+				-- Validasi character
 				if not LocalPlayer.Character or not HumanoidRootPart then
-					repeat task.wait(0.15) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+					repeat task.wait(0.1) until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
 					Character = LocalPlayer.Character
 					HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 				end
@@ -1000,57 +965,49 @@ function AutoFishingV1()
 					task.wait(0.05)
 					return
 				end
-
-				task.wait(0.05)
+				task.wait(0.04)
 
 				-- Step 2: Charge rod
 				local chargeOk = false
-				for i = 1, 3 do
-					local ok, result = pcall(function()
+				for i = 1, 2 do
+					local ok, res = pcall(function()
 						return ChargeRod:InvokeServer(tick())
 					end)
-					if ok and result then
-						chargeOk = true
-						break
-					end
+					if ok and res then chargeOk = true break end
 					task.wait(0.03)
 				end
 				if not chargeOk then
-					warn("[AutoFishingV1] ⚠️ Charge failed")
+					warn("[AutoFishingV1] Charge fail")
 					CurrentRetries += 1
 					if CurrentRetries >= MaxRetries then SafeRespawn() end
 					CycleLocked = false
 					return
 				end
-
-				task.wait(0.04)
+				task.wait(0.03)
 
 				-- Step 3: Start minigame
 				local startOk = false
-				for i = 1, 3 do
-					local ok, result = pcall(function()
+				for i = 1, 2 do
+					local ok, _ = pcall(function()
 						return StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
 					end)
-					if ok then
-						startOk = true
-						break
-					end
+					if ok then startOk = true break end
 					task.wait(0.03)
 				end
 				if not startOk then
-					warn("[AutoFishingV1] ⚠️ StartMini failed")
+					warn("[AutoFishingV1] StartMini fail")
 					CurrentRetries += 1
 					if CurrentRetries >= MaxRetries then SafeRespawn() end
 					CycleLocked = false
 					return
 				end
 
-				-- Step 4: Delay sesuai setting (REAL SPEED)
-				local baseDelay = math.max(Config.FishingDelay, 0.1)
-				local boostedDelay = math.max(baseDelay * 0.92, 0.05)
-				task.wait(boostedDelay)
+				-- Step 4: Delay sesuai setting
+				local base = math.max(Config.FishingDelay, 0.1)
+				local fast = math.max(base * 0.9, 0.05) -- 10% lebih cepat & aman
+				task.wait(fast)
 
-				-- Step 5: Finish Fishing
+				-- Step 5: Finish fishing
 				local finishOk = pcall(function()
 					FinishFish:FireServer()
 				end)
@@ -1059,7 +1016,6 @@ function AutoFishingV1()
 					LastFishTime = tick()
 					CurrentRetries = 0
 				end
-
 				task.wait(0.02)
 			end)
 
