@@ -1,5 +1,5 @@
 -- NIKZZ FISH IT - FINAL INTEGRATED VERSION
--- DEVELOPER BY NIKZZ
+-- DEVELOPER BY NIKZZ GANTENG
 -- COMPLETE SYSTEM: AUTO QUEST + FISHING + TELEGRAM HOOK + DATABASE
 -- VERSION: FINAL MERGED - ALL FEATURES INTEGRATED
 
@@ -2154,7 +2154,7 @@ local function CreateUI()
     })
     
     -- TAB 2: TELEPORT
-    local Tab2 = Window:CreateTab("📍 Teleport", 4483362458)
+    local Tab2 = Window:CreateTab("TELEPORT", 4483362458)
     
     Tab2:CreateSection("Islands")
     
